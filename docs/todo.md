@@ -10,12 +10,13 @@ Higher priority:
 - Uncomputation support.
 - `affine` & `scratch` qubits.
 - Quantum contracts.
-- Quantum Boolean data and Boolean coherent operations.
-- Signed/unsigned quantum integers and quantum arithmetic.
-- Arrays, tuples formed from the 3 above must work.
+- Support for mutable variables.
 
 Other:
 
+- Quantum Boolean data and Boolean coherent operations.
+- Signed/unsigned quantum integers and quantum arithmetic.
+- Arrays, tuples formed from the 3 above must work.
 - Quantum conditionals.
   - `qif`+`qelse` & `qmatch`.
   - `sif`+`selse` & `smatch`.
