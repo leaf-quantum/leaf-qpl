@@ -5,7 +5,7 @@ This document compiles a list of features which are covered by the [language doc
 
 Higher priority:
 
-- Modules, resolve imports, cycle detection, shadowing.
+- Modules, resolve imports, cycle detection, Prelude functions, shadowing.
 - Lean 4 code generation.
 - Uncomputation support.
 - `affine` & `scratch` qubits.
