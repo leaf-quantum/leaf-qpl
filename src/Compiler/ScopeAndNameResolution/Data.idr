@@ -75,6 +75,9 @@ data ResolutionError
   | InaccessibleSymbol SymbolId SourceSpan                   -- Declaration exists but visibility rules prohibit access,
                                                              -- example: accessing a private function from a sibling module.
 
+
+
+-- Guide for future extensions:
 -- DuplicatePatternBinding String SourceSpan SourceSpan     -- Pattern introduces the same variable twice: `let (x, x) = pair;`.
                                                              -- Covered by PostParseValidation, should not occur.
 -- IllegalCapture String SourceSpan                         -- Nested functions are forbidden from capturing enclosing locals,
