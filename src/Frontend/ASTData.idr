@@ -203,7 +203,7 @@ data BindingKind     -- Describes how one particular name entered that scope.
   | PreludeBinding   -- Made available implicitly through the language prelude.
 
 public export
-record ScopeBinding where
+record ScopeBinding where               -- records which symbol a name refers to within a particular scope
   constructor MkScopeBinding
   writtenName       : String
   introducedAt      : Maybe SourceSpan
