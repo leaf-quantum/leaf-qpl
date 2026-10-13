@@ -3,6 +3,7 @@ module Compiler.ScopeAndNameResolution.Resolve
 import Control.Monad.State
 import Compiler.ScopeAndNameResolution.Data
 import Compiler.ScopeAndNameResolution.Helper
+import Data.List
 import Data.List1
 import Data.Maybe
 import Data.SnocList
@@ -35,7 +36,7 @@ resolveAstNode (MkAstNode docInfo (MkProvenanceMetadata provenance) value) = res
 -- reuse the nearest binding's target SymbolId. If no binding exists, return
 -- UnresolvedName nameText nameInfo.span. Predeclared item bindings allow forward
 -- references between constants and functions.
--- Record the use in references and nodeScopes, preserving existing entries.
+-- Record the use in references, preserving existing entries; nodeScopes is recorded below.
 -- contextNode identifies the surrounding expression, assignment target,
 -- parameter or pattern node; role describes how the name occurs there.
 -- Both are supplied by callers but remain unused by this placeholder.
@@ -43,9 +44,15 @@ resolveAstNode (MkAstNode docInfo (MkProvenanceMetadata provenance) value) = res
 -- fields: separate those cases before adding lookup. Binders need declaration
 -- registration; fields need member resolution, not lexical value lookup.
 resolveName : (contextNode : NodeId) -> (role : ReferenceRole) -> CanonicalName -> StateT ScopeTables (Either ResolutionError) ResolvedName
+--Search the appropriate namespace through the enclosing scopes.
+--Report an unresolved name.
+--Record the occurrence’s scope and reference.
+--Return a resolved name containing the existing symbol ID.
 resolveName contextNode role (MkAstNode nameInfo (MkProvenanceMetadata provenance) (MkNameNode nameText)) = do
+  recordNodeScope nameInfo.nodeId
+  scopeTables <- get
   pure $ resolveNode nameInfo (MkProvenanceMetadata provenance) $
-    MkResolvedNameNode nameText (MkSymbolId nameInfo.nodeId.surfaceId) -- TODO REVIEW
+    MkResolvedNameNode nameText (MkSymbolId nameInfo.nodeId.surfaceId)
 
 resolveAttribute : CanonicalAttribute -> ResolvedAttribute
 resolveAttribute (MkAstNode attributeInfo (MkProvenanceMetadata provenance) (MkAttributeNode name arguments)) =
@@ -89,6 +96,7 @@ resolvePath (MkAstNode pathAstInfo (MkProvenanceMetadata provenance) (MkPathNode
 
 resolvePattern : CanonicalPattern -> StateT ScopeTables (Either ResolutionError) ResolvedPattern
 resolvePattern (MkAstNode patternInfo (MkProvenanceMetadata provenance) patternNode) = do
+  recordNodeScope patternInfo.nodeId
   resolvedPatternNode <- case patternNode of
     PatternWildcard =>
       pure PatternWildcard
@@ -121,6 +129,7 @@ resolvePattern (MkAstNode patternInfo (MkProvenanceMetadata provenance) patternN
 
     resolveStructPatternField : CanonicalStructPatternField -> StateT ScopeTables (Either ResolutionError) ResolvedStructPatternField
     resolveStructPatternField (MkAstNode fieldInfo (MkProvenanceMetadata provenance) fieldNode) = do
+      recordNodeScope fieldInfo.nodeId
       resolvedFieldNode <- case fieldNode of
         StructPatternFieldShorthand mutability fieldAndBinderName => do
           -- This call describes the binder. The shorthand's field reference
@@ -233,6 +242,8 @@ mutual
       resolveBlockExpression : CanonicalBlock -> StateT ScopeTables (Either ResolutionError) ResolvedBlock
       resolveBlockExpression
         (MkAstNode blockAstInfo (MkProvenanceMetadata provenance) (MkBlockNode blockInnerDocs blockStatements finalExpression)) = do
+        -- TODO: Call recordNodeScope blockAstInfo.nodeId after entering the block's scope,
+        -- before resolving its statements and final expression.
         resolvedStatements <- traverse (\statement => resolveStatement (assert_smaller expression statement)) blockStatements
         resolvedFinalExpression <- traverse resolveNestedExpression finalExpression
         pure $ resolveNode blockAstInfo (MkProvenanceMetadata provenance) $
@@ -283,16 +294,19 @@ mutual
 
   resolveExpression : CanonicalExpr ->  StateT ScopeTables (Either ResolutionError) ResolvedExpr
   resolveExpression (MkAstNode expressionInfo (MkProvenanceMetadata provenance) expressionNode) = do
+    recordNodeScope expressionInfo.nodeId
     resolvedExpressionNode <- resolveExpressionNode expressionInfo.nodeId expressionNode
     pure $ resolveNode expressionInfo (MkProvenanceMetadata provenance) resolvedExpressionNode
 
   resolveType : Ty CanonicalAstPhase (Expr CanonicalAstPhase) ->  StateT ScopeTables (Either ResolutionError) (Ty ResolvedAstPhase (Expr ResolvedAstPhase))
   resolveType (MkAstNode tyAstInfo (MkProvenanceMetadata provenance) typeNode) = do
+    recordNodeScope tyAstInfo.nodeId
     resolvedType <- case typeNode of
         TyPrimitive primitiveName => do
           pure $ TyPrimitive primitiveName
         TyPath typePath => do
-          pure $ TyPath (resolvePath typePath)
+          resolvedPath <- resolveTypePath tyAstInfo.nodeId typePath
+          pure $ TyPath resolvedPath
         TyUnit => do
           pure TyUnit
         TyParenthesized innerType => do
@@ -328,6 +342,16 @@ mutual
             resolvedReturnType
     pure $ resolveNode tyAstInfo (MkProvenanceMetadata provenance) resolvedType
       where
+        resolveTypePath : NodeId -> AstNode CanonicalAstPhase (PathNode CanonicalAstPhase) ->
+                            StateT ScopeTables (Either ResolutionError) (AstNode ResolvedAstPhase ResolvedPathNode)
+        resolveTypePath nodeId (MkAstNode pathInfo (MkProvenanceMetadata pathProvenance) (MkPathNode firstSegment remainingSegments)) =
+          -- Look up names in the type namespace.
+          -- Follow qualified paths through memberScopes.
+          -- Check visibility and ensure the final symbol denotes a type.
+          -- Record TypeReference for the target and QualifierReference for preceding segments.
+          -- Report lookup failures.
+          -- Type declarations must also populate typeBindings
+          assert_total $ idris_crash "Resolving TypePaths is not yet implemented, will be needed to be to enable modules and later structs."
         resolveNestedType : CanonicalTy -> StateT ScopeTables (Either ResolutionError) ResolvedTy
         resolveNestedType nestedType = resolveType (assert_smaller typeNode nestedType)
         resolveParameter : CanonicalAstNode (FunctionTypeParameterNode CanonicalAstPhase (CanonicalAstNode (ExpressionNode CanonicalAstPhase))) ->
@@ -340,22 +364,42 @@ mutual
             -- Syntax/Type.idr), so only its AstNode wrapping is updated.
             MkFunctionTypeParameterNode (resolveAstNode parameterName) resolvedNestedType
 
-  resolveFunctionParameter: AstNode CanonicalAstPhase (FunctionParameterNode CanonicalAstPhase) ->  
+  resolveFunctionParameterType : AstNode CanonicalAstPhase (FunctionParameterNode CanonicalAstPhase) -> StateT ScopeTables (Either ResolutionError) (Maybe ResolvedTy)
+  resolveFunctionParameterType
+    (MkAstNode parameterInfo (MkProvenanceMetadata provenance) (NormalParameter parameterDocs parameterMutability parameterName parameterType)) = do
+      resolvedType <- resolveType parameterType
+      pure (Just resolvedType)
+  -- The self syntax has no type annotations in Leaf
+  resolveFunctionParameterType
+    (MkAstNode parameterInfo (MkProvenanceMetadata provenance) (ReceiverParameter receiverDocs receiverBorrow)) =
+      pure Nothing
+
+  resolveFunctionParameter: AstNode CanonicalAstPhase (FunctionParameterNode CanonicalAstPhase) -> Maybe ResolvedTy ->
                             StateT ScopeTables (Either ResolutionError) (AstNode ResolvedAstPhase (FunctionParameterNode ResolvedAstPhase))
-  resolveFunctionParameter (MkAstNode parameterInfo (MkProvenanceMetadata provenance) (NormalParameter parameterDocs parameterMutability parameterName parameterType)) = do
-    resolvedParameterName <- resolveName parameterInfo.nodeId DeclarationReference parameterName
-    resolvedParameterType <- resolveType parameterType
-    pure $ resolveNode parameterInfo (MkProvenanceMetadata provenance) $
-      NormalParameter
-        (map resolveAstNode parameterDocs)
-        (map resolveAstNode parameterMutability)
-        resolvedParameterName
-        resolvedParameterType
-  resolveFunctionParameter (MkAstNode parameterInfo (MkProvenanceMetadata provenance) (ReceiverParameter receiverDocs receiverBorrow)) = do
+  resolveFunctionParameter
+    (MkAstNode parameterInfo (MkProvenanceMetadata provenance) (NormalParameter parameterDocs parameterMutability parameterName parameterType))
+    (Just resolvedParameterType) = do
+      recordNodeScope parameterInfo.nodeId
+      resolvedParameterName <- resolveName parameterInfo.nodeId DeclarationReference parameterName
+      scopeTables <- get
+      pure $ resolveNode parameterInfo (MkProvenanceMetadata provenance) $
+        NormalParameter
+          (map resolveAstNode parameterDocs)
+          (map resolveAstNode parameterMutability)
+          resolvedParameterName
+          resolvedParameterType
+  resolveFunctionParameter (MkAstNode _ _ (NormalParameter _ _ _ _)) Nothing =
+      assert_total $ idris_crash "Resolve.idr: resolveFunctionParameter: normal parameter is missing its resolved type"
+  resolveFunctionParameter
+    (MkAstNode parameterInfo (MkProvenanceMetadata provenance) (ReceiverParameter receiverDocs receiverBorrow))
+    Nothing = do
+    recordNodeScope parameterInfo.nodeId
     pure $ resolveNode parameterInfo (MkProvenanceMetadata provenance) $
       ReceiverParameter
         (map resolveAstNode receiverDocs)
         (map resolveAstNode receiverBorrow)
+  resolveFunctionParameter (MkAstNode _ _ (ReceiverParameter _ _)) (Just _) =
+      assert_total $ idris_crash "Resolve.idr: resolveFunctionParameter: receiver unexpectedly has a resolved type annotation"
 
   resolveSignedPauliTerm : SignedPauliTerm CanonicalAstPhase -> StateT ScopeTables (Either ResolutionError) (SignedPauliTerm ResolvedAstPhase)
   resolveSignedPauliTerm (MkAstNode termInfo (MkProvenanceMetadata provenance) (MkSignedPauliTermNode sign pauliString)) = do
@@ -364,6 +408,7 @@ mutual
 
   resolveContractPredicate : CanonicalContractPredicate -> StateT ScopeTables (Either ResolutionError) ResolvedContractPredicate
   resolveContractPredicate (MkAstNode predicateInfo (MkProvenanceMetadata provenance) predicateNode) = do 
+    recordNodeScope predicateInfo.nodeId
     resolvedContract <- case predicateNode of
       ContractClean qubitArgument => do
         resolvedQubitArgument <- resolveExpression qubitArgument
@@ -395,6 +440,7 @@ mutual
 
   resolveContractClause : ContractClause CanonicalAstPhase (Expr CanonicalAstPhase) -> StateT ScopeTables (Either ResolutionError) (ContractClause ResolvedAstPhase (Expr ResolvedAstPhase))
   resolveContractClause (MkAstNode contractAstInfo (MkProvenanceMetadata provenance) contractClauseNode) = do
+    recordNodeScope contractAstInfo.nodeId
     resolvedClause <- case contractClauseNode of
         RequiresClause predicate => do
           resolvedContractPredicate <- resolveContractPredicate predicate
@@ -411,6 +457,7 @@ mutual
 
   resolveAssignmentTarget : CanonicalAstNode (AssignmentTargetNode CanonicalAstPhase) -> StateT ScopeTables (Either ResolutionError) (ResolvedAstNode (AssignmentTargetNode ResolvedAstPhase))
   resolveAssignmentTarget (MkAstNode assignmentTargetAstInfo (MkProvenanceMetadata provenance) assignmentTargetNode) = do 
+    recordNodeScope assignmentTargetAstInfo.nodeId
     resolvedAssigmentTarget <- case assignmentTargetNode of 
       AssignTargetName targetName => do
         resolvedTargetName <- resolveName assignmentTargetAstInfo.nodeId AssignmentTarget targetName
@@ -435,6 +482,7 @@ mutual
 
   resolveStatement : Statement CanonicalAstPhase ->  StateT ScopeTables (Either ResolutionError) (Statement ResolvedAstPhase)
   resolveStatement (MkAstNode statementAstInfo (MkProvenanceMetadata provenance) statementNode) = do
+    recordNodeScope statementAstInfo.nodeId
     resolvedStatementNode <- case statementNode of
         StatementLet (MkLetBindingNode qualifiers pattern typeAnnotation initializer) => do
           resolvedTypeAnnotation <- traverse (\ty => resolveType (assert_smaller statementNode ty)) typeAnnotation
@@ -464,6 +512,8 @@ mutual
  
 resolveFunctionBody : Block CanonicalAstPhase ->  StateT ScopeTables (Either ResolutionError) (Block ResolvedAstPhase)
 resolveFunctionBody (MkAstNode functionBodyAstInfo (MkProvenanceMetadata provenance) (MkBlockNode blockInnerDocs blockStatements finalExpression)) = do
+  -- TODO: Call recordNodeScope functionBodyAstInfo.nodeId in the scope used for the body,
+  -- before resolving its statements and final expression.
   resolvedBlockStatement <- traverse resolveStatement blockStatements
   resolvedFinalExpression <- traverse resolveExpression finalExpression 
   pure $ resolveNode functionBodyAstInfo (MkProvenanceMetadata provenance) $ MkBlockNode
@@ -475,6 +525,7 @@ resolveFunctionBody (MkAstNode functionBodyAstInfo (MkProvenanceMetadata provena
 -- Fails with DuplicateDeclaration if the scope already declares the same name.
 declareValueSymbol : AstInfo -> SymbolKind -> SymbolVisibility -> CanonicalName -> StateT ScopeTables (Either ResolutionError) ()
 declareValueSymbol itemInfo symbolKind visibility (MkAstNode nameInfo _ (MkNameNode nameText)) = do
+  recordNodeScope itemInfo.nodeId
   scopeTables <- get
   let symbolId = scopeTables.nextSymbolId
   let currentScope = scopeTables.currentScope
@@ -495,11 +546,12 @@ declareValueSymbol itemInfo symbolKind visibility (MkAstNode nameInfo _ (MkNameN
   let scopeBinding = MkScopeBinding nameText (Just nameInfo.span) symbolId DeclaredBinding visibility
   let bindInScope : ScopeInfo -> ScopeInfo
       bindInScope scope =
-        { valueBindings := insert nameText scopeBinding scope.valueBindings,
+        { 
+          valueBindings := insert nameText scopeBinding scope.valueBindings,
           declaredSymbolsInOrder := scope.declaredSymbolsInOrder :< symbolId
         } scope
   put $
-    { nodeScopes := insert itemInfo.nodeId currentScope scopeTables.nodeScopes,
+    { 
       symbols := insert symbolId symbolInfo scopeTables.symbols,
       references := insert symbolId [< symbolReference] scopeTables.references,
       scopes := updateExisting bindInScope currentScope scopeTables.scopes
@@ -525,6 +577,7 @@ declareItem (MkAstNode itemInfo _ item) =
 -- current scope to that declaration's SymbolId.
 resolveDeclaredValueName : CanonicalName -> StateT ScopeTables (Either ResolutionError) ResolvedName
 resolveDeclaredValueName (MkAstNode nameInfo metadata (MkNameNode nameText)) = do
+  recordNodeScope nameInfo.nodeId
   scopeTables <- get
   let declaredBinding = lookup scopeTables.currentScope scopeTables.scopes >>= \scope => lookup nameText scope.valueBindings
   case declaredBinding of
@@ -589,13 +642,16 @@ resolveItem (MkAstNode itemInfo (MkProvenanceMetadata provenance) item) = do
             scopes := insert functionDeclarationBlockScopeId functionDeclarationBlockScopeInfo scopeTables.scopes
           } scopeTables
       put functionBodyScopeTables
-      resolvedParameters <- traverse resolveFunctionParameter functionParameters
+      resolvedParameterTypes <- traverse resolveFunctionParameterType functionParameters
       resolvedReturnType <- traverse resolveType returnType
+      resolvedParameters <- traverse
+        (\(parameter, resolvedType) =>  resolveFunctionParameter parameter resolvedType) (zip functionParameters resolvedParameterTypes)
       resolvedContracts <- traverse resolveContractClause contractClauses
       resolvedBody <- resolveFunctionBody functionBody
       scopeTables <- get
       let scopeTables : ScopeTables = 
-          { currentScope := callSiteScopeId,
+          { 
+            currentScope := callSiteScopeId,
             currentScopeKind := callSiteScopeKind
           } scopeTables 
       put scopeTables
