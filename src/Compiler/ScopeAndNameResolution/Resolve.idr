@@ -54,6 +54,48 @@ resolveName contextNode role (MkAstNode nameInfo (MkProvenanceMetadata provenanc
   pure $ resolveNode nameInfo (MkProvenanceMetadata provenance) $
     MkResolvedNameNode nameText (MkSymbolId nameInfo.nodeId.surfaceId)
 
+resolveParameterName : (contextNode : NodeId) -> CanonicalName -> StateT ScopeTables (Either ResolutionError) ResolvedName
+resolveParameterName contextNodeId (MkAstNode nameInfo (MkProvenanceMetadata provenance) (MkNameNode nameText)) = do
+  recordNodeScope nameInfo.nodeId
+  scopeTables <- get
+  let symbolId = scopeTables.nextSymbolId
+  let symbolInfo = MkSymbolInfo
+        symbolId
+        SymbolFunctionParameter
+        ()
+        nameText
+        scopeTables.currentScope
+        scopeTables.currentModule
+        LexicalVisibility
+        (SourceSymbol nameInfo)
+  let scopeBinding = MkScopeBinding
+       nameText
+       (Just nameInfo.span)
+       symbolId
+       DeclaredBinding
+       LexicalVisibility
+  let symbolReference = MkSymbolReference
+        symbolId
+        nameInfo
+        scopeTables.currentScope
+        contextNodeId
+        DeclarationReference
+        nameText
+  let bindInScope : ScopeInfo -> ScopeInfo
+      bindInScope scope =
+        {
+          valueBindings := insert nameText scopeBinding scope.valueBindings,
+          declaredSymbolsInOrder := scope.declaredSymbolsInOrder :< symbolId
+        } scope
+  put $
+    {
+      symbols := insert symbolId symbolInfo scopeTables.symbols,
+      references := insert symbolId [< symbolReference] scopeTables.references,
+      scopes := updateExisting bindInScope scopeTables.currentScope scopeTables.scopes
+    } scopeTables
+  pure $ resolveNode nameInfo (MkProvenanceMetadata provenance) $
+    MkResolvedNameNode nameText symbolId
+
 resolveAttribute : CanonicalAttribute -> ResolvedAttribute
 resolveAttribute (MkAstNode attributeInfo (MkProvenanceMetadata provenance) (MkAttributeNode name arguments)) =
   resolveNode attributeInfo (MkProvenanceMetadata provenance) $
@@ -104,7 +146,8 @@ resolvePattern (MkAstNode patternInfo (MkProvenanceMetadata provenance) patternN
       resolvedBinderName <- resolveName patternInfo.nodeId DeclarationReference binderName
       pure $ PatternName mutability resolvedBinderName
     PatternPath valuePath =>
-      pure $ PatternPath (resolvePath valuePath)
+      assert_total $ idris_crash "Resolve.idr: resolveStructPatternField: path patterns are not yet supported, should be implemented for module support."
+      --pure $ PatternPath (resolvePath valuePath)
     PatternLiteral literal =>
       pure $ PatternLiteral (resolveAstNode literal)
     PatternParenthesized innerPattern =>
@@ -116,31 +159,33 @@ resolvePattern (MkAstNode patternInfo (MkProvenanceMetadata provenance) patternN
       resolvedElements <- traverse recur elementPatterns
       pure $ PatternArray resolvedElements
     PatternStruct structPath fieldPatterns => do
-      resolvedFields <- traverse resolveStructPatternField fieldPatterns
-      pure $ PatternStruct (resolvePath structPath) resolvedFields
+      assert_total $ idris_crash "Resolve.idr: resolveStructPatternField: structs are not yet supported."
+      --resolvedFields <- traverse resolveStructPatternField fieldPatterns
+      --pure $ PatternStruct (resolvePath structPath) resolvedFields
     PatternEnumTuple variantPath argumentPatterns => do
-      resolvedArguments <- traverse recur argumentPatterns
-      pure $ PatternEnumTuple (resolvePath variantPath) resolvedArguments
+      assert_total $ idris_crash "Resolve.idr: resolveStructPatternField: enums and tuple like enums are not yet supported."
+      --resolvedArguments <- traverse recur argumentPatterns
+      --pure $ PatternEnumTuple (resolvePath variantPath) resolvedArguments
   pure $ resolveNode patternInfo (MkProvenanceMetadata provenance) resolvedPatternNode
   where
     recur : CanonicalPattern -> StateT ScopeTables (Either ResolutionError) ResolvedPattern
     recur pattern =
       resolvePattern (assert_smaller patternNode pattern)
 
-    resolveStructPatternField : CanonicalStructPatternField -> StateT ScopeTables (Either ResolutionError) ResolvedStructPatternField
-    resolveStructPatternField (MkAstNode fieldInfo (MkProvenanceMetadata provenance) fieldNode) = do
-      recordNodeScope fieldInfo.nodeId
-      resolvedFieldNode <- case fieldNode of
-        StructPatternFieldShorthand mutability fieldAndBinderName => do
-          -- This call describes the binder. The shorthand's field reference
-          -- must also be resolved separately when member lookup is implemented.
-          resolvedBinderName <- resolveName fieldInfo.nodeId DeclarationReference fieldAndBinderName
-          pure $ StructPatternFieldShorthand mutability resolvedBinderName
-        StructPatternFieldExplicit fieldName fieldPattern => do
-          resolvedFieldName <- resolveName fieldInfo.nodeId FieldReference fieldName
-          resolvedFieldPattern <- recur fieldPattern
-          pure $ StructPatternFieldExplicit resolvedFieldName resolvedFieldPattern
-      pure $ resolveNode fieldInfo (MkProvenanceMetadata provenance) resolvedFieldNode
+    --resolveStructPatternField : CanonicalStructPatternField -> StateT ScopeTables (Either ResolutionError) ResolvedStructPatternField
+    --resolveStructPatternField (MkAstNode fieldInfo (MkProvenanceMetadata provenance) fieldNode) = do
+    --  recordNodeScope fieldInfo.nodeId
+    --  resolvedFieldNode <- case fieldNode of
+    --    StructPatternFieldShorthand mutability fieldAndBinderName => do
+    --      -- This call describes the binder. The shorthand's field reference
+    --      -- must also be resolved separately when member lookup is implemented.
+    --      resolvedBinderName <- resolveName fieldInfo.nodeId DeclarationReference fieldAndBinderName
+    --      pure $ StructPatternFieldShorthand mutability resolvedBinderName
+    --    StructPatternFieldExplicit fieldName fieldPattern => do
+    --      resolvedFieldName <- resolveName fieldInfo.nodeId FieldReference fieldName
+    --      resolvedFieldPattern <- recur fieldPattern
+    --      pure $ StructPatternFieldExplicit resolvedFieldName resolvedFieldPattern
+    --  pure $ resolveNode fieldInfo (MkProvenanceMetadata provenance) resolvedFieldNode
 
 mutual
   resolveExpressionNode : NodeId -> ExpressionNode CanonicalAstPhase -> StateT ScopeTables (Either ResolutionError) (ExpressionNode ResolvedAstPhase)
@@ -380,26 +425,19 @@ mutual
     (MkAstNode parameterInfo (MkProvenanceMetadata provenance) (NormalParameter parameterDocs parameterMutability parameterName parameterType))
     (Just resolvedParameterType) = do
       recordNodeScope parameterInfo.nodeId
-      resolvedParameterName <- resolveName parameterInfo.nodeId DeclarationReference parameterName
-      scopeTables <- get
+      resolvedParameterName <- resolveParameterName parameterInfo.nodeId parameterName
       pure $ resolveNode parameterInfo (MkProvenanceMetadata provenance) $
         NormalParameter
           (map resolveAstNode parameterDocs)
           (map resolveAstNode parameterMutability)
           resolvedParameterName
           resolvedParameterType
+  resolveFunctionParameter (MkAstNode parameterInfo (MkProvenanceMetadata provenance) (ReceiverParameter receiverDocs receiverBorrow)) Nothing 
+    = assert_total $ idris_crash "Resolve.idr: resolveFunctionParameter: receiver function parameters (self & variants) are not yet supported." 
   resolveFunctionParameter (MkAstNode _ _ (NormalParameter _ _ _ _)) Nothing =
-      assert_total $ idris_crash "Resolve.idr: resolveFunctionParameter: normal parameter is missing its resolved type"
-  resolveFunctionParameter
-    (MkAstNode parameterInfo (MkProvenanceMetadata provenance) (ReceiverParameter receiverDocs receiverBorrow))
-    Nothing = do
-    recordNodeScope parameterInfo.nodeId
-    pure $ resolveNode parameterInfo (MkProvenanceMetadata provenance) $
-      ReceiverParameter
-        (map resolveAstNode receiverDocs)
-        (map resolveAstNode receiverBorrow)
+      assert_total $ idris_crash "Resolve.idr: resolveFunctionParameter: normal function parameter is missing its resolved type."
   resolveFunctionParameter (MkAstNode _ _ (ReceiverParameter _ _)) (Just _) =
-      assert_total $ idris_crash "Resolve.idr: resolveFunctionParameter: receiver unexpectedly has a resolved type annotation"
+      assert_total $ idris_crash "Resolve.idr: resolveFunctionParameter: receiver function parameter (self & variants) unexpectedly has a type annotation."
 
   resolveSignedPauliTerm : SignedPauliTerm CanonicalAstPhase -> StateT ScopeTables (Either ResolutionError) (SignedPauliTerm ResolvedAstPhase)
   resolveSignedPauliTerm (MkAstNode termInfo (MkProvenanceMetadata provenance) (MkSignedPauliTermNode sign pauliString)) = do
@@ -511,15 +549,36 @@ mutual
     pure (resolveNode statementAstInfo (MkProvenanceMetadata provenance) resolvedStatementNode)
  
 resolveFunctionBody : Block CanonicalAstPhase ->  StateT ScopeTables (Either ResolutionError) (Block ResolvedAstPhase)
-resolveFunctionBody (MkAstNode functionBodyAstInfo (MkProvenanceMetadata provenance) (MkBlockNode blockInnerDocs blockStatements finalExpression)) = do
-  -- TODO: Call recordNodeScope functionBodyAstInfo.nodeId in the scope used for the body,
-  -- before resolving its statements and final expression.
+resolveFunctionBody (MkAstNode _ (MkProvenanceMetadata _) (MkBlockNode _ _ (Just _))) =
+  assert_total $ idris_crash "Resolve.idr: resolveFunctionBody: the final expression in a function body should have been desugared to a statement."
+resolveFunctionBody (MkAstNode functionBodyAstInfo (MkProvenanceMetadata provenance) (MkBlockNode blockInnerDocs blockStatements Nothing)) = do
+  scopeTables <- get
+  let enclosingScopeId = scopeTables.currentScope
+  let enclosingScopeKind = scopeTables.currentScopeKind
+  let functionBodyScopeId = scopeTables.nextScopeId
+  let functionBodyScopeInfo = MkScopeInfo
+        functionBodyScopeId
+        BlockScope
+        (Just enclosingScopeId)
+        (SourceScope functionBodyAstInfo)
+        empty empty empty [<]
+  modify $ \tables =>
+    {
+      currentScope := functionBodyScopeId,
+      currentScopeKind := BlockScope,
+      scopes := insert functionBodyScopeId functionBodyScopeInfo tables.scopes
+    } tables
+  recordNodeScope functionBodyAstInfo.nodeId
   resolvedBlockStatement <- traverse resolveStatement blockStatements
-  resolvedFinalExpression <- traverse resolveExpression finalExpression 
+  modify $ \tables =>
+    {
+      currentScope := enclosingScopeId,
+      currentScopeKind := enclosingScopeKind
+    } tables
   pure $ resolveNode functionBodyAstInfo (MkProvenanceMetadata provenance) $ MkBlockNode
       (map resolveAstNode blockInnerDocs)
       resolvedBlockStatement 
-      resolvedFinalExpression
+      Nothing
 
 -- Adds a value-namespace declaration to the current scope.
 -- Fails with DuplicateDeclaration if the scope already declares the same name.
@@ -636,25 +695,23 @@ resolveItem (MkAstNode itemInfo (MkProvenanceMetadata provenance) item) = do
       let functionDeclarationBlockScopeId = scopeTables.nextScopeId
       let functionDeclarationBlockScopeInfo = 
         MkScopeInfo functionDeclarationBlockScopeId FunctionScope (Just callSiteScopeId) (SourceScope itemInfo) empty empty empty [<]
-      let functionBodyScopeTables : ScopeTables = 
-          { currentScope := functionDeclarationBlockScopeId,
-            currentScopeKind := FunctionScope,
-            scopes := insert functionDeclarationBlockScopeId functionDeclarationBlockScopeInfo scopeTables.scopes
-          } scopeTables
-      put functionBodyScopeTables
+      modify $ \tables =>
+        { 
+          currentScope := functionDeclarationBlockScopeId,
+          currentScopeKind := FunctionScope,
+          scopes := insert functionDeclarationBlockScopeId functionDeclarationBlockScopeInfo tables.scopes
+        } tables
       resolvedParameterTypes <- traverse resolveFunctionParameterType functionParameters
       resolvedReturnType <- traverse resolveType returnType
       resolvedParameters <- traverse
         (\(parameter, resolvedType) =>  resolveFunctionParameter parameter resolvedType) (zip functionParameters resolvedParameterTypes)
       resolvedContracts <- traverse resolveContractClause contractClauses
       resolvedBody <- resolveFunctionBody functionBody
-      scopeTables <- get
-      let scopeTables : ScopeTables = 
-          { 
-            currentScope := callSiteScopeId,
-            currentScopeKind := callSiteScopeKind
-          } scopeTables 
-      put scopeTables
+      modify $ \tables =>
+        { 
+          currentScope := callSiteScopeId,
+          currentScopeKind := callSiteScopeKind
+        } tables
       pure $ MkFunctionDeclarationNode
         (map resolveAstNode functionDocs)
         (map resolveAttribute functionAttributes)
