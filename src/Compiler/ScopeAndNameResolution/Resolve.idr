@@ -31,28 +31,83 @@ resolveNode astInfo (MkProvenanceMetadata provenance) =
 resolveAstNode : {a : Type} -> AstNode CanonicalAstPhase a -> AstNode ResolvedAstPhase a
 resolveAstNode (MkAstNode docInfo (MkProvenanceMetadata provenance) value) = resolveNode docInfo (MkProvenanceMetadata provenance) value
 
--- TODO: Replace the syntax-derived SymbolId below with actual name resolution.
--- For a value use, search currentScope.valueBindings, then parent scopes, and
--- reuse the nearest binding's target SymbolId. If no binding exists, return
--- UnresolvedName nameText nameInfo.span. Predeclared item bindings allow forward
--- references between constants and functions.
--- Record the use in references, preserving existing entries; nodeScopes is recorded below.
--- contextNode identifies the surrounding expression, assignment target,
--- parameter or pattern node; role describes how the name occurs there.
--- Both are supplied by callers but remain unused by this placeholder.
--- This helper also currently handles parameter/pattern binders and pattern
--- fields: separate those cases before adding lookup. Binders need declaration
--- registration; fields need member resolution, not lexical value lookup.
-resolveName : (contextNode : NodeId) -> (role : ReferenceRole) -> CanonicalName -> StateT ScopeTables (Either ResolutionError) ResolvedName
---Search the appropriate namespace through the enclosing scopes.
---Report an unresolved name.
---Record the occurrence’s scope and reference.
---Return a resolved name containing the existing symbol ID.
-resolveName contextNode role (MkAstNode nameInfo (MkProvenanceMetadata provenance) (MkNameNode nameText)) = do
+resolveName : (contextNode : NodeId)
+  -> (role : ReferenceRole)
+  -> (bindingMutability : Maybe Mutability)
+  -> CanonicalName
+  -> StateT ScopeTables (Either ResolutionError) ResolvedName
+resolveName contextNode DeclarationReference bindingMutability
+    (MkAstNode nameInfo (MkProvenanceMetadata provenance) (MkNameNode nameText)) = do
   recordNodeScope nameInfo.nodeId
   scopeTables <- get
+  let declaredNameSymbolId = scopeTables.nextSymbolId
+  let symbolInfo = MkSymbolInfo
+        declaredNameSymbolId
+        SymbolLocalBinding
+        ()
+        nameText
+        scopeTables.currentScope
+        scopeTables.currentModule
+        LexicalVisibility
+        (SourceSymbol nameInfo)
+  let variableMutability = case bindingMutability of
+        Nothing => ImmutableVariable
+        Just Mutable => MutableVariable
+  let localVariableInfo = MkLocalVariableInfo variableMutability PendingQubitDefault
+  let scopeBinding = MkScopeBinding
+        nameText
+        (Just nameInfo.span)
+        declaredNameSymbolId
+        DeclaredBinding
+        LexicalVisibility
+  let symbolReference = MkSymbolReference
+        declaredNameSymbolId
+        nameInfo
+        scopeTables.currentScope
+        contextNode
+        DeclarationReference
+        nameText
+  let bindInScope : ScopeInfo -> ScopeInfo
+      bindInScope scope =
+        {
+          valueBindings := insert nameText scopeBinding scope.valueBindings,
+          declaredSymbolsInOrder := scope.declaredSymbolsInOrder :< declaredNameSymbolId
+        } scope
+  modify $ \scopeTables =>
+    {
+      symbols := insert declaredNameSymbolId symbolInfo scopeTables.symbols,
+      localVariables := insert declaredNameSymbolId localVariableInfo scopeTables.localVariables,
+      references := insert declaredNameSymbolId [< symbolReference] scopeTables.references,
+      scopes := updateExisting bindInScope scopeTables.currentScope scopeTables.scopes
+    } scopeTables
   pure $ resolveNode nameInfo (MkProvenanceMetadata provenance) $
-    MkResolvedNameNode nameText (MkSymbolId nameInfo.nodeId.surfaceId)
+    MkResolvedNameNode nameText declaredNameSymbolId
+
+resolveName contextNode role bindingMutability
+    (MkAstNode nameInfo (MkProvenanceMetadata provenance) (MkNameNode nameText)) = do
+  recordNodeScope nameInfo.nodeId
+  scopeTables <- get
+  nameScopeBinding <- case retrieveSymbolBinding nameText scopeTables of
+    UnresolvedBinding =>
+      lift $ Left $ UnresolvedName nameText nameInfo.span
+    InnacessibleBinding symbolId =>
+      lift $ Left $ InaccessibleSymbol symbolId nameInfo.span
+    Binding scopeBinding => pure scopeBinding
+  let boundSymbolId = nameScopeBinding.target
+  let symbolReference = MkSymbolReference
+        boundSymbolId
+        nameInfo
+        scopeTables.currentScope
+        contextNode
+        role
+        nameText
+  modify $ \scopeTables =>
+    let existingReferences = fromMaybe [<] (lookup boundSymbolId scopeTables.references)
+    in {
+       references := insert boundSymbolId (existingReferences :< symbolReference) scopeTables.references
+    } scopeTables
+  pure $ resolveNode nameInfo (MkProvenanceMetadata provenance) $
+    MkResolvedNameNode nameText boundSymbolId
 
 resolveParameterName : (contextNode : NodeId) -> CanonicalName -> StateT ScopeTables (Either ResolutionError) ResolvedName
 resolveParameterName contextNodeId (MkAstNode nameInfo (MkProvenanceMetadata provenance) (MkNameNode nameText)) = do
@@ -143,7 +198,8 @@ resolvePattern (MkAstNode patternInfo (MkProvenanceMetadata provenance) patternN
     PatternWildcard =>
       pure PatternWildcard
     PatternName mutability binderName => do
-      resolvedBinderName <- resolveName patternInfo.nodeId DeclarationReference binderName
+      -- duplicate names in a let pattern are detected in PostParseValidation
+      resolvedBinderName <- resolveName patternInfo.nodeId DeclarationReference mutability binderName
       pure $ PatternName mutability resolvedBinderName
     PatternPath valuePath =>
       assert_total $ idris_crash "Resolve.idr: resolveStructPatternField: path patterns are not yet supported, should be implemented for module support."
@@ -179,10 +235,10 @@ resolvePattern (MkAstNode patternInfo (MkProvenanceMetadata provenance) patternN
     --    StructPatternFieldShorthand mutability fieldAndBinderName => do
     --      -- This call describes the binder. The shorthand's field reference
     --      -- must also be resolved separately when member lookup is implemented.
-    --      resolvedBinderName <- resolveName fieldInfo.nodeId DeclarationReference fieldAndBinderName
+    --      resolvedBinderName <- resolveName fieldInfo.nodeId DeclarationReference mutability fieldAndBinderName
     --      pure $ StructPatternFieldShorthand mutability resolvedBinderName
     --    StructPatternFieldExplicit fieldName fieldPattern => do
-    --      resolvedFieldName <- resolveName fieldInfo.nodeId FieldReference fieldName
+    --      resolvedFieldName <- resolveName fieldInfo.nodeId FieldReference Nothing fieldName
     --      resolvedFieldPattern <- recur fieldPattern
     --      pure $ StructPatternFieldExplicit resolvedFieldName resolvedFieldPattern
     --  pure $ resolveNode fieldInfo (MkProvenanceMetadata provenance) resolvedFieldNode
@@ -193,7 +249,7 @@ mutual
     case expression of
       ExprLiteral literal => pure $ ExprLiteral (resolveAstNode literal)
       ExprName name => do
-        resolvedName <- resolveName expressionNodeId ValueReference name
+        resolvedName <- resolveName expressionNodeId ValueReference Nothing name
         pure $ ExprName resolvedName
       ExprPath path => pure $ ExprPath (resolvePath path)
       ExprBuiltin builtin => pure $ ExprBuiltin builtin
@@ -498,7 +554,7 @@ mutual
     recordNodeScope assignmentTargetAstInfo.nodeId
     resolvedAssigmentTarget <- case assignmentTargetNode of 
       AssignTargetName targetName => do
-        resolvedTargetName <- resolveName assignmentTargetAstInfo.nodeId AssignmentTarget targetName
+        resolvedTargetName <- resolveName assignmentTargetAstInfo.nodeId AssignmentTarget Nothing targetName
         pure $ AssignTargetName resolvedTargetName
       AssignTargetIndex targetObject indexExpression => do
         resolvedTargetObject <- resolveExpression targetObject
@@ -523,9 +579,9 @@ mutual
     recordNodeScope statementAstInfo.nodeId
     resolvedStatementNode <- case statementNode of
         StatementLet (MkLetBindingNode qualifiers pattern typeAnnotation initializer) => do
+          resolvedPattern <- resolvePattern pattern
           resolvedTypeAnnotation <- traverse (\ty => resolveType (assert_smaller statementNode ty)) typeAnnotation
           resolvedInitializer <- traverse (\init => resolveLetInitializer (assert_smaller statementNode init)) initializer
-          resolvedPattern <- resolvePattern pattern
           pure $ StatementLet $
             MkLetBindingNode
               (map resolveAstNode qualifiers)
@@ -533,8 +589,8 @@ mutual
               resolvedTypeAnnotation
               resolvedInitializer
         StatementAssignment (MkAssignmentNode assignmentTarget assignmentOperator assignmentValue) => do
-          resolvedExpression <- resolveExpression assignmentValue
           resolvedAssignmentTarget <- resolveAssignmentTarget assignmentTarget 
+          resolvedExpression <- resolveExpression assignmentValue
           pure $ StatementAssignment $
             MkAssignmentNode
               resolvedAssignmentTarget
@@ -562,19 +618,19 @@ resolveFunctionBody (MkAstNode functionBodyAstInfo (MkProvenanceMetadata provena
         (Just enclosingScopeId)
         (SourceScope functionBodyAstInfo)
         empty empty empty [<]
-  modify $ \tables =>
+  modify $ \scopeTables =>
     {
       currentScope := functionBodyScopeId,
       currentScopeKind := BlockScope,
-      scopes := insert functionBodyScopeId functionBodyScopeInfo tables.scopes
-    } tables
+      scopes := insert functionBodyScopeId functionBodyScopeInfo scopeTables.scopes
+    } scopeTables
   recordNodeScope functionBodyAstInfo.nodeId
   resolvedBlockStatement <- traverse resolveStatement blockStatements
-  modify $ \tables =>
+  modify $ \scopeTables =>
     {
       currentScope := enclosingScopeId,
       currentScopeKind := enclosingScopeKind
-    } tables
+    } scopeTables
   pure $ resolveNode functionBodyAstInfo (MkProvenanceMetadata provenance) $ MkBlockNode
       (map resolveAstNode blockInnerDocs)
       resolvedBlockStatement 
@@ -695,23 +751,23 @@ resolveItem (MkAstNode itemInfo (MkProvenanceMetadata provenance) item) = do
       let functionDeclarationBlockScopeId = scopeTables.nextScopeId
       let functionDeclarationBlockScopeInfo = 
         MkScopeInfo functionDeclarationBlockScopeId FunctionScope (Just callSiteScopeId) (SourceScope itemInfo) empty empty empty [<]
-      modify $ \tables =>
+      modify $ \scopeTables =>
         { 
           currentScope := functionDeclarationBlockScopeId,
           currentScopeKind := FunctionScope,
-          scopes := insert functionDeclarationBlockScopeId functionDeclarationBlockScopeInfo tables.scopes
-        } tables
+          scopes := insert functionDeclarationBlockScopeId functionDeclarationBlockScopeInfo scopeTables.scopes
+        } scopeTables
       resolvedParameterTypes <- traverse resolveFunctionParameterType functionParameters
       resolvedReturnType <- traverse resolveType returnType
       resolvedParameters <- traverse
         (\(parameter, resolvedType) =>  resolveFunctionParameter parameter resolvedType) (zip functionParameters resolvedParameterTypes)
       resolvedContracts <- traverse resolveContractClause contractClauses
       resolvedBody <- resolveFunctionBody functionBody
-      modify $ \tables =>
+      modify $ \scopeTables =>
         { 
           currentScope := callSiteScopeId,
           currentScopeKind := callSiteScopeKind
-        } tables
+        } scopeTables
       pure $ MkFunctionDeclarationNode
         (map resolveAstNode functionDocs)
         (map resolveAttribute functionAttributes)

@@ -23,7 +23,7 @@ data VariableMutability
 public export
 data QubitStorageStatus
   = NotQubitLocal
-  | PendingQubitDefault
+  | PendingQubitDefault -- Storage classification and defaults await typechecking.
   | AssignedQubitStorage QuantumStorageProperties
 
 public export
