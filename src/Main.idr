@@ -7,6 +7,9 @@ import System
 import System.File
 
 import Compiler.Desugar.Desugar
+import Compiler.ScopeAndNameResolution.Data
+import Compiler.ScopeAndNameResolution.Resolve
+import Compiler.ScopeAndNameResolution.Validate
 import Frontend.ASTPhases
 import Frontend.Token
 import Frontend.Lexer.Error
@@ -44,8 +47,23 @@ showParseError err =
       ++ ", with message: "
       ++ renderParseError err.value
 
-showAstAndProgram : PhasePretty phase => SourceFile phase -> IO ()
-showAstAndProgram astTree = do
+showSourceSpan : SourceSpan -> String
+showSourceSpan sspan = "file: '\{sspan.file}' at line: '\{show sspan.start.line}' and column: '\{show sspan.start.column}'"
+
+showResolutionError : ResolutionError -> String
+showResolutionError (UnresolvedName name sourceSpan) =
+  "Could not find a matching declaration for this name: '\{name}' in '\{showSourceSpan sourceSpan}'."
+showResolutionError (DuplicateDeclaration name symbolIds sourceSpan previousSpan) =
+  "A duplicate declaration for name: '\{name}' declared in '\{showSourceSpan sourceSpan}' was found; the previous declaration is in '\{showSourceSpan previousSpan}'."
+showResolutionError (InaccessibleSymbol name _ sourceSpan) =
+  "At current location '\{showSourceSpan sourceSpan}' the name: '\{name}' is not publicly accessible."
+showResolutionError (BindingShadowsConstant name _ sourceSpan constantSpan) =
+  "The binding for name: '\{name}' in '\{showSourceSpan sourceSpan}' cannot shadow the constant declared in '\{showSourceSpan constantSpan}'; it would be interpreted as a constant pattern, not a new variable."
+showResolutionError (NonConstantValueInConstant name _ sourceSpan localSpan) =
+  "The local: '\{name}' used in '\{showSourceSpan sourceSpan}' is not a constant and cannot be used in an array length or repeat count; it is declared in '\{showSourceSpan localSpan}'."
+
+printAstAndProgram : PhasePretty phase => SourceFile phase -> IO ()
+printAstAndProgram astTree = do
   putStrLn "AST Nodes:"
   putStrLn $ assert_total showAstDebug astTree
   putStrLn "Pretty Printed Program:"
@@ -71,12 +89,21 @@ main = do
                     Left err => putStrLn $ showParseError err
                     Right surfaceAst => do
                       case validateSourceFile surfaceAst of
-                        [] => do
-                            let canonicalAst = desugarSurfaceSyntax surfaceAst
-                            showAstAndProgram canonicalAst
                         errors => do
                           putStrLn "Validation errors:"
                           traverse_ (putStrLn . interpolate) errors
+                        [] => do
+                            let canonicalAst = desugarSurfaceSyntax surfaceAst
+                            case resolveCanonicalSyntax canonicalAst of
+                                 Left resolutionError => putStrLn $ showResolutionError resolutionError
+                                 Right resolvedModule => do
+                                   case validateResolvedModule resolvedModule of
+                                        errors => do
+                                          putStrLn "Internal scope and symbol resolution error:"
+                                          traverse_ (putStrLn . interpolate) errors
+                                          putStrLn "This is a bug in Leaf compiler, please file a bug report."
+                                        [] => pure ()
+
       _ => putStrLn "Please provide exactly one input .lf or .rs file."
 
 

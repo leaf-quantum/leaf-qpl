@@ -5,6 +5,10 @@ import System.Directory
 import System.File
 import Text.Bounds
 
+import Compiler.Desugar.Desugar
+import Compiler.ScopeAndNameResolution.Data
+import Compiler.ScopeAndNameResolution.Resolve
+import Compiler.ScopeAndNameResolution.Validate
 import Frontend.ASTPhases
 import Frontend.Token
 import Frontend.Lexer.Error
@@ -14,6 +18,24 @@ import Frontend.Parser.Parser
 import Frontend.PostParseValidation
 import Frontend.Source
 import Frontend.Syntax.AST
+
+sourcePosition : SourceSpan -> String
+sourcePosition span = show span.start.line ++ ":" ++ show span.start.column
+
+resolutionErrorMessage : ResolutionError -> String
+resolutionErrorMessage (UnresolvedName name span) =
+  "Unresolved name '" ++ name ++ "' at " ++ sourcePosition span
+resolutionErrorMessage (DuplicateDeclaration name _ current previous) =
+  "Duplicate declaration '" ++ name ++ "' at " ++ sourcePosition current ++
+  "; previous declaration at " ++ sourcePosition previous
+resolutionErrorMessage (InaccessibleSymbol name _ span) =
+  "Inaccessible symbol '" ++ name ++ "' at " ++ sourcePosition span
+resolutionErrorMessage (BindingShadowsConstant name _ binder constant) =
+  "Binding '" ++ name ++ "' at " ++ sourcePosition binder ++
+  " shadows the constant declared at " ++ sourcePosition constant
+resolutionErrorMessage (NonConstantValueInConstant name _ use local) =
+  "Non-constant local '" ++ name ++ "' used at " ++ sourcePosition use ++
+  " in a constant expression; declared at " ++ sourcePosition local
 
 export
 compileLeafSource : String -> String -> Either String ()
@@ -31,11 +53,23 @@ compileLeafSource programFile source =
             renderParseError err.value
         Right surfaceAST =>
           case validateSourceFile surfaceAST of
-            [] => Right ()
-            errors =>
+            errors@(_ :: _) =>
               Left $
                 "Validation errors in \{programFile}:\n" ++
                 unlines (map interpolate errors)
+            [] =>
+              let canonicalAST = desugarSurfaceSyntax surfaceAST
+              in case resolveCanonicalSyntax canonicalAST of
+                Left err =>
+                  Left $ "Resolution error in \{programFile}: " ++ resolutionErrorMessage err
+                Right resolvedModule =>
+                  case validateResolvedModule resolvedModule of
+                    [] => Right ()
+                    errors =>
+                      Left $
+                        "Internal scope and symbol resolution error in \{programFile}:\n" ++
+                        unlines (map interpolate errors) ++
+                        "This is a bug in Leaf compiler, please issue a bug report."
 
 compileLeafFile : String -> IO (Either String ())
 compileLeafFile programFile = do

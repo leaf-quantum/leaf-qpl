@@ -69,11 +69,13 @@ record ResolvedModule where
 
 public export
 data ResolutionError
-  = UnresolvedName String SourceSpan                         -- No matching declaration is visible at the use site
-  | DuplicateDeclaration String (List SymbolId) SourceSpan   -- Declarations conflict in the same scope and namespace,
-                                                             -- example: two functions named `helper` in one module.
-  | InaccessibleSymbol SymbolId SourceSpan                   -- Declaration exists but visibility rules prohibit access,
-                                                             -- example: accessing a private function from a sibling module.
+  = UnresolvedName String SourceSpan                                    -- No matching declaration is visible at the use site
+  | DuplicateDeclaration String (List SymbolId) SourceSpan SourceSpan   -- Current name span, then the previous declaration name span.
+                                                                        -- Declarations conflict in the same scope and namespace,
+  | InaccessibleSymbol String SymbolId SourceSpan                       -- Declaration exists but visibility rules prohibit access,
+                                                                        -- example: accessing a private function from a sibling module.
+  | BindingShadowsConstant String SymbolId SourceSpan SourceSpan        -- As in Rust, a binder naming a visible constant would be a,
+                                                                        -- constant pattern, not a new variable, so it is rejected.
 
 
 

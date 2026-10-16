@@ -15,6 +15,11 @@ modules = Lexer.LexerTest,
           Parser.TopModuleParseTest,
           PostParseValidator.PostParseValidationTest,
           ScopeAndNameResolution.ValidationTest,
+          ScopeAndNameResolution.PreludeTestHelper,
+          ScopeAndNameResolution.PreludeTest,
+          ScopeAndNameResolution.Helper,
+          ScopeAndNameResolution.ResolveTestHelper,
+          ScopeAndNameResolution.ResolveTest,
           CompileCodeExamples,
           Run
 

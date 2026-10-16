@@ -11,6 +11,8 @@ import Parser.ExpressionParseTest
 import Parser.FunctionParseTest
 import Parser.TopModuleParseTest
 import ScopeAndNameResolution.ValidationTest
+import ScopeAndNameResolution.ResolveTest
+import ScopeAndNameResolution.PreludeTest
 
 main : IO ()
 main = do
@@ -19,8 +21,10 @@ main = do
   runFunctionParseTests
   runTopModuleParseTests
   runPostParseValidationTests
-  runResolutionValidationTests
   runDesugaringTests
+  runSymbolAndScopeResolutionTests
+  runPreludeFunctionsResolutionTests
+  runResolutionValidationTests
   runCompileCodeExamplesTests
   Right () <- discoverAndCompileExamples
     | Left err => do

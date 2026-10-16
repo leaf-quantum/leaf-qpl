@@ -27,6 +27,18 @@ data BindingRetrievalResult
 
 export
 retrieveSymbolBinding : String -> ScopeTables -> BindingRetrievalResult
-retrieveSymbolBinding symbolName scopeTables = ?xxx
--- get ScopeInfo
--- from ScopeInfo valueBindings retrieve ScopBinding by key provided by symbol text 
+retrieveSymbolBinding symbolName tables =
+  search (length (SortedMap.toList tables.scopes)) tables.currentScope
+  where
+    search : Nat -> ScopeId -> BindingRetrievalResult
+    search Z _ = UnresolvedBinding
+    search (S remaining) scopeId =
+      case lookup scopeId tables.scopes of
+        Nothing => UnresolvedBinding
+        Just scope =>
+          case lookup symbolName scope.valueBindings of
+            Just binding => Binding binding
+            Nothing =>
+              case scope.parent of
+                Nothing => UnresolvedBinding
+                Just parentId => search remaining parentId
