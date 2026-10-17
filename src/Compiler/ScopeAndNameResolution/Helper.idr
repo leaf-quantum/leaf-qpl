@@ -63,3 +63,17 @@ isScopeOrAncestor candidate start tables =
         case lookup scopeId tables.scopes >>= (.parent) of
           Nothing => False
           Just parentId => walk remaining parentId
+
+||| Crash on a language feature that scope and name resolution does not support yet.
+export
+notImplemented : (function : String) -> (feature : String) -> a
+notImplemented function feature =
+  assert_total $ idris_crash $
+    "Scope and name resolution, " ++ function ++ ": not yet implemented: " ++ feature ++ "."
+
+||| Crash on a violated internal invariant: a compiler bug, not invalid Leaf source.
+export
+unreachable : (function : String) -> (reason : String) -> a
+unreachable function reason =
+  assert_total $ idris_crash $
+    "Scope and name resolution, " ++ function ++ ": internal error: " ++ reason ++ "."
