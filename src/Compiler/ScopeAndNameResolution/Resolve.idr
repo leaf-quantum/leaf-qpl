@@ -322,7 +322,7 @@ resolvePattern pattern = do
     -- here too (struct shorthand fields, explicit field patterns, enum tuple
     -- arguments); the `_ => []` case would otherwise skip their duplicates.
     -- Duplicate parameters of impl methods must also be checked once ItemImpl is
-    -- resolved, since Frontend.Parser.Validate no longer reports them.
+    -- resolved, since Compiler.Validation.PostParseValidation no longer reports them.
     bindingNames : ResolvedPattern -> List ResolvedName
     bindingNames (MkAstNode _ _ pattern) = case pattern of
       PatternName _ name => [name]

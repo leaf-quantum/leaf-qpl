@@ -1,4 +1,4 @@
-module Frontend.Parser.Validate
+module Compiler.Validation.PostParseValidation
 
 import Data.List1
 import Frontend.ASTData

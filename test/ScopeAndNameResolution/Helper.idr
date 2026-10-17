@@ -10,7 +10,7 @@ import Frontend.Lexer.Error
 import Frontend.Lexer.Lexer
 import Frontend.Parser.Error
 import Frontend.Parser.Parser
-import Frontend.Parser.Validate
+import Compiler.Validation.PostParseValidation
 import Frontend.Source
 import Frontend.Syntax.AST
 import Frontend.Token

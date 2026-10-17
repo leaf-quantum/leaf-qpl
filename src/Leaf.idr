@@ -4,7 +4,7 @@ module Leaf
 
 import Frontend.ASTData
 import Frontend.ASTPhases
-import Frontend.Parser.Validate
+import Compiler.Validation.PostParseValidation
 import Frontend.Source
 import Frontend.Token
 import Frontend.Type
