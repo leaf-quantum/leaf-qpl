@@ -62,9 +62,9 @@ general fn main() -> bit {
 | Parser                        | Implemented |
 | Surface AST                   | Implemented |
 | Post-Parse Validation         | Implemented |
-| De-sugaring  & Canonical AST  | Implemented |
-| Scope & Name Resolution       | In progress |
-| Type Checker & Typed AST      | Planned     |
+| De-sugaring & Canonical AST   | Implemented |
+| Scope & Name Resolution       | Implemented |
+| Type Checker & Typed AST      | In progress |
 | Quantum Lambda Calculus IR    | Planned     |
 | Lambda Calculus Code Generator| Planned     |
 | Idris2 DSL                    | Protoype    |

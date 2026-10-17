@@ -5,21 +5,23 @@ This document compiles a list of features which are covered by the [language doc
 
 Higher priority:
 
-- Modules, resolve imports, cycle detection, Prelude functions, shadowing.
+- Modules and imports.
 - Lean 4 code generation.
 - Uncomputation support.
 - `affine` & `scratch` qubits.
 - Quantum contracts.
 - Support for mutable variables.
+- Quantum conditionals.
+  - `qif`+`qelse` & `qmatch`.
+  - `sif`+`selse` & `smatch`.
+- Classical subroutines & support in Lean.
 
 Other:
 
 - Quantum Boolean data and Boolean coherent operations.
 - Signed/unsigned quantum integers and quantum arithmetic.
+- Signed/unsigned quantum floats and quantum operations.
 - Arrays, tuples formed from the 3 above must work.
-- Quantum conditionals.
-  - `qif`+`qelse` & `qmatch`.
-  - `sif`+`selse` & `smatch`.
 - Sum & Product data types:
   - `enum`
   - `qenum`
@@ -28,5 +30,5 @@ Other:
 - Recursion.
 - Recursive data structures.
 - Documentation comments.
-- Classical subroutines.
+
 
