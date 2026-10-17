@@ -55,6 +55,7 @@ data ResolutionInvariantError
   | UnrestoredCurrentScope ScopeId ScopeId
   | UnrestoredCurrentModule SymbolId SymbolId
   | InvalidCurrentScopeKind ScopeId
+  | UnrestoredConstContext ScopeId
   | MissingLocalVariableInfo SymbolId
   | DeclaredBindingNameMismatch ScopeId BindingNamespace String SymbolId String
   | MissingReferenceNodeScope NodeId ScopeId
@@ -145,6 +146,8 @@ Show ResolutionInvariantError where
     "Resolution ended in module " ++ symbolLabel actual ++ " instead of root " ++ symbolLabel expected
   show (InvalidCurrentScopeKind scope) =
     "Resolution did not restore ModuleScope for root " ++ scopeLabel scope
+  show (UnrestoredConstContext boundary) =
+    "Resolution ended inside a constant context bounded by " ++ scopeLabel boundary
   show (MissingLocalVariableInfo symbol) =
     "Local or parameter " ++ symbolLabel symbol ++ " has no local-variable metadata"
   show (DeclaredBindingNameMismatch scope bindingNamespace written target declared) =
@@ -232,7 +235,10 @@ validateFinalState resolved =
                      (UnrestoredCurrentModule resolved.rootModule resolved.tables.currentModule)
           else []
         Nothing => []
-  in scopeErrors ++ moduleErrors
+      constErrors = case resolved.tables.constContextBoundary of
+        Nothing => []
+        Just boundary => [UnrestoredConstContext boundary]
+  in scopeErrors ++ moduleErrors ++ constErrors
 
 -- Index declaration order once: checking historical shadowed symbols must not
 -- repeatedly scan a large scope's declaration list for every symbol.
@@ -390,9 +396,9 @@ sameReferenceData left right =
     spanKey : SourceSpan -> (String, Nat, Nat, Nat, Nat)
     spanKey span = (span.file, span.start.line, span.start.column, span.end.line, span.end.column)
 
--- Compound assignment lowering can reuse entire target subexpressions. Repeated
--- records for the same occurrence/context/role are valid if their data agrees.
--- Different roles or contexts are also valid; conflicting copies are not.
+-- Repeated records for the same occurrence/context/role are tolerated if their
+-- data agrees; resolution currently visits each occurrence once, so none are
+-- expected. Different roles or contexts are also valid; conflicting copies are not.
 validateReferenceConsistency : ResolvedModule -> List ResolutionInvariantError
 validateReferenceConsistency resolved =
   let references = concatMap (\(_, refs) => refs <>> []) (SortedMap.toList resolved.tables.references)
@@ -434,8 +440,8 @@ validateMembers resolved (owner, scopeId) =
 ||| This does not re-resolve names, check access visibility, or walk the AST to
 ||| require a scope/reference entry for every relevant node. Member references may
 ||| still be deferred to typechecking. Qualifier occurrences may retain NodeIds
-||| absent from the collapsed resolved AST and nodeScopes. Compound assignments
-||| may repeat identical reference records for shared target subexpressions.
+||| absent from the collapsed resolved AST and nodeScopes. Identical repeated
+||| reference records are tolerated, conflicting ones are not.
 ||| Historical shadowed declarations are valid even when no current name-map
 ||| entry points to them. Declaration order
 ||| is checked for membership/duplicates, not reconstructed from source spans.

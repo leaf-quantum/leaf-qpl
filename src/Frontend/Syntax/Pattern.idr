@@ -66,7 +66,7 @@ mutual
     PatternWildcard :
          PatternNode phase
 
-    -- A single-identifier binder, optionally `mut`:
+    -- A single-identifier pattern, optionally `mut`:
     --   let q = ...          let mut x = ...          fn f(mut x: i32)
     --
     -- Mutability is stored plain (not located): when `mut` is written, the
@@ -74,8 +74,8 @@ mutual
     -- needed to point at it.
     --
     -- PARSER RULE, not an AST rule: a lone identifier is ALWAYS PatternName.
-    -- Whether it shadows a unit enum variant of the same name is a
-    -- resolution-time question (and Leaf can decide it the Rust way there).
+    -- Resolution distinguishes new bindings from references to constants.
+    -- An immutable constant name becomes a single-segment resolved PatternPath.
     -- Quantum storage qualifiers (`let scratch linear q = ...`) do NOT live
     -- here: the spec only ever writes them directly after `let`, so they
     -- belong to the Let statement node, applying to its whole binder.
@@ -84,11 +84,11 @@ mutual
       -> (binderName  : Name phase)
       -> PatternNode phase
 
-    -- A MULTI-SEGMENT path pattern: unit enum variants and (potentially)
+    -- A path pattern: unit enum variants and
     -- named constants:
     --   ResultBit::Zero => ...
-    -- Only multi-segment paths land here (single identifiers are
-    -- PatternName, per the parser rule above). What the path denotes --
+    -- The parser only puts multi-segment paths here (single identifiers are
+    -- PatternName). Resolution also puts bare constant names here. What the path denotes --
     -- variant vs. constant -- is resolution's job.
     PatternPath :
          (valuePath : Path phase)

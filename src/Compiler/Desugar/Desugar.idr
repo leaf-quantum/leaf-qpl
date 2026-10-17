@@ -362,8 +362,10 @@ mutual
             tupleIndexRawText
 
   ||| The default "linear" qubit qualifier is added if no qubit qualifier is present
-  ||| Compound assignment statements are desugared to assignment statements: "a += 1;" -> "a = a + 1;"
-  ||| TODO: Bug: arr[f()] += 1; should not become: arr[f()] = arr[f()] + 1;
+  ||| Desugar each assignment target and value once, preserving the operator.
+  ||| Compound assignment lowering must wait until types and places are known:
+  ||| copying a target into the RHS would duplicate evaluation and any scopes
+  ||| introduced by its subexpressions, while reusing their node IDs.
   desugarStatement : Statement SurfaceAstPhase -> Statement CanonicalAstPhase
   desugarStatement (MkAstNode statementAstInfo metadata statementNode) =
     canonicalAstNode statementAstInfo WrittenCode $
@@ -376,7 +378,11 @@ mutual
               (map (\ty => desugarType (assert_smaller statementNode ty)) typeAnnotation)
               (map (\init => desugarLetInitializer (assert_smaller statementNode init)) initializer)
         StatementAssignment (MkAssignmentNode assignmentTarget assignmentOperator assignmentValue) =>
-          desugarAssignmentStatement assignmentTarget assignmentOperator assignmentValue
+          StatementAssignment $
+            MkAssignmentNode
+              (desugarAssignmentTarget assignmentTarget)
+              (desugarAstNode assignmentOperator)
+              (desugarExpression assignmentValue)
         StatementSemiExpression statementExpression =>
           StatementSemiExpression (desugarExpression statementExpression)
         StatementExpression statementExpression =>
@@ -392,56 +398,6 @@ mutual
           let scratch = desugarAstNode scratchQualifier in
             if isQubitLikeType typeAnnotation then [scratch, inferredLinearQualifier] else [scratch]
         desugarLetQualifiers _ qualifiers = map desugarAstNode qualifiers
-
-        desugarAssignmentStatement : SurfaceAssignmentTarget -> SurfaceAstNode AssignmentOperator -> SurfaceExpr -> StatementNode CanonicalAstPhase
-        desugarAssignmentStatement assignmentTarget
-            assignmentOperator@(MkAstNode operatorAstInfo _ operator)
-            assignmentValue =
-          case assignmentOperatorToBinary operator of
-            Nothing =>
-              StatementAssignment $
-                MkAssignmentNode
-                  (desugarAssignmentTarget assignmentTarget)
-                  (desugarAstNode assignmentOperator)
-                  (desugarExpression assignmentValue)
-            Just binaryOperator =>
-              StatementAssignment $
-                MkAssignmentNode
-                  (desugarAssignmentTarget assignmentTarget)
-                  (canonicalAstNode
-                    assignmentOperatorAstInfo
-                    DesugaredAssignment
-                    AssignValue)
-                  (canonicalAstNode
-                    binaryExpressionAstInfo
-                    DesugaredAssignment
-                    (ExprBinary
-                      (canonicalAstNode operatorAstInfo DesugaredAssignment binaryOperator)
-                      (desugarAssignmentTargetExpression assignmentTarget)
-                      (desugarExpression assignmentValue)))
-          where
-            assignmentOperatorAstInfo = incrementedAstInfo operatorAstInfo 1
-            binaryExpressionAstInfo = incrementedAstInfo operatorAstInfo 2
-            leftOperandAstInfo = incrementedAstInfo operatorAstInfo 3
-
-            desugarAssignmentTargetExpression : SurfaceAssignmentTarget -> CanonicalExpr
-            desugarAssignmentTargetExpression (MkAstNode _ _ targetNode) =
-              canonicalAstNode leftOperandAstInfo DesugaredAssignment $
-                case targetNode of
-                  AssignTargetName targetName =>
-                    ExprName (desugarAstNode targetName)
-                  AssignTargetIndex targetObject indexExpression =>
-                    ExprIndex
-                      (desugarExpression targetObject)
-                      (desugarExpression indexExpression)
-                  AssignTargetField targetObject fieldName =>
-                    ExprField
-                      (desugarExpression targetObject)
-                      (desugarAstNode fieldName)
-                  AssignTargetTupleIndex targetObject tupleIndexRawText =>
-                    ExprTupleIndex
-                      (desugarExpression targetObject)
-                      tupleIndexRawText
 
 ||| A final expression is desugared to a return statement. If there is no
 ||| final expression, an explicit `return ();` statement is generated.

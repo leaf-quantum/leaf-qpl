@@ -214,7 +214,9 @@ mutual
   public export
   data FunctionParameterNode : (phase : AstPhase) -> Type where
 
-    -- Normal parameters require both a name and a type
+    -- Normal parameters require both a name and a type. After resolution an
+    -- immutable name may target a constant pattern rather than a new parameter
+    -- binding; its symbol kind and PatternReference record distinguish it.
     NormalParameter :
          (parameterDocs       : List (DocComment phase))
       -> (parameterMutability : Maybe (AstNode phase Mutability))

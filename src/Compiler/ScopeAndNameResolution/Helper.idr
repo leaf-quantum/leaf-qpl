@@ -22,7 +22,7 @@ symbolVisibility Nothing = ModuleVisibility
 public export
 data BindingRetrievalResult
   = UnresolvedBinding
-  | InnacessibleBinding SymbolId
+  | InaccessibleBinding SymbolId
   | Binding ScopeBinding
 
 export
@@ -42,3 +42,24 @@ retrieveSymbolBinding symbolName tables =
               case scope.parent of
                 Nothing => UnresolvedBinding
                 Just parentId => search remaining parentId
+
+export
+isLocalSymbolKind : SymbolKind -> Bool
+isLocalSymbolKind SymbolLocalBinding = True
+isLocalSymbolKind SymbolFunctionParameter = True
+isLocalSymbolKind SymbolSelfReceiverParameter = True
+isLocalSymbolKind _ = False
+
+||| True when `candidate` is `start` or one of its parent scopes.
+export
+isScopeOrAncestor : ScopeId -> ScopeId -> ScopeTables -> Bool
+isScopeOrAncestor candidate start tables =
+  walk (length (SortedMap.toList tables.scopes)) start
+  where
+    walk : Nat -> ScopeId -> Bool
+    walk Z _ = False
+    walk (S remaining) scopeId =
+      scopeId == candidate ||
+        case lookup scopeId tables.scopes >>= (.parent) of
+          Nothing => False
+          Just parentId => walk remaining parentId

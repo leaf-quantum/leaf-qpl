@@ -16,7 +16,7 @@ import Frontend.Lexer.Error
 import Frontend.Lexer.Lexer
 import Frontend.Parser.Error
 import Frontend.Parser.Parser
-import Frontend.PostParseValidation
+import Frontend.Parser.Validate
 import Frontend.Source
 import Frontend.Syntax.AST
 import Frontend.Utils.ASTDebugPrinter
@@ -58,8 +58,8 @@ showResolutionError (DuplicateDeclaration name symbolIds sourceSpan previousSpan
 showResolutionError (InaccessibleSymbol name _ sourceSpan) =
   "At current location '\{showSourceSpan sourceSpan}' the name: '\{name}' is not publicly accessible."
 showResolutionError (BindingShadowsConstant name _ sourceSpan constantSpan) =
-  "The binding for name: '\{name}' in '\{showSourceSpan sourceSpan}' cannot shadow the constant declared in '\{showSourceSpan constantSpan}'; it would be interpreted as a constant pattern, not a new variable."
-showResolutionError (NonConstantValueInConstant name _ sourceSpan localSpan) =
+  "The mutable binding for name: '\{name}' in '\{showSourceSpan sourceSpan}' cannot shadow the constant declared in '\{showSourceSpan constantSpan}'."
+showResolutionError (LocalValueUsedAsConstant name _ sourceSpan localSpan) =
   "The local: '\{name}' used in '\{showSourceSpan sourceSpan}' is not a constant and cannot be used in an array length or repeat count; it is declared in '\{showSourceSpan localSpan}'."
 
 printAstAndProgram : PhasePretty phase => SourceFile phase -> IO ()
@@ -68,6 +68,31 @@ printAstAndProgram astTree = do
   putStrLn $ assert_total showAstDebug astTree
   putStrLn "Pretty Printed Program:"
   putStrLn $ "Parsed program:\n" ++ showSourceFileStrict astTree
+
+export
+compileSource : (fileName : String) -> (source : String) -> Either String ResolvedModule
+compileSource fileName source =
+  case lexFile source of
+    Left err => Left $ renderLexerError err
+    Right tokens =>
+      case parseFile fileName tokens of
+        Left err => Left $ showParseError err
+        Right surfaceAst =>
+          case validateSourceFile surfaceAst of
+            errors@(_ :: _) =>
+              Left $ joinBy "\n" ("Validation errors:" :: map interpolate errors)
+            [] =>
+              let canonicalAst = desugarSurfaceSyntax surfaceAst
+              in case resolveCanonicalSyntax canonicalAst of
+                Left resolutionError => Left $ showResolutionError resolutionError
+                Right resolvedModule =>
+                  case validateResolvedModule resolvedModule of
+                    errors@(_ :: _) =>
+                      Left $ joinBy "\n" $
+                        "Internal scope and symbol resolution error:" ::
+                        map interpolate errors ++
+                        ["This is a bug in Leaf compiler, please file a bug report."]
+                    [] => Right resolvedModule
 
 main : IO ()
 main = do
@@ -82,28 +107,8 @@ main = do
           case fileResult of
             Left fileErr => putStrLn $ "Failed to read \{fileName}: " ++ show fileErr
             Right sampleProgram =>
-              case lexFile sampleProgram of
-                Left err => putStrLn $ renderLexerError err
-                Right tokens => do
-                  case parseFile fileName tokens of
-                    Left err => putStrLn $ showParseError err
-                    Right surfaceAst => do
-                      case validateSourceFile surfaceAst of
-                        errors => do
-                          putStrLn "Validation errors:"
-                          traverse_ (putStrLn . interpolate) errors
-                        [] => do
-                            let canonicalAst = desugarSurfaceSyntax surfaceAst
-                            case resolveCanonicalSyntax canonicalAst of
-                                 Left resolutionError => putStrLn $ showResolutionError resolutionError
-                                 Right resolvedModule => do
-                                   case validateResolvedModule resolvedModule of
-                                        errors => do
-                                          putStrLn "Internal scope and symbol resolution error:"
-                                          traverse_ (putStrLn . interpolate) errors
-                                          putStrLn "This is a bug in Leaf compiler, please file a bug report."
-                                        [] => pure ()
+              case compileSource fileName sampleProgram of
+                Left message => putStrLn message
+                Right _ => pure ()
 
       _ => putStrLn "Please provide exactly one input .lf or .rs file."
-
-

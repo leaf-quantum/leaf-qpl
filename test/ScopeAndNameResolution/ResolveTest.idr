@@ -25,16 +25,18 @@ import Test.Simple
 export
 runSymbolAndScopeResolutionTests : IO ()
 runSymbolAndScopeResolutionTests = runTests $ Test.do
-  test "duplicate declaration diagnostics report both source positions" $
-    show (ResolutionFailure (DuplicateDeclaration "f" [MkSymbolId 42]
-      (MkSourceSpan "resolution-test.lf" (MkSourcePos 3 4) (MkSourcePos 3 5))
-      (MkSourceSpan "resolution-test.lf" (MkSourcePos 1 7) (MkSourcePos 1 8))))
-      `shouldBe` "Resolution: duplicate f at 3:4; previous declaration at 1:7"
-
-  test "inaccessible symbol diagnostics report the symbol name" $
-    show (ResolutionFailure (InaccessibleSymbol "privateFunction" (MkSymbolId 42)
-      (MkSourceSpan "resolution-test.lf" (MkSourcePos 3 7) (MkSourcePos 3 22))))
-      `shouldBe` "Resolution: inaccessible symbol privateFunction at 3:7"
+  -- Rendered from real resolution, so the spans are the ones the resolver recorded.
+  -- InaccessibleSymbol is not covered: visibility is not checked yet.
+  test "resolution diagnostics report the recorded source positions" $
+    map (\source => either show (const "resolved") (resolveSource source))
+      [ "fn f() {}\nfn f() {}"
+      , "const N: i32 = 1;\nfn f() { let mut N = 2; }"
+      , "fn f(n: i32) {\n  [0; n];\n}"
+      ] `shouldBe`
+      [ "Resolution: duplicate f at 2:4; previous declaration at 1:4"
+      , "Resolution: binding N at 2:18 shadows the constant at 1:7"
+      , "Resolution: non-constant n at 2:7 declared at 1:6"
+      ]
 
   test "declarations, reads and writes agree between AST and reference tables" $
     checkSource "fn f() { let mut x = 1; let y = x; x = y; x; }" (\resolved => do
@@ -68,6 +70,32 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
             symbolMatches resolved y scope.id "local" y.astInfo &&
             localMatches resolved x True && localMatches resolved y False)) `shouldBe` Right True
 
+  test "a declaration without an initializer has one mutable local and exact read/write references" $
+    checkSource "fn f() { let mut x: i32; x = 1; x; }" (\resolved => do
+      (fnInfo, fn) <- functionNamed "f" resolved
+      binding <- letAt 0 fn.functionBody
+      x <- binder binding.letPattern
+      annotation <- binding.letTypeAnnotation
+      assignment <- assignmentAt 1 fn.functionBody
+      AssignTargetName target <- pure assignment.assignmentTarget.value | _ => Nothing
+      final <- exprAt 2 fn.functionBody
+      ExprName read <- pure final.value | _ => Nothing
+      scope <- scopeFor resolved fn.functionBody
+      readOK <- usesInScope resolved scope.id [(x, final)]
+      pure (isNothing binding.letInitializer && symbolId target == symbolId x && readOK &&
+            nodeHasScope resolved scope.id annotation &&
+            nodeHasScope resolved scope.id assignment.assignmentTarget &&
+            nodeHasScope resolved scope.id assignment.assignmentValue &&
+            bindingMatches scope x && localMatches resolved x True &&
+            symbolMatches resolved x scope.id "local" x.astInfo &&
+            (scope.declaredSymbolsInOrder <>> []) == [symbolId x] &&
+            map fst (SortedMap.toList resolved.tables.localVariables) == [symbolId x] &&
+            referenceInventory resolved
+              [(DeclarationReference, fnInfo.nodeId, fn.functionName),
+               (DeclarationReference, binding.letPattern.astInfo.nodeId, x),
+               (AssignmentTarget, assignment.assignmentTarget.astInfo.nodeId, target),
+               (ValueReference, final.astInfo.nodeId, read)])) `shouldBe` Right True
+
   test "same-scope shadowing resolves initializer uses to the previous declaration" $
     checkSource "fn f() { let x = 1; let x = x + 1; x; }" (\resolved => do
       (_, fn) <- functionNamed "f" resolved
@@ -85,6 +113,41 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
             bindingMatches scope second &&
             (scope.declaredSymbolsInOrder <>> []) == [symbolId first, symbolId second] &&
             isJust (lookup (symbolId first) resolved.tables.symbols))) `shouldBe` Right True
+
+  test "destructuring initializers use both old parameters before introducing shadowing locals" $
+    checkSource "fn f(x: i32, y: i32) { let (x, y) = (y, x); x; y; }" (\resolved => do
+      (fnInfo, fn) <- functionNamed "f" resolved
+      [xp, yp] <- pure fn.functionParameters | _ => Nothing
+      [x, y] <- parameterNames fn | _ => Nothing
+      binding <- letAt 0 fn.functionBody
+      [(xPattern, newX), (yPattern, newY)] <- pure (patternBinders binding.letPattern) | _ => Nothing
+      init <- initializer binding
+      ExprTuple (oldYUse ::: [oldXUse]) <- pure init.value | _ => Nothing
+      ExprName oldY <- pure oldYUse.value | _ => Nothing
+      ExprName oldX <- pure oldXUse.value | _ => Nothing
+      finalX <- exprAt 1 fn.functionBody
+      finalY <- exprAt 2 fn.functionBody
+      ExprName readX <- pure finalX.value | _ => Nothing
+      ExprName readY <- pure finalY.value | _ => Nothing
+      functionScope <- scopeFor resolved xp
+      bodyScope <- scopeFor resolved fn.functionBody
+      usesOK <- usesInScope resolved bodyScope.id [(y, oldYUse), (x, oldXUse), (newX, finalX), (newY, finalY)]
+      pure (usesOK && length (nub (map symbolId [x, y, newX, newY])) == 4 &&
+            bodyScope.parent == Just functionScope.id &&
+            all (bindingMatches functionScope) [x, y] && all (bindingMatches bodyScope) [newX, newY] &&
+            all (\name => localMatches resolved name False) [x, y, newX, newY] &&
+            (functionScope.declaredSymbolsInOrder <>> []) == map symbolId [x, y] &&
+            (bodyScope.declaredSymbolsInOrder <>> []) == map symbolId [newX, newY] &&
+            referenceInventory resolved
+              [(DeclarationReference, fnInfo.nodeId, fn.functionName),
+               (DeclarationReference, xp.astInfo.nodeId, x),
+               (DeclarationReference, yp.astInfo.nodeId, y),
+               (DeclarationReference, xPattern.astInfo.nodeId, newX),
+               (DeclarationReference, yPattern.astInfo.nodeId, newY),
+               (ValueReference, oldYUse.astInfo.nodeId, oldY),
+               (ValueReference, oldXUse.astInfo.nodeId, oldX),
+               (ValueReference, finalX.astInfo.nodeId, readX),
+               (ValueReference, finalY.astInfo.nodeId, readY)])) `shouldBe` Right True
 
   -- A function, unlike a constant, is not a pattern, so a local may shadow it.
   test "array-size annotations use the outer function before introducing a local" $
@@ -210,10 +273,66 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       pure (iteratorOK && bodyOK && afterOK && symbolId outerName /= symbolId loopName &&
             (case loopScope.kind of ForScope => True; _ => False) &&
             loopScope.parent == Just outer.id && bodyScope.parent == Just loopScope.id && isBlock bodyScope &&
+            (case loopScope.origin of SourceScope info => info.nodeId == loop.astInfo.nodeId; _ => False) &&
+            (case bodyScope.origin of SourceScope info => info.nodeId == body.astInfo.nodeId; _ => False) &&
             bindingMatches outer outerName && bindingMatches loopScope loopName &&
             lookup loop.astInfo.nodeId resolved.tables.nodeScopes == Just outer.id &&
             referenceMatches resolved DeclarationReference pattern.astInfo.nodeId loopName &&
             localMatches resolved loopName False)) `shouldBe` Right True
+
+  test "nested for loops restore each shadowed binding and keep their iterator scopes separate" $
+    checkSource "fn f(i: i32) { for i in [i] { for i in [i] { i; } i; } i; }" (\resolved => do
+      (fnInfo, fn) <- functionNamed "f" resolved
+      [parameter] <- pure fn.functionParameters | _ => Nothing
+      [original] <- parameterNames fn | _ => Nothing
+      outerLoop <- exprAt 0 fn.functionBody
+      ExprFor outerPattern outerIterator outerBody <- pure outerLoop.value | _ => Nothing
+      ExprArray [originalIteratorUse] <- pure outerIterator.value | _ => Nothing
+      outer <- binder outerPattern
+      innerLoop <- exprAt 0 outerBody
+      ExprFor innerPattern innerIterator innerBody <- pure innerLoop.value | _ => Nothing
+      ExprArray [outerIteratorUse] <- pure innerIterator.value | _ => Nothing
+      inner <- binder innerPattern
+      innerUse <- exprAt 0 innerBody
+      afterInner <- exprAt 1 outerBody
+      afterOuter <- exprAt 1 fn.functionBody
+      ExprName originalIteratorName <- pure originalIteratorUse.value | _ => Nothing
+      ExprName outerIteratorName <- pure outerIteratorUse.value | _ => Nothing
+      ExprName innerRead <- pure innerUse.value | _ => Nothing
+      ExprName outerRead <- pure afterInner.value | _ => Nothing
+      ExprName originalRead <- pure afterOuter.value | _ => Nothing
+      functionScope <- scopeFor resolved parameter
+      bodyScope <- scopeFor resolved fn.functionBody
+      outerScope <- scopeFor resolved outerPattern
+      outerBodyScope <- scopeFor resolved outerBody
+      innerScope <- scopeFor resolved innerPattern
+      innerBodyScope <- scopeFor resolved innerBody
+      originalUsesOK <- usesInScope resolved bodyScope.id [(original, originalIteratorUse), (original, afterOuter)]
+      outerUsesOK <- usesInScope resolved outerBodyScope.id [(outer, outerIteratorUse), (outer, afterInner)]
+      innerUseOK <- usesInScope resolved innerBodyScope.id [(inner, innerUse)]
+      pure (originalUsesOK && outerUsesOK && innerUseOK &&
+            length (nub (map symbolId [original, outer, inner])) == 3 &&
+            (case (outerScope.kind, innerScope.kind) of (ForScope, ForScope) => True; _ => False) &&
+            outerScope.parent == Just bodyScope.id && outerBodyScope.parent == Just outerScope.id &&
+            innerScope.parent == Just outerBodyScope.id && innerBodyScope.parent == Just innerScope.id &&
+            isBlock outerBodyScope && isBlock innerBodyScope &&
+            all (nodeHasScope resolved bodyScope.id) [outerLoop, outerIterator] &&
+            all (nodeHasScope resolved outerBodyScope.id) [innerLoop, innerIterator] &&
+            bindingMatches functionScope original && bindingMatches outerScope outer && bindingMatches innerScope inner &&
+            all (\name => localMatches resolved name False) [original, outer, inner] &&
+            (functionScope.declaredSymbolsInOrder <>> []) == [symbolId original] &&
+            (outerScope.declaredSymbolsInOrder <>> []) == [symbolId outer] &&
+            (innerScope.declaredSymbolsInOrder <>> []) == [symbolId inner] &&
+            referenceInventory resolved
+              [(DeclarationReference, fnInfo.nodeId, fn.functionName),
+               (DeclarationReference, parameter.astInfo.nodeId, original),
+               (DeclarationReference, outerPattern.astInfo.nodeId, outer),
+               (DeclarationReference, innerPattern.astInfo.nodeId, inner),
+               (ValueReference, originalIteratorUse.astInfo.nodeId, originalIteratorName),
+               (ValueReference, outerIteratorUse.astInfo.nodeId, outerIteratorName),
+               (ValueReference, innerUse.astInfo.nodeId, innerRead),
+               (ValueReference, afterInner.astInfo.nodeId, outerRead),
+               (ValueReference, afterOuter.astInfo.nodeId, originalRead)])) `shouldBe` Right True
 
   test "if and else-if branch scopes are siblings and chained-if nodes retain the enclosing scope" $
     checkSource "fn f(flag: bool) { if flag { let x = 1; x; } else if flag { let x = 2; x; } else { let x = 3; x; } flag; }" (\resolved => do
@@ -264,8 +383,75 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
             lookup controlled.astInfo.nodeId resolved.tables.nodeScopes == Just bodyScope.id &&
             lookup adjointed.astInfo.nodeId resolved.tables.nodeScopes == Just bodyScope.id)) `shouldBe` Right True
 
-  test "parameter and return annotations see module functions before parameter bindings" $
-    checkSource "const fn n() -> i32 { 2 } fn f(n: i32, values: [i32; n()]) -> [i32; n()] { values }" (\resolved => do
+  test "controlled blocks resolve every operand before entering the child scope" $
+    checkSource "fn f(q: qubit, r: qubit) { ctrl(&q, &r) { let q = 1; q; r; } q; r; }" (\resolved => do
+      (fnInfo, fn) <- functionNamed "f" resolved
+      [qParameter, rParameter] <- pure fn.functionParameters | _ => Nothing
+      [q, r] <- parameterNames fn | _ => Nothing
+      controlled <- exprAt 0 fn.functionBody
+      ExprCtrl (ControlledBlock (firstControl ::: [secondControl]) _ block) <- pure controlled.value
+        | _ => Nothing
+      ExprUnary _ firstOperand <- pure firstControl.value | _ => Nothing
+      ExprUnary _ secondOperand <- pure secondControl.value | _ => Nothing
+      innerBinding <- letAt 0 block
+      innerQ <- binder innerBinding.letPattern
+      innerQUse <- exprAt 1 block
+      innerRUse <- exprAt 2 block
+      afterQ <- exprAt 1 fn.functionBody
+      afterR <- exprAt 2 fn.functionBody
+      outer <- scopeFor resolved fn.functionBody
+      inner <- scopeFor resolved block
+      outerUses <- usesInScope resolved outer.id
+        [(q, firstOperand), (r, secondOperand), (q, afterQ), (r, afterR)]
+      innerUses <- usesInScope resolved inner.id [(innerQ, innerQUse), (r, innerRUse)]
+      valueOccurrences <- traverse valueReferenceOccurrence
+        [firstOperand, secondOperand, innerQUse, innerRUse, afterQ, afterR]
+      pure (outerUses && innerUses && length (nub (map symbolId [q, r, innerQ])) == 3 &&
+            all (nodeHasScope resolved outer.id) [controlled, firstControl, secondControl] &&
+            inner.id /= outer.id && inner.parent == Just outer.id && isBlock inner &&
+            bindingMatches inner innerQ && localMatches resolved innerQ False &&
+            symbolMatches resolved innerQ inner.id "local" innerQ.astInfo &&
+            (inner.declaredSymbolsInOrder <>> []) == [symbolId innerQ] &&
+            isNothing (lookup "q" outer.valueBindings) && isNothing (lookup "r" inner.valueBindings) &&
+            referenceInventory resolved
+              ([(DeclarationReference, fnInfo.nodeId, fn.functionName),
+                (DeclarationReference, qParameter.astInfo.nodeId, q),
+                (DeclarationReference, rParameter.astInfo.nodeId, r),
+                (DeclarationReference, innerBinding.letPattern.astInfo.nodeId, innerQ)] ++
+               valueOccurrences))) `shouldBe` Right True
+
+  test "controlled callables resolve every control and the callable in the enclosing scope" $
+    checkSource "unitary fn g(target: &qubit) {} unitary fn f(q: &qubit, r: &qubit) { ctrl(q, r).apply(g); }" (\resolved => do
+      (gInfo, g) <- functionNamed "g" resolved
+      (fInfo, f) <- functionNamed "f" resolved
+      [targetParameter] <- pure g.functionParameters | _ => Nothing
+      [target] <- parameterNames g | _ => Nothing
+      [qParameter, rParameter] <- pure f.functionParameters | _ => Nothing
+      [q, r] <- parameterNames f | _ => Nothing
+      controlled <- exprAt 0 f.functionBody
+      ExprCtrl (ControlledCallable (firstControl ::: [secondControl]) _ callable) <- pure controlled.value
+        | _ => Nothing
+      body <- scopeFor resolved f.functionBody
+      reads <- usesInScope resolved body.id [(q, firstControl), (r, secondControl), (g.functionName, callable)]
+      valueOccurrences <- traverse valueReferenceOccurrence [firstControl, secondControl, callable]
+      pure (reads && symbolId q /= symbolId r && nodeHasScope resolved body.id controlled &&
+            (body.declaredSymbolsInOrder <>> []) == [] &&
+            referenceInventory resolved
+              ([(DeclarationReference, gInfo.nodeId, g.functionName),
+                (DeclarationReference, targetParameter.astInfo.nodeId, target),
+                (DeclarationReference, fInfo.nodeId, f.functionName),
+                (DeclarationReference, qParameter.astInfo.nodeId, q),
+                (DeclarationReference, rParameter.astInfo.nodeId, r)] ++
+               valueOccurrences))) `shouldBe` Right True
+
+  test "controlled blocks reject an unresolved second control operand" $
+    unresolved "fn f(q: qubit) { ctrl(&q, &missing) {} }" "missing" `shouldBe` Right True
+
+  test "controlled callables reject an unresolved second control operand" $
+    unresolved "unitary fn g(target: &qubit) {} unitary fn f(q: &qubit) { ctrl(q, missing).apply(g); }" "missing" `shouldBe` Right True
+
+  test "parameter and return annotations see module functions" $
+    checkSource "const fn n() -> i32 { 2 } fn f(m: i32, values: [i32; n()]) -> [i32; n()] { values }" (\resolved => do
       (_, size) <- functionNamed "n" resolved
       (_, fn) <- functionNamed "f" resolved
       [_, MkAstNode _ _ (NormalParameter _ _ _ arrayType)] <- pure fn.functionParameters | _ => Nothing
@@ -311,6 +497,10 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
     unresolved "fn f() { for x in [1] {} x; }" "x" `shouldBe` Right True
   test "a parameter is unavailable in another function" $
     unresolved "fn f(x: i32) {} fn g() { x; }" "x" `shouldBe` Right True
+  test "a local from an earlier function is unavailable in a later function" $
+    unresolved "fn f() { let x = 1; } fn g() { x; }" "x" `shouldBe` Right True
+  test "a local in a later function is unavailable in an earlier function" $
+    unresolved "fn f() { x; } fn g() { let x = 1; }" "x" `shouldBe` Right True
   test "controlled block locals cannot escape" $
     unresolved "fn f(q: qubit) { ctrl(&q) { let x = 1; } x; }" "x" `shouldBe` Right True
   test "adjoint block locals cannot escape" $
@@ -356,7 +546,7 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       _ => Nothing) `shouldBe` Right True
 
   test "repeated arrays resolve both their element and count" $
-    expressionUses "[x; n]" ["x", "n"] (\expression => case expression.value of
+    expressionUses "[x; N]" ["x", "N"] (\expression => case expression.value of
       ExprRepeatedArray element count => Just [element, count]
       _ => Nothing) `shouldBe` Right True
 
@@ -391,7 +581,7 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       _ => Nothing) `shouldBe` Right True
 
   test "casts resolve their operand and expressions in the target type" $
-    expressionUses "a as [i32; n]" ["a", "n"] (\expression => do
+    expressionUses "a as [i32; N]" ["a", "N"] (\expression => do
       ExprCast operand target <- pure expression.value | _ => Nothing
       TyArray _ size <- pure target.value | _ => Nothing
       pure [operand, size]) `shouldBe` Right True
@@ -439,20 +629,18 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
             not (elem "field" (map (.declaredName) (sourceSymbols resolved))) &&
             length (allReferences resolved) == 5)) `shouldBe` Right True
 
-  test "compound assignment resolves its write and both reads after desugaring" $
+  test "compound assignment preserves its operator and resolves each written name once" $
     checkSource "fn f(mut x: i32, y: i32) { x += y; }" (\resolved => do
       (fnInfo, fn) <- functionNamed "f" resolved
       [xp, yp] <- pure fn.functionParameters | _ => Nothing
       [x, y] <- parameterNames fn | _ => Nothing
       assignment <- assignmentAt 0 fn.functionBody
       AssignTargetName target <- pure assignment.assignmentTarget.value | _ => Nothing
-      ExprBinary operator left right <- pure assignment.assignmentValue.value | _ => Nothing
-      ExprName xRead <- pure left.value | _ => Nothing
-      ExprName yRead <- pure right.value | _ => Nothing
+      ExprName yRead <- pure assignment.assignmentValue.value | _ => Nothing
       scope <- scopeFor resolved fn.functionBody
-      reads <- usesInScope resolved scope.id [(x, left), (y, right)]
-      pure (reads && symbolId target == symbolId x && assignment.assignmentOperator.value == AssignValue &&
-            operator.value == BinaryAdd && nodeHasScope resolved scope.id assignment.assignmentValue &&
+      reads <- usesInScope resolved scope.id [(y, assignment.assignmentValue)]
+      pure (reads && symbolId target == symbolId x && assignment.assignmentOperator.value == AssignAdd &&
+            nodeHasScope resolved scope.id assignment.assignmentValue &&
             nodeHasScope resolved scope.id assignment.assignmentTarget &&
             nodeHasScope resolved scope.id target &&
             referenceInventory resolved
@@ -460,8 +648,60 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
                (DeclarationReference, xp.astInfo.nodeId, x),
                (DeclarationReference, yp.astInfo.nodeId, y),
                (AssignmentTarget, assignment.assignmentTarget.astInfo.nodeId, target),
-               (ValueReference, left.astInfo.nodeId, xRead),
-               (ValueReference, right.astInfo.nodeId, yRead)])) `shouldBe` Right True
+               (ValueReference, assignment.assignmentValue.astInfo.nodeId, yRead)])) `shouldBe` Right True
+
+  test "a compound index block has one scope and its local does not escape" $
+    checkSource "fn f(mut a: [i32; 2], i: i32) { a[{ let i = 0; i }] += 1; i; }" (\resolved => do
+      (fnInfo, fn) <- functionNamed "f" resolved
+      [ap, ip] <- pure fn.functionParameters | _ => Nothing
+      [a, i] <- parameterNames fn | _ => Nothing
+      assignment <- assignmentAt 0 fn.functionBody
+      AssignTargetIndex object index <- pure assignment.assignmentTarget.value | _ => Nothing
+      ExprName aRead <- pure object.value | _ => Nothing
+      block <- blockBody index
+      localBinding <- letAt 0 block
+      local <- binder localBinding.letPattern
+      final <- block.value.finalExpression
+      ExprName localRead <- pure final.value | _ => Nothing
+      after <- exprAt 1 fn.functionBody
+      ExprName outerRead <- pure after.value | _ => Nothing
+      bodyScope <- scopeFor resolved fn.functionBody
+      indexScope <- scopeFor resolved block
+      objectOK <- useMatches resolved a object
+      localOK <- useMatches resolved local final
+      afterOK <- useMatches resolved i after
+      pure (assignment.assignmentOperator.value == AssignAdd &&
+            objectOK && localOK && afterOK && symbolId local /= symbolId i &&
+            indexScope.parent == Just bodyScope.id &&
+            blockScopesMatchNodes resolved && bindingMatches indexScope local &&
+            localMatches resolved local False &&
+            (indexScope.declaredSymbolsInOrder <>> []) == [symbolId local] &&
+            referenceInventory resolved
+              [(DeclarationReference, fnInfo.nodeId, fn.functionName),
+               (DeclarationReference, ap.astInfo.nodeId, a),
+               (DeclarationReference, ip.astInfo.nodeId, i),
+               (ValueReference, object.astInfo.nodeId, aRead),
+               (DeclarationReference, localBinding.letPattern.astInfo.nodeId, local),
+               (ValueReference, final.astInfo.nodeId, localRead),
+               (ValueReference, after.astInfo.nodeId, outerRead)])) `shouldBe` Right True
+
+  test "a compound index block without references still has exactly one scope" $
+    checkSource "fn f(mut a: [i32; 2]) { a[{ 0 }] += 1; }" (\resolved => do
+      (_, fn) <- functionNamed "f" resolved
+      assignment <- assignmentAt 0 fn.functionBody
+      AssignTargetIndex _ index <- pure assignment.assignmentTarget.value | _ => Nothing
+      block <- blockBody index
+      indexScope <- scopeFor resolved block
+      pure (blockScopesMatchNodes resolved && isBlock indexScope &&
+            null (indexScope.declaredSymbolsInOrder <>> []) &&
+            length (filter (isBlock . snd) (SortedMap.toList resolved.tables.scopes)) == 2))
+      `shouldBe` Right True
+
+  test "nested compound targets retain consistent block scopes" $
+    checkSource "fn f(mut a: [i32; 2]) { a[{ let i = 0; let mut b = [0]; b[{ i }] += 1; i }] += 1; }"
+      (\resolved => Just (blockScopesMatchNodes resolved &&
+        length (filter (isBlock . snd) (SortedMap.toList resolved.tables.scopes)) == 3))
+      `shouldBe` Right True
 
   test "nested signature and local types have scopes on every visited type node" $
     checkSource "const n: i32 = 2; fn f(value: &([i32; n], &[i32])) -> [i32; n] { let local: [i32; n] = [0; n]; }" (\resolved => do
@@ -493,7 +733,7 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
             nodeHasScope resolved resolved.rootScope con.constType)) `shouldBe` Right True
 
   test "cast target type nodes have the enclosing expression scope" $
-    checkSource "fn f(a: [i32; 2], n: i32) { a as [i32; n]; }" (\resolved => do
+    checkSource "const N: i32 = 2; fn f(a: [i32; 2]) { a as [i32; N]; }" (\resolved => do
       (_, fn) <- functionNamed "f" resolved
       expression <- exprAt 0 fn.functionBody
       ExprCast _ target <- pure expression.value | _ => Nothing
@@ -588,45 +828,155 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
   test "a constant conflicting with an earlier function reports that function" $
     duplicateDeclaration "fn f() {}" "const f: i32 = 1;" "f" (2, 7, 2, 8) `shouldBe` Right True
 
-  test "a let binder cannot shadow a module constant" $
-    constantShadowing "const N: i32 = 1;\nfn f() { let N = 2; }"
-      `shouldBe` Right ("N", (2, 14, 2, 15), (1, 7, 1, 8))
+  test "an immutable bare constant pattern reuses the constant without creating a local" $
+    checkSource "const U: () = (); fn f() { let U = (); U; }" (\resolved => do
+      (_, con) <- constantNamed "U" resolved
+      (_, fn) <- functionNamed "f" resolved
+      binding <- letAt 0 fn.functionBody
+      final <- exprAt 1 fn.functionBody
+      useOK <- useMatches resolved con.constName final
+      pure (constantPatternMatches resolved con.constName binding.letPattern && useOK &&
+            null (SortedMap.toList resolved.tables.localVariables))) `shouldBe` Right True
 
   test "a mutable let binder cannot shadow a module constant" $
     constantShadowing "const N: i32 = 1;\nfn f() { let mut N = 2; }"
       `shouldBe` Right ("N", (2, 18, 2, 19), (1, 7, 1, 8))
 
-  test "a binder nested in a destructuring pattern cannot shadow a constant" $
-    constantShadowing "const N: i32 = 1;\nfn f() { let (a, N) = (1, 2); }"
+  test "a tuple can contain a local binder and repeated constant patterns" $
+    checkSource "const U: () = (); fn f() { let (x, U, U) = (1, (), ()); x; }" (\resolved => do
+      (_, con) <- constantNamed "U" resolved
+      (_, fn) <- functionNamed "f" resolved
+      binding <- letAt 0 fn.functionBody
+      PatternTuple patterns <- pure binding.letPattern.value | _ => Nothing
+      [xPattern, first, second] <- pure (forget patterns) | _ => Nothing
+      x <- binder xPattern
+      final <- exprAt 1 fn.functionBody
+      useOK <- useMatches resolved x final
+      scope <- scopeFor resolved binding.letPattern
+      pure (constantPatternMatches resolved con.constName first &&
+            constantPatternMatches resolved con.constName second &&
+            localMatches resolved x False && bindingMatches scope x && useOK &&
+            (scope.declaredSymbolsInOrder <>> []) == [symbolId x] &&
+            length (SortedMap.toList resolved.tables.localVariables) == 1)) `shouldBe` Right True
+
+  test "an array can contain repeated constant patterns without introducing bindings" $
+    checkSource "const U: () = (); fn f() { let [U, U] = [(), ()]; }" (\resolved => do
+      (_, con) <- constantNamed "U" resolved
+      (_, fn) <- functionNamed "f" resolved
+      binding <- letAt 0 fn.functionBody
+      PatternArray [first, second] <- pure binding.letPattern.value | _ => Nothing
+      pure (constantPatternMatches resolved con.constName first &&
+            constantPatternMatches resolved con.constName second &&
+            null (SortedMap.toList resolved.tables.localVariables))) `shouldBe` Right True
+
+  test "constant patterns remain references in nested blocks" $
+    checkSource "const U: () = (); fn f() { { let U = (); } }" (\resolved => do
+      (_, con) <- constantNamed "U" resolved
+      (_, fn) <- functionNamed "f" resolved
+      inner <- exprAt 0 fn.functionBody >>= blockBody
+      binding <- letAt 0 inner
+      pure (constantPatternMatches resolved con.constName binding.letPattern &&
+            null (SortedMap.toList resolved.tables.localVariables))) `shouldBe` Right True
+
+  test "repeated constant parameters are pattern references and introduce no parameters" $
+    checkSource "const U: () = (); fn f(U: (), U: ()) { U; }" (\resolved => do
+      (_, con) <- constantNamed "U" resolved
+      (_, fn) <- functionNamed "f" resolved
+      [first, second] <- pure fn.functionParameters | _ => Nothing
+      [firstName, secondName] <- parameterNames fn | _ => Nothing
+      use <- exprAt 0 fn.functionBody
+      useOK <- useMatches resolved con.constName use
+      pure (constantOccurrenceMatches resolved con.constName first.astInfo.nodeId firstName &&
+            constantOccurrenceMatches resolved con.constName second.astInfo.nodeId secondName && useOK &&
+            null (SortedMap.toList resolved.tables.localVariables))) `shouldBe` Right True
+
+  test "for constant patterns introduce no loop binding" $
+    checkSource "const U: () = (); fn f() { for U in [()] { U; } }" (\resolved => do
+      (_, con) <- constantNamed "U" resolved
+      (_, fn) <- functionNamed "f" resolved
+      loop <- exprAt 0 fn.functionBody
+      ExprFor pattern _ body <- pure loop.value | _ => Nothing
+      use <- exprAt 0 body
+      useOK <- useMatches resolved con.constName use
+      pure (constantPatternMatches resolved con.constName pattern && useOK &&
+            null (SortedMap.toList resolved.tables.localVariables))) `shouldBe` Right True
+
+  test "repeated constant tuple patterns introduce no for-loop bindings" $
+    checkForPattern "const U: () = (); fn f() { let (U, U) = ((), ()); for unused in [((), ())] { U; } }" (\resolved => do
+      (_, con) <- constantNamed "U" resolved
+      (_, fn) <- functionNamed "f" resolved
+      loop <- exprAt 0 fn.functionBody
+      ExprFor pattern _ body <- pure loop.value | _ => Nothing
+      PatternTuple patterns <- pure pattern.value | _ => Nothing
+      [first, second] <- pure (forget patterns) | _ => Nothing
+      loopScope <- scopeFor resolved pattern
+      use <- exprAt 0 body
+      useOK <- useMatches resolved con.constName use
+      pure (constantPatternMatches resolved con.constName first &&
+            constantPatternMatches resolved con.constName second && useOK &&
+            (case loopScope.kind of ForScope => True; _ => False) &&
+            null (SortedMap.toList loopScope.valueBindings) &&
+            null (SortedMap.toList resolved.tables.localVariables))) `shouldBe` Right True
+
+  test "a constant declared later in the module is still a constant pattern" $
+    checkSource "fn f() { let U = (); } const U: () = ();" (\resolved => do
+      (_, con) <- constantNamed "U" resolved
+      (_, fn) <- functionNamed "f" resolved
+      binding <- letAt 0 fn.functionBody
+      pure (constantPatternMatches resolved con.constName binding.letPattern &&
+            null (SortedMap.toList resolved.tables.localVariables))) `shouldBe` Right True
+
+  test "a constant shadowing a prelude function is interpreted as a pattern" $
+    checkSource "const sin: () = (); fn f() { let sin = (); }" (\resolved => do
+      (_, con) <- constantNamed "sin" resolved
+      (_, fn) <- functionNamed "f" resolved
+      binding <- letAt 0 fn.functionBody
+      pure (constantPatternMatches resolved con.constName binding.letPattern &&
+            null (SortedMap.toList resolved.tables.localVariables))) `shouldBe` Right True
+
+  -- Resolving a constant pattern does not decide whether it is irrefutable.
+  test "integer constant patterns defer refutability checking" $
+    checkSource "const N: i32 = 1; fn f() { let N = 2; }" (\resolved => do
+      (_, con) <- constantNamed "N" resolved
+      (_, fn) <- functionNamed "f" resolved
+      binding <- letAt 0 fn.functionBody
+      pure (constantPatternMatches resolved con.constName binding.letPattern)) `shouldBe` Right True
+
+  test "a mutable binder nested in a destructuring pattern cannot shadow a constant" $
+    constantShadowing "const N: i32 = 1;\nfn f() { let (a, mut N) = (1, 2); }"
+      `shouldBe` Right ("N", (2, 22, 2, 23), (1, 7, 1, 8))
+
+  test "a mutable function parameter cannot shadow a constant" $
+    constantShadowing "const N: i32 = 1;\nfn f(mut N: i32) {}"
+      `shouldBe` Right ("N", (2, 10, 2, 11), (1, 7, 1, 8))
+
+  test "a mutable for binder cannot shadow a constant" $
+    forConstantShadowing "const N: i32 = 1;\nfn f() { let mut N = 1; for unused in [1] {} }"
       `shouldBe` Right ("N", (2, 18, 2, 19), (1, 7, 1, 8))
-
-  test "a let binder in a nested block cannot shadow a module constant" $
-    constantShadowing "const N: i32 = 1;\nfn f() { { let N = 2; } }"
-      `shouldBe` Right ("N", (2, 16, 2, 17), (1, 7, 1, 8))
-
-  test "a function parameter cannot shadow a module constant" $
-    constantShadowing "const N: i32 = 1;\nfn f(N: i32) {}"
-      `shouldBe` Right ("N", (2, 6, 2, 7), (1, 7, 1, 8))
-
-  test "a for binder cannot shadow a module constant" $
-    constantShadowing "const N: i32 = 1;\nfn f() { for N in [1] {} }"
-      `shouldBe` Right ("N", (2, 14, 2, 15), (1, 7, 1, 8))
-
-  test "a binder cannot shadow a constant declared later in the module" $
-    constantShadowing "fn f() { let N = 2; }\nconst N: i32 = 1;"
-      `shouldBe` Right ("N", (1, 14, 1, 15), (2, 7, 2, 8))
-
-  test "a binder cannot shadow a constant that itself shadows a prelude function" $
-    constantShadowing "const sin: i32 = 1;\nfn f() { let sin = 2; }"
-      `shouldBe` Right ("sin", (2, 14, 2, 17), (1, 7, 1, 10))
 
   test "constant-shadowing diagnostics identify the constant's symbol" $
     (do expected <- checkSource "const N: i32 = 1;" (\resolved =>
           map (\(_, con) => symbolId con.constName) (constantNamed "N" resolved))
-        case resolveSource "const N: i32 = 1;\nfn f() { let N = 2; }" of
+        case resolveSource "const N: i32 = 1;\nfn f() { let mut N = 2; }" of
           Left (ResolutionFailure (BindingShadowsConstant _ actual _ _)) => Right (actual == expected)
           Left err => Left (show err)
           Right _ => Left "Expected BindingShadowsConstant, but resolution succeeded") `shouldBe` Right True
+
+  test "a repeated tuple binder reports both occurrences" $
+    duplicateBinder "fn f() { let (x, x) = (1, 2); }"
+      `shouldBe` Right ("x", (1, 18, 1, 19), (1, 15, 1, 16))
+
+  test "a repeated nested array binder reports both occurrences" $
+    duplicateBinder "fn f() { let (x, [x]) = (1, [2]); }"
+      `shouldBe` Right ("x", (1, 19, 1, 20), (1, 15, 1, 16))
+
+  test "a repeated for binder reports both occurrences" $
+    duplicateForBinder "fn f() { let (x, x) = (1, 2); for unused in [(1, 2)] {} }"
+      `shouldBe` Right ("x", (1, 18, 1, 19), (1, 15, 1, 16))
+
+  test "a repeated function parameter reports both occurrences" $
+    duplicateBinder "fn f(x: i32, x: i32) {}"
+      `shouldBe` Right ("x", (1, 14, 1, 15), (1, 6, 1, 7))
 
   test "parameters and locals may still shadow module functions" $
     checkSource "fn g() {} fn f(g: i32) { let g = g; g; }" (\resolved => do
@@ -639,3 +989,271 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       initUsesParameter <- useMatches resolved parameter init
       finalUsesLocal <- useMatches resolved local final
       pure (initUsesParameter && finalUsesLocal)) `shouldBe` Right True
+
+  test "a repeat count cannot use a parameter" $
+    nonConstantUse "fn f(n: i32) { [0; n]; }"
+      `shouldBe` Right ("n", (1, 20, 1, 21), (1, 6, 1, 7))
+
+  test "an array length in a let annotation cannot use an earlier local" $
+    nonConstantUse "fn f() { let n = 2; let a: [i32; n] = [0, 0]; }"
+      `shouldBe` Right ("n", (1, 34, 1, 35), (1, 14, 1, 15))
+
+  test "an array length in a cast target cannot use a parameter" $
+    nonConstantUse "fn f(n: i32, a: [i32; 2]) { a as [i32; n]; }"
+      `shouldBe` Right ("n", (1, 40, 1, 41), (1, 6, 1, 7))
+
+  test "a repeat count in a nested block cannot use an enclosing local" $
+    nonConstantUse "fn f() { let n = 2; { [0; n]; } }"
+      `shouldBe` Right ("n", (1, 27, 1, 28), (1, 14, 1, 15))
+
+  test "a repeat count cannot use a for binder" $
+    nonConstantUse "fn f() { for i in [1] { [0; i]; } }"
+      `shouldBe` Right ("i", (1, 29, 1, 30), (1, 14, 1, 15))
+
+  test "a nested constant expression cannot use locals of its enclosing constant expression" $
+    nonConstantUse "fn f() { [0; { let k = 2; [0; k]; 2 }]; }"
+      `shouldBe` Right ("k", (1, 31, 1, 32), (1, 20, 1, 21))
+
+  test "nested constant contexts restore outer constant locals and then ordinary parameter access" $
+    checkSource "fn f(x: i32) { [0; { let n = 2; [0; { let m = 1; m }]; n }]; x; }" (\resolved => do
+      (fnInfo, fn) <- functionNamed "f" resolved
+      [parameter] <- pure fn.functionParameters | _ => Nothing
+      [x] <- parameterNames fn | _ => Nothing
+      repeated <- exprAt 0 fn.functionBody
+      ExprRepeatedArray _ outerCount <- pure repeated.value | _ => Nothing
+      outerBlock <- blockBody outerCount
+      nBinding <- letAt 0 outerBlock
+      n <- binder nBinding.letPattern
+      innerRepeated <- exprAt 1 outerBlock
+      ExprRepeatedArray _ innerCount <- pure innerRepeated.value | _ => Nothing
+      innerBlock <- blockBody innerCount
+      mBinding <- letAt 0 innerBlock
+      m <- binder mBinding.letPattern
+      mUse <- innerBlock.value.finalExpression
+      nUse <- outerBlock.value.finalExpression
+      xUse <- exprAt 1 fn.functionBody
+      ExprName mRead <- pure mUse.value | _ => Nothing
+      ExprName nRead <- pure nUse.value | _ => Nothing
+      ExprName xRead <- pure xUse.value | _ => Nothing
+      bodyScope <- scopeFor resolved fn.functionBody
+      outerScope <- scopeFor resolved outerBlock
+      innerScope <- scopeFor resolved innerBlock
+      mOK <- usesInScope resolved innerScope.id [(m, mUse)]
+      nOK <- usesInScope resolved outerScope.id [(n, nUse)]
+      xOK <- usesInScope resolved bodyScope.id [(x, xUse)]
+      pure (mOK && nOK && xOK && isNothing resolved.tables.constContextBoundary &&
+            outerScope.parent == Just bodyScope.id && innerScope.parent == Just outerScope.id &&
+            bindingMatches outerScope n && bindingMatches innerScope m &&
+            (outerScope.declaredSymbolsInOrder <>> []) == [symbolId n] &&
+            (innerScope.declaredSymbolsInOrder <>> []) == [symbolId m] &&
+            referenceInventory resolved
+              [(DeclarationReference, fnInfo.nodeId, fn.functionName),
+               (DeclarationReference, parameter.astInfo.nodeId, x),
+               (DeclarationReference, nBinding.letPattern.astInfo.nodeId, n),
+               (DeclarationReference, mBinding.letPattern.astInfo.nodeId, m),
+               (ValueReference, mUse.astInfo.nodeId, mRead),
+               (ValueReference, nUse.astInfo.nodeId, nRead),
+               (ValueReference, xUse.astInfo.nodeId, xRead)])) `shouldBe` Right True
+
+  test "leaving a nested constant context still forbids parameters in the outer count" $
+    nonConstantUse "fn f(x: i32) { [0; { [0; 2]; x }]; }"
+      `shouldBe` Right ("x", (1, 30, 1, 31), (1, 6, 1, 7))
+
+  test "constant expressions may use locals they declare themselves" $
+    checkSource "fn f() { let a: [i32; { let k = 2; k }] = [0; { let m = 2; m }]; }" valueReferenceKinds
+      `shouldBe` Right [("k", "local"), ("m", "local")]
+
+  test "constant expressions may use constants, functions and prelude functions" $
+    checkSource "const N: i32 = 2; const fn g() -> i32 { 2 } fn f() { [0; N]; [0; g()]; [0; abs(2)]; }" valueReferenceKinds
+      `shouldBe` Right [("N", "constant"), ("g", "function"), ("abs", "function")]
+
+  test "repeated-array elements and later uses still see locals" $
+    checkSource "fn f(x: i32) { [x; 2]; let a: [i32; 2] = [x, x]; x; }" valueReferenceKinds
+      `shouldBe` Right [("x", "parameter"), ("x", "parameter"), ("x", "parameter"), ("x", "parameter")]
+
+  test "method calls resolve the receiver and arguments but not the method name" $
+    expressionUses "x.missing(n)" ["x", "n"] (\expression => case expression.value of
+      ExprMethodCall receiver _ arguments => Just (receiver :: arguments)
+      _ => Nothing) `shouldBe` Right True
+
+  test "field reads resolve the object but not the field name" $
+    expressionUses "pair.missing" ["pair"] (\expression => case expression.value of
+      ExprField object _ => Just [object]
+      _ => Nothing) `shouldBe` Right True
+
+  test "return values are resolved" $
+    expressionUses "return x" ["x"] (\expression => case expression.value of
+      ExprReturn (Just value) => Just [value]
+      _ => Nothing) `shouldBe` Right True
+
+  test "break values are resolved inside the loop body" $
+    checkSource "fn f(x: i32) { loop { break x; } }" valueReferenceKinds
+      `shouldBe` Right [("x", "parameter")]
+
+  test "a while condition cannot see locals of its body" $
+    unresolved "fn f() { while c { let c = true; } }" "c" `shouldBe` Right True
+
+  test "locals declared in an if condition block do not reach the branches" $
+    unresolved "fn f() { if { let c = true; c } { c; } }" "c" `shouldBe` Right True
+
+  test "a parameter shadows its own function's name" $
+    checkSource "fn f(f: i32) { f; }" valueReferenceKinds `shouldBe` Right [("f", "parameter")]
+
+  test "a for binder cannot escape an enclosing block" $
+    unresolved "fn f() { { for i in [1] {} } i; }" "i" `shouldBe` Right True
+
+  test "leaving a for loop nested in a block restores the outer binding" $
+    checkSource "fn f() { let i = 0; { for i in [1] { i; } } i; }" (\resolved => do
+      (_, fn) <- functionNamed "f" resolved
+      outerBinding <- letAt 0 fn.functionBody
+      outer <- binder outerBinding.letPattern
+      after <- exprAt 2 fn.functionBody
+      block <- exprAt 1 fn.functionBody >>= blockBody
+      loop <- exprAt 0 block
+      ExprFor pattern _ body <- pure loop.value | _ => Nothing
+      loopName <- binder pattern
+      inner <- exprAt 0 body
+      innerOK <- useMatches resolved loopName inner
+      afterOK <- useMatches resolved outer after
+      pure (innerOK && afterOK && symbolId loopName /= symbolId outer)) `shouldBe` Right True
+
+  test "a constant initializer cannot see function parameters" $
+    unresolved "fn f(x: i32) {} const C: i32 = x;" "x" `shouldBe` Right True
+
+  test "an unresolved assignment target is reported" $
+    unresolved "fn f() { y = 1; }" "y" `shouldBe` Right True
+
+  test "function-type parameter names are not bindings" $
+    unresolved "fn f(g: fn(x: i32) -> i32) { x; }" "x" `shouldBe` Right True
+
+  test "an array length inside a function type cannot use a local" $
+    nonConstantUse "fn f() { let n = 2; let g: fn(a: [i32; n]); }"
+      `shouldBe` Right ("n", (1, 40, 1, 41), (1, 14, 1, 15))
+
+  test "an assignment inside a constant expression cannot target an enclosing local" $
+    nonConstantUse "fn f() { let mut x = 1; [0; { x = 2; 2 }]; }"
+      `shouldBe` Right ("x", (1, 31, 1, 32), (1, 18, 1, 19))
+
+  test "a parameter named like a prelude function is still a local in a constant expression" $
+    nonConstantUse "fn f(abs: i32) { [0; abs]; }"
+      `shouldBe` Right ("abs", (1, 22, 1, 25), (1, 6, 1, 9))
+
+  test "constant item types and initializers may use constants as array lengths" $
+    checkSource "const N: i32 = 2; const A: [i32; N] = [0; N];" valueReferenceKinds
+      `shouldBe` Right [("N", "constant"), ("N", "constant")]
+
+  test "a parameter type cannot use an earlier parameter as an array length" $
+    nonConstantUse "fn f(n: i32, a: [i32; n]) {}"
+      `shouldBe` Right ("n", (1, 23, 1, 24), (1, 6, 1, 7))
+
+  test "a return type cannot use a parameter as an array length" $
+    nonConstantUse "fn f(n: i32) -> [i32; n] {}"
+      `shouldBe` Right ("n", (1, 23, 1, 24), (1, 6, 1, 7))
+
+  test "a parameter type cannot use its own parameter as an array length" $
+    nonConstantUse "fn f(n: [i32; n]) {}"
+      `shouldBe` Right ("n", (1, 15, 1, 16), (1, 6, 1, 7))
+
+  test "a parameter shadows a module function inside later signature types" $
+    nonConstantUse "const fn n() -> i32 { 2 } fn f(n: i32, values: [i32; n()]) {}"
+      `shouldBe` Right ("n", (1, 54, 1, 55), (1, 32, 1, 33))
+
+  test "a parameter type sees a later parameter and rejects it as a constant" $
+    nonConstantUse "fn f(a: [i32; n], n: i32) {}"
+      `shouldBe` Right ("n", (1, 15, 1, 16), (1, 19, 1, 20))
+
+  test "a later parameter shadows a module function in an earlier signature type" $
+    nonConstantUse "const fn n() -> i32 { 2 } fn f(values: [i32; n()], n: i32) {}"
+      `shouldBe` Right ("n", (1, 46, 1, 47), (1, 52, 1, 53))
+
+  test "a later parameter shadows a prelude function in an earlier signature type" $
+    nonConstantUse "fn f(values: [i32; abs(2)], abs: i32) {}"
+      `shouldBe` Right ("abs", (1, 20, 1, 23), (1, 29, 1, 32))
+
+  test "a local in a signature length block shadows an already registered later parameter" $
+    checkSource "fn f(values: [i32; { let n = 2; n }], n: i32) { n; }" valueReferenceKinds
+      `shouldBe` Right [("n", "local"), ("n", "parameter")]
+
+  test "constant parameter patterns keep signature types and the body bound to the constant" $
+    checkSource "const N: i32 = 2; fn f(values: [i32; N], N: i32) -> [i32; N] { N; }" (\resolved => do
+      (_, con) <- constantNamed "N" resolved
+      (_, fn) <- functionNamed "f" resolved
+      [_, parameter] <- pure fn.functionParameters | _ => Nothing
+      [_, name] <- parameterNames fn | _ => Nothing
+      uses <- valueReferenceKinds resolved
+      pure (constantOccurrenceMatches resolved con.constName parameter.astInfo.nodeId name &&
+            uses == [("N", "constant"), ("N", "constant"), ("N", "constant")] &&
+            length (SortedMap.toList resolved.tables.localVariables) == 1)) `shouldBe` Right True
+
+  test "signature array lengths may use module constants alongside parameters" $
+    checkSource "const N: i32 = 2; fn f(n: i32, a: [i32; N]) -> [i32; N] {}" valueReferenceKinds
+      `shouldBe` Right [("N", "constant"), ("N", "constant")]
+
+  test "a mutable let binder cannot shadow a constant declared later in the module" $
+    constantShadowing "fn f() { let mut N = 1; }\nconst N: i32 = 2;"
+      `shouldBe` Right ("N", (1, 18, 1, 19), (2, 7, 2, 8))
+
+  -- Only constants are protected: mutable binders may shadow functions.
+  test "mutable binders may shadow module and prelude functions" $
+    checkSource "fn g() {} fn f() { let mut g = 1; let mut sin = 2; g; sin; }" valueReferenceKinds
+      `shouldBe` Right [("g", "local"), ("sin", "local")]
+
+  test "an immutable parameter named like a later constant is a constant pattern" $
+    checkSource "fn f(U: ()) { U; } const U: () = ();" (\resolved => do
+      (_, con) <- constantNamed "U" resolved
+      (_, fn) <- functionNamed "f" resolved
+      [parameter] <- pure fn.functionParameters | _ => Nothing
+      [name] <- parameterNames fn | _ => Nothing
+      use <- exprAt 0 fn.functionBody
+      useOK <- useMatches resolved con.constName use
+      pure (constantOccurrenceMatches resolved con.constName parameter.astInfo.nodeId name && useOK &&
+            null (SortedMap.toList resolved.tables.localVariables))) `shouldBe` Right True
+
+  test "a constant parameter pattern does not hide later duplicate parameters" $
+    duplicateBinder "const U: () = (); fn f(U: (), x: i32, x: i32) {}"
+      `shouldBe` Right ("x", (1, 39, 1, 40), (1, 31, 1, 32))
+
+  test "a constant pattern between duplicate binders does not hide the duplicate" $
+    duplicateBinder "const U: () = (); fn f() { let (x, U, x) = (1, (), 2); }"
+      `shouldBe` Right ("x", (1, 39, 1, 40), (1, 33, 1, 34))
+
+  test "a binder repeated three times reports the first repetition" $
+    duplicateBinder "fn f() { let (x, x, x) = (1, 2, 3); }"
+      `shouldBe` Right ("x", (1, 18, 1, 19), (1, 15, 1, 16))
+
+  test "a repeat count in a constant initializer cannot use the initializer's local" $
+    nonConstantUse "const C: i32 = { let x = 1; [0; x]; 2 };"
+      `shouldBe` Right ("x", (1, 33, 1, 34), (1, 22, 1, 23))
+
+  test "a constant initializer block may use its own locals" $
+    checkSource "const C: i32 = { let x = 1; x };" valueReferenceKinds
+      `shouldBe` Right [("x", "local")]
+
+  test "a local inside a repeat count may shadow an outer parameter" $
+    checkSource "fn f(n: i32) { [0; { let n = 1; n }]; }" valueReferenceKinds
+      `shouldBe` Right [("n", "local")]
+
+  test "a local initializer inside a repeat count cannot use an outer parameter" $
+    nonConstantUse "fn f(n: i32) { [0; { let k = n; k }]; }"
+      `shouldBe` Right ("n", (1, 30, 1, 31), (1, 6, 1, 7))
+
+  test "a parameter shadows a module function inside the return type" $
+    nonConstantUse "const fn n() -> i32 { 2 }\nfn f(n: i32) -> [i32; n()] {}"
+      `shouldBe` Right ("n", (2, 23, 2, 24), (2, 6, 2, 7))
+
+  -- As in Rust (E0070), assigning to a constant or function is a type error,
+  -- not a resolution error: the target resolves to that item.
+  test "assignment targets may resolve to constants and functions" $
+    checkSource "const N: i32 = 1; fn g() {} fn f() { N = 2; g = 3; }" (\resolved => do
+      (_, con) <- constantNamed "N" resolved
+      (_, g) <- functionNamed "g" resolved
+      (_, f) <- functionNamed "f" resolved
+      constantAssignment <- assignmentAt 0 f.functionBody
+      functionAssignment <- assignmentAt 1 f.functionBody
+      AssignTargetName constantTarget <- pure constantAssignment.assignmentTarget.value | _ => Nothing
+      AssignTargetName functionTarget <- pure functionAssignment.assignmentTarget.value | _ => Nothing
+      pure (symbolId constantTarget == symbolId con.constName &&
+            symbolId functionTarget == symbolId g.functionName &&
+            referenceMatches resolved AssignmentTarget constantAssignment.assignmentTarget.astInfo.nodeId constantTarget &&
+            referenceMatches resolved AssignmentTarget functionAssignment.assignmentTarget.astInfo.nodeId functionTarget &&
+            null (SortedMap.toList resolved.tables.localVariables))) `shouldBe` Right True

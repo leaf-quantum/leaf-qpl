@@ -124,45 +124,61 @@ runDesugaringTests = runTests $ Test.do
       Just
         "general fn f() -> () { ctrl(q0, q1).on(bs\"10\").apply(H)(q2); return (); }"
 
-  test "+= becomes assignment with addition" $
+  test "+= is preserved for later compound-assignment lowering" $
     desugarAndPrettyPrint "fn assign() { x += 1; }"
-      `shouldBe` Just "general fn assign() -> () { x = (x + 1); return (); }"
+      `shouldBe` Just "general fn assign() -> () { x += 1; return (); }"
 
-  test "-= becomes assignment with subtraction" $
+  test "-= is preserved for later compound-assignment lowering" $
     desugarAndPrettyPrint "fn assign() { x -= 1; }"
-      `shouldBe` Just "general fn assign() -> () { x = (x - 1); return (); }"
+      `shouldBe` Just "general fn assign() -> () { x -= 1; return (); }"
 
-  test "*= becomes assignment with multiplication" $
+  test "*= is preserved for later compound-assignment lowering" $
     desugarAndPrettyPrint "fn assign() { x *= 2; }"
-      `shouldBe` Just "general fn assign() -> () { x = (x * 2); return (); }"
+      `shouldBe` Just "general fn assign() -> () { x *= 2; return (); }"
 
-  test "/= becomes assignment with division" $
+  test "/= is preserved for later compound-assignment lowering" $
     desugarAndPrettyPrint "fn assign() { x /= 2; }"
-      `shouldBe` Just "general fn assign() -> () { x = (x / 2); return (); }"
+      `shouldBe` Just "general fn assign() -> () { x /= 2; return (); }"
 
-  test "%= becomes assignment with remainder" $
+  test "%= is preserved for later compound-assignment lowering" $
     desugarAndPrettyPrint "fn assign() { x %= 2; }"
-      `shouldBe` Just "general fn assign() -> () { x = (x % 2); return (); }"
+      `shouldBe` Just "general fn assign() -> () { x %= 2; return (); }"
 
-  test "&= becomes assignment with bitwise and" $
+  test "&= is preserved for later compound-assignment lowering" $
     desugarAndPrettyPrint "fn assign() { x &= 3; }"
-      `shouldBe` Just "general fn assign() -> () { x = (x & 3); return (); }"
+      `shouldBe` Just "general fn assign() -> () { x &= 3; return (); }"
 
-  test "|= becomes assignment with bitwise or" $
+  test "|= is preserved for later compound-assignment lowering" $
     desugarAndPrettyPrint "fn assign() { x |= 3; }"
-      `shouldBe` Just "general fn assign() -> () { x = (x | 3); return (); }"
+      `shouldBe` Just "general fn assign() -> () { x |= 3; return (); }"
 
-  test "^= becomes assignment with bitwise xor" $
+  test "^= is preserved for later compound-assignment lowering" $
     desugarAndPrettyPrint "fn assign() { x ^= 3; }"
-      `shouldBe` Just "general fn assign() -> () { x = (x ^ 3); return (); }"
+      `shouldBe` Just "general fn assign() -> () { x ^= 3; return (); }"
 
-  test "<<= becomes assignment with shift left" $
+  test "<<= is preserved for later compound-assignment lowering" $
     desugarAndPrettyPrint "fn assign() { x <<= 2; }"
-      `shouldBe` Just "general fn assign() -> () { x = (x << 2); return (); }"
+      `shouldBe` Just "general fn assign() -> () { x <<= 2; return (); }"
 
-  test ">>= becomes assignment with shift right" $
+  test ">>= is preserved for later compound-assignment lowering" $
     desugarAndPrettyPrint "fn assign() { x >>= 2; }"
-      `shouldBe` Just "general fn assign() -> () { x = (x >> 2); return (); }"
+      `shouldBe` Just "general fn assign() -> () { x >>= 2; return (); }"
+
+  test "compound assignment keeps a single call in its index" $
+    desugarAndPrettyPrint "fn assign() { a[next()] += 1; }"
+      `shouldBe` Just "general fn assign() -> () { a[next()] += 1; return (); }"
+
+  test "compound assignment keeps a single block and declaration in its index" $
+    desugarAndPrettyPrint "fn assign() { a[{ let i = 0; i }] += 1; }"
+      `shouldBe` Just "general fn assign() -> () { a[{ let i = 0; i }] += 1; return (); }"
+
+  test "compound assignment keeps a single call in its field base" $
+    desugarAndPrettyPrint "fn assign() { next().field += 1; }"
+      `shouldBe` Just "general fn assign() -> () { next().field += 1; return (); }"
+
+  test "compound assignment keeps a single call in its tuple-index base" $
+    desugarAndPrettyPrint "fn assign() { next().0 += 1; }"
+      `shouldBe` Just "general fn assign() -> () { next().0 += 1; return (); }"
 
   test "missing classical else is filled in with a unit block" $
     desugarAndPrettyPrint "fn f() { if ready {} }"

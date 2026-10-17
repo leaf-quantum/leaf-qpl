@@ -10,7 +10,7 @@ import Frontend.Lexer.Error
 import Frontend.Lexer.Lexer
 import Frontend.Parser.Error
 import Frontend.Parser.Parser
-import Frontend.PostParseValidation
+import Frontend.Parser.Validate
 import Frontend.Source
 import Frontend.Syntax.AST
 import Frontend.Token
@@ -45,13 +45,14 @@ Show FixtureError where
   show (ResolutionFailure (BindingShadowsConstant name _ span constantSpan)) =
     "Resolution: binding " ++ name ++ " at " ++ show span.start.line ++ ":" ++ show span.start.column ++
     " shadows the constant at " ++ show constantSpan.start.line ++ ":" ++ show constantSpan.start.column
+  show (ResolutionFailure (LocalValueUsedAsConstant name _ span localSpan)) =
+    "Resolution: non-constant " ++ name ++ " at " ++ show span.start.line ++ ":" ++ show span.start.column ++
+    " declared at " ++ show localSpan.start.line ++ ":" ++ show localSpan.start.column
   show (InvariantFailure messages) = "Resolution invariants: " ++ show messages
 
--- Every successful fixture must pass table validation as well as the test's
--- semantic assertions. Failures retain the phase and original diagnostic.
 export
-resolveSource : String -> Either FixtureError ResolvedModule
-resolveSource source = do
+canonicalSource : String -> Either FixtureError (SourceFile CanonicalAstPhase)
+canonicalSource source = do
   tokens <- case lexFile source of
     Left err => Left (LexingFailure (renderLexerError err))
     Right tokens => Right tokens
@@ -61,12 +62,23 @@ resolveSource source = do
   case validateSourceFile surface of
     [] => Right ()
     errors => Left (ValidationFailure (map interpolate errors))
-  resolved <- case resolveCanonicalSyntax (desugarSurfaceSyntax surface) of
+  Right (desugarSurfaceSyntax surface)
+
+-- Every successful fixture, including manually adjusted canonical ASTs, must
+-- pass table validation. Failures retain the phase and original diagnostic.
+export
+resolveCanonicalSource : SourceFile CanonicalAstPhase -> Either FixtureError ResolvedModule
+resolveCanonicalSource canonical = do
+  resolved <- case resolveCanonicalSyntax canonical of
     Left err => Left (ResolutionFailure err)
     Right resolved => Right resolved
   case validateResolvedModule resolved of
     [] => Right resolved
     errors => Left (InvariantFailure (map show errors))
+
+export
+resolveSource : String -> Either FixtureError ResolvedModule
+resolveSource source = canonicalSource source >>= resolveCanonicalSource
 
 export
 resolvedSource : String -> Maybe ResolvedModule

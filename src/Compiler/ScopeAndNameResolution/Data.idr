@@ -38,6 +38,7 @@ record ScopeTables where
   currentScope     : ScopeId                                  -- this field reflects the current scope while ScopeTables are being threaded through code using a State monad
   currentScopeKind : ScopeKind
   currentModule    : SymbolId                                 -- the module enclosing the current scope; threaded like currentScope
+  constContextBoundary : Maybe ScopeId                        -- scope enclosing innermost array length or repeat count where a name cannot be a local parameter
   nodeScopes       : SortedMap NodeId ScopeId                 -- lexical environment used to resolve a node
   symbols          : SortedMap SymbolId ResolvedSymbolInfo
   localVariables   : SortedMap SymbolId LocalVariableInfo     -- Local/parameter declaration metadata, keyed by the corresponding SymbolId.
@@ -74,14 +75,15 @@ data ResolutionError
                                                                         -- Declarations conflict in the same scope and namespace,
   | InaccessibleSymbol String SymbolId SourceSpan                       -- Declaration exists but visibility rules prohibit access,
                                                                         -- example: accessing a private function from a sibling module.
-  | BindingShadowsConstant String SymbolId SourceSpan SourceSpan        -- As in Rust, a binder naming a visible constant would be a,
-                                                                        -- constant pattern, not a new variable, so it is rejected.
+  | BindingShadowsConstant String SymbolId SourceSpan SourceSpan        -- An explicit mutable binder cannot shadow a visible constant.
+                                                                        -- Immutable bare names instead resolve to constant patterns.
+  | LocalValueUsedAsConstant String SymbolId SourceSpan SourceSpan      -- Use span, then the local's declaration name span. As in Rust (E0435),
+                                                                        -- array lengths and repeat counts cannot use enclosing locals,
+                                                                        -- example: `fn f(n: usize) { let a = [0; n]; }`.
 
 
 
 -- Guide for future extensions:
--- DuplicatePatternBinding String SourceSpan SourceSpan     -- Pattern introduces the same variable twice: `let (x, x) = pair;`.
-                                                             -- Covered by PostParseValidation, should not occur.
 -- IllegalCapture String SourceSpan                         -- Nested functions are forbidden from capturing enclosing locals,
                                                              -- example: `fn outer() { let x = 1; fn inner() -> i32 { x } }`
 -- IllegalShadowing String SymbolId SourceSpan SourceSpan   -- A declaration shadows a protected name,

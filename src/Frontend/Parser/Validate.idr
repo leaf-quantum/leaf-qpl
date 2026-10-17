@@ -1,4 +1,4 @@
-module Frontend.PostParseValidation
+module Frontend.Parser.Validate
 
 import Data.List1
 import Frontend.ASTData
@@ -9,7 +9,6 @@ import Frontend.Syntax.AST
 import Frontend.Syntax.Attribute
 import Frontend.Syntax.Name
 import Frontend.Syntax.Operator
-import Frontend.Syntax.Pattern
 import Frontend.Syntax.Type
 
 %default total
@@ -29,8 +28,6 @@ import Frontend.Syntax.Type
 --       second occurrence
 --   * conflicting attributes on one item: `qasm_gate` and `qasm_def` are
 --       mutually exclusive and are rejected when applied together
---   * duplicate parameter names in one function's parameter list, including
---       functions nested in an `impl`
 --   * `&mut` on a SYNTACTICALLY-qubit type (`&mut qubit`, `&mut [qubit]`,
 --       `&mut [qubit; 2]`, through parens/qualifiers), wherever a type occurs;
 --   * `break` outside a loop, while still walking and validating its optional
@@ -38,6 +35,10 @@ import Frontend.Syntax.Type
 --   * `continue` outside a loop
 --   * `return` outside a function body (for example in a const initializer),
 --       while still walking and validating its optional value expression
+--
+-- Duplicate bindings are checked by name resolution: an immutable bare
+-- pattern name may denote a constant rather than introduce a binding.
+-- This applies to function parameters as well as let and for patterns.
 --
 -- Shape of the pass: a plain structural walk accumulating a List of errors
 -- (empty list = valid). No early exit -- diagnostics improve when the user
@@ -84,21 +85,6 @@ data ValidationError : Type where
     -> (attributeNameText : String)
     -> ValidationError
 
-  -- Same parameter name written twice in one function's parameter list,
-  -- e.g. `fn f(x: i32, x: i32) {}`. `errorSpan` points at the repeated
-  -- (second) occurrence.
-  DuplicateParameterName :
-       (errorSpan : SourceSpan)
-    -> (parameterNameText : String)
-    -> ValidationError
-
-  -- A let pattern introduces the same variable more than once,
-  -- e.g. let (x, x) = pair; or let (x, [y, x]) = value; etc.
-  DuplicatePatternBinding :
-      (errorSpan : SourceSpan)
-    -> (bindingNameText : String)
-    -> ValidationError
-
   MutableBorrowOfQubit :
        (errorSpan : SourceSpan)
     -> ValidationError
@@ -129,8 +115,6 @@ validationErrorSpan err =
     UnknownAttribute s _        => s
     DuplicateAttribute s _      => s
     ConflictingAttributes s _   => s
-    DuplicateParameterName s _  => s
-    DuplicatePatternBinding s _ => s
     MutableBorrowOfQubit s      => s
     BreakOutsideLoop s          => s
     ContinueOutsideLoop s       => s
@@ -145,8 +129,6 @@ withValidationErrorFile fileName err =
        UnknownAttribute _ nameText        => UnknownAttribute withFile nameText
        DuplicateAttribute _ nameText      => DuplicateAttribute withFile nameText
        ConflictingAttributes _ nameText   => ConflictingAttributes withFile nameText
-       DuplicateParameterName _ nameText  => DuplicateParameterName withFile nameText
-       DuplicatePatternBinding _ nameText => DuplicatePatternBinding withFile nameText
        MutableBorrowOfQubit _             => MutableBorrowOfQubit withFile
        BreakOutsideLoop _                 => BreakOutsideLoop withFile
        ContinueOutsideLoop _              => ContinueOutsideLoop withFile
@@ -174,11 +156,6 @@ Interpolation ValidationError where
           "attribute `" ++ nm ++
           "` conflicts with another attribute already applied to this item " ++
           "(qasm_gate and qasm_def are mutually exclusive)"
-        DuplicateParameterName _ nm =>
-          "parameter `" ++ nm ++
-          "` is already used earlier in this parameter list"
-        DuplicatePatternBinding _ nm =>
-          "duplicate pattern binding, the name `\{nm}` is already bound earlier in the same let pattern"
         MutableBorrowOfQubit _ =>
           "`mut` should never be written on a qubit reference; qubit references are mutable by default"
         BreakOutsideLoop _ =>
@@ -325,29 +302,20 @@ mutual
   validateFunctionDecl
     (MkFunctionDeclarationNode _ attrs _ _ _ _ params retTy _ _ body) =
        validateAttributeList attrs
-    ++ validateParameterList [] params
+    ++ validateParameterList params
     ++ validateMaybeTy topLevelContext retTy
     ++ validateBlock functionBodyContext body
 
-  -- Threads the parameter names already seen in THIS list so a name reused
-  -- later (e.g. `fn f(x: i32, x: i32)`) is reported as DuplicateParameterName.
-  validateParameterList :
-       List String
-    -> List SurfaceFunctionParameter
-    -> List ValidationError
-  validateParameterList _ [] = []
-  validateParameterList seenNames (MkAstNode _ _ p :: rest) =
+  -- Parameter names require resolution, but every type still needs the
+  -- syntactic and contextual checks performed by this pass.
+  validateParameterList : List SurfaceFunctionParameter -> List ValidationError
+  validateParameterList [] = []
+  validateParameterList (MkAstNode _ _ p :: rest) =
     case p of
-      NormalParameter _ _ nameNode ty =>
-        let MkAstNode nameInfo _ (MkNameNode nameText) = nameNode
-            duplicateError =
-              if nameText `elem` seenNames
-                then [DuplicateParameterName nameInfo.span nameText]
-                else []
-        in duplicateError ++ validateTy topLevelContext ty
-             ++ validateParameterList (nameText :: seenNames) rest
+      NormalParameter _ _ _ ty =>
+        validateTy topLevelContext ty ++ validateParameterList rest
       ReceiverParameter _ _ =>
-        validateParameterList seenNames rest
+        validateParameterList rest
 
   validateStructDecl : StructDeclarationNode SurfaceAstPhase -> List ValidationError
   validateStructDecl (MkStructDeclarationNode _ attrs _ _ fields) =
@@ -431,48 +399,11 @@ mutual
   validateStatementList ctx (s :: rest) =
     validateStatement ctx s ++ validateStatementList ctx rest
 
-  validateLetPattern : SurfacePattern -> List ValidationError
-  validateLetPattern pattern = validatePatternBindingNames [] (patternBindingNames pattern)
-    where
-      patternBindingNames : SurfacePattern -> List SurfaceName
-      patternBindingNames (MkAstNode _ _ patternNode) =
-        case patternNode of
-          PatternWildcard                     => []
-          PatternName _ binderName            => [binderName]
-          PatternPath _                       => []
-          PatternLiteral _                    => []
-          PatternParenthesized innerPattern   => recur innerPattern
-          PatternTuple elementPatterns        => concatMap recur (forget elementPatterns)
-          PatternArray elementPatterns        => concatMap recur elementPatterns
-          PatternStruct _ fieldPatterns       => concatMap structPatternFieldBindingNames fieldPatterns
-          PatternEnumTuple _ argumentPatterns => concatMap recur argumentPatterns
-        where
-          recur : SurfacePattern -> List SurfaceName
-          recur nestedPattern = patternBindingNames (assert_smaller patternNode nestedPattern)
-
-          structPatternFieldBindingNames : SurfaceStructPatternField -> List SurfaceName
-          structPatternFieldBindingNames
-              (MkAstNode _ _ (StructPatternFieldShorthand _ binderName)) =
-            [binderName]
-          structPatternFieldBindingNames
-              (MkAstNode _ _ (StructPatternFieldExplicit _ fieldPattern)) =
-            recur fieldPattern
-
-      validatePatternBindingNames : List String -> List SurfaceName -> List ValidationError
-      validatePatternBindingNames _ [] = []
-      validatePatternBindingNames seenNames
-          (MkAstNode nameInfo _ (MkNameNode nameText) :: rest) =
-        if nameText `elem` seenNames
-          then DuplicatePatternBinding nameInfo.span nameText ::
-               validatePatternBindingNames seenNames rest
-          else validatePatternBindingNames (nameText :: seenNames) rest
-
   validateStatement : ValidationContext -> SurfaceStatement -> List ValidationError
   validateStatement ctx (MkAstNode _ _ stmt) =
     case stmt of
-      StatementLet (MkLetBindingNode _ letPattern tyAnn maybeInit) =>
-           validateLetPattern letPattern
-        ++ validateMaybeTy ctx tyAnn
+      StatementLet (MkLetBindingNode _ _ tyAnn maybeInit) =>
+           validateMaybeTy ctx tyAnn
         ++ (case maybeInit of
               Nothing => []
               Just (MkLetInitializerNode _ initValue) =>

@@ -171,7 +171,7 @@ record SymbolInfo (typeInfo : Type) where
 public export
 data ReferenceRole
   = ValueReference            -- x in x + 1, f(x), or return x.
-  | AssignmentTarget          -- x in x = value.
+  | AssignmentTarget          -- x in x = value or x += value; the operator retains read-modify-write semantics.
   | DeclarationReference      -- MAX in const MAX: i32 = 1, or calculate in fn calculate().
   | TypeReference             -- Point in a type annotation, cast, or impl target: let p: Point = Point { x: 1.0, y: 2.0 };
   | QualifierReference        -- math in math::calculate.

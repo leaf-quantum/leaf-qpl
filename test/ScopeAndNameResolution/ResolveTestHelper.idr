@@ -5,9 +5,13 @@ import Frontend.ASTData
 import Frontend.ASTPhases
 import Frontend.Source
 import Frontend.Syntax.AST
+import Frontend.Syntax.Attribute
 import Frontend.Syntax.Common
+import Frontend.Syntax.Contract
+import Frontend.Syntax.Doc
 import Frontend.Syntax.Name
 import Frontend.Syntax.Pattern
+import Frontend.Syntax.Type
 import ScopeAndNameResolution.Helper
 
 import Data.List
@@ -90,10 +94,12 @@ sameRole : ReferenceRole -> ReferenceRole -> Bool
 sameRole DeclarationReference DeclarationReference = True
 sameRole ValueReference ValueReference = True
 sameRole AssignmentTarget AssignmentTarget = True
+sameRole PatternReference PatternReference = True
 sameRole _ _ = False
 
 -- Compare each occurrence, role and context with its unique reference entry.
--- Compound assignments can reuse a written name for both a write and a read.
+-- A compound assignment retains its operator and has one target occurrence;
+-- its read-modify-write behavior is represented by the operator, not a copied name.
 -- This catches missing references, wrong targets/roles/contexts and lost spans.
 export
 referenceMatches : ResolvedModule -> ReferenceRole -> NodeId -> ResolvedName -> Bool
@@ -106,6 +112,31 @@ referenceMatches resolved role context name =
              lookup name.astInfo.nodeId resolved.tables.nodeScopes == Just ref.enclosingScope &&
              lookup context resolved.tables.nodeScopes == Just ref.enclosingScope
     _ => False
+
+-- Constants in patterns reference an existing symbol and introduce neither a
+-- local binding nor local-variable metadata in the occurrence's scope.
+export
+constantOccurrenceMatches : ResolvedModule -> ResolvedName -> NodeId -> ResolvedName -> Bool
+constantOccurrenceMatches resolved constant context name =
+  case scopeFor resolved name of
+    Nothing => False
+    Just scope =>
+      symbolId name == symbolId constant &&
+      referenceMatches resolved PatternReference context name &&
+      isNothing (lookup (symbolId name) resolved.tables.localVariables) &&
+      isNothing (lookup name.value.resolvedNameNodeText scope.valueBindings) &&
+      not (elem (symbolId name) (scope.declaredSymbolsInOrder <>> []))
+
+export
+constantPatternMatches : ResolvedModule -> ResolvedName -> ResolvedPattern -> Bool
+constantPatternMatches resolved constant pattern = case pattern.value of
+  PatternPath path =>
+    let name = MkAstNode path.astInfo path.metadata
+                 (MkResolvedNameNode path.value.firstPathSegmentText path.value.resolvedPathTargetSymbolId)
+    in path.value.remainingPathSegmentTexts == [] &&
+       path.value.firstPathSegmentText == constant.value.resolvedNameNodeText &&
+       constantOccurrenceMatches resolved constant pattern.astInfo.nodeId name
+  _ => False
 
 export
 useMatches : ResolvedModule -> ResolvedName -> ResolvedExpr -> Maybe Bool
@@ -149,6 +180,18 @@ symbolMatches resolved name scope kind origin =
 export
 isBlock : ScopeInfo -> Bool
 isBlock scope = case scope.kind of BlockScope => True; _ => False
+
+-- Every block scope must be the scope recorded for its own AST node. This
+-- also detects duplicated scope creation for blocks that contain no names.
+export
+blockScopesMatchNodes : ResolvedModule -> Bool
+blockScopesMatchNodes resolved = all matches (SortedMap.toList resolved.tables.scopes)
+  where
+    matches : (ScopeId, ScopeInfo) -> Bool
+    matches (scopeId, scope) = case (scope.kind, scope.origin) of
+      (BlockScope, SourceScope info) =>
+        lookup info.nodeId resolved.tables.nodeScopes == Just scopeId
+      _ => True
 
 export
 patternBinders : ResolvedPattern -> List (ResolvedPattern, ResolvedName)
@@ -236,13 +279,14 @@ usesInScope resolved scope uses = do
 export
 expressionUses : String -> List String -> (ResolvedExpr -> Maybe (List ResolvedExpr)) -> Either String Bool
 expressionUses expression expected select = checkSource
-  ("fn g(x: i32, n: i32) {} fn f(a: [i32; 2], i: i32, x: i32, n: i32, pair: (i32, i32)) { " ++
+  ("const N: i32 = 2; fn g(x: i32, n: i32) {} fn f(a: [i32; 2], i: i32, x: i32, n: i32, pair: (i32, i32)) { " ++
    expression ++ "; }") $ \resolved => do
+    (_, con) <- constantNamed "N" resolved
     (_, g) <- functionNamed "g" resolved
     (_, f) <- functionNamed "f" resolved
     names <- parameterNames f
     let declarations = SortedMap.fromList $ map (\name => (name.value.resolvedNameNodeText, name))
-                                     (g.functionName :: names)
+                                     (con.constName :: g.functionName :: names)
     targets <- traverse (\name => SortedMap.lookup name declarations) expected
     expression <- exprAt 0 f.functionBody
     uses <- select expression
@@ -264,11 +308,69 @@ referenceInventory resolved expected =
      all (\(role, context, name) => referenceMatches resolved role context name) expected
 
 export
+valueReferenceOccurrence : ResolvedExpr -> Maybe (ReferenceRole, NodeId, ResolvedName)
+valueReferenceOccurrence expression = do
+  name <- nameUse expression
+  pure (ValueReference, expression.astInfo.nodeId, name)
+
+export
 sourceSymbols : ResolvedModule -> List ResolvedSymbolInfo
 sourceSymbols resolved = filter fromSource (map snd (SortedMap.toList resolved.tables.symbols))
   where
     fromSource : ResolvedSymbolInfo -> Bool
     fromSource symbol = case symbol.origin of SourceSymbol _ => True; _ => False
+
+-- The parser currently accepts only a bare identifier after `for`. For richer
+-- resolver fixtures, move the first let's already parsed pattern into the
+-- following loop, then remove that let. Its node IDs and diagnostic positions
+-- are retained, and the resulting AST contains each node only once.
+moveLetPatternToFor : SourceFile CanonicalAstPhase -> Maybe (SourceFile CanonicalAstPhase)
+moveLetPatternToFor source = do
+  let MkSourceFileNode docs items = source.value
+  items <- traverse moveInFunction items
+  pure ({ value := MkSourceFileNode docs items } source)
+  where
+    replaceExpression : CanonicalPattern -> CanonicalExpr -> Maybe CanonicalExpr
+    replaceExpression pattern expression = case expression.value of
+      ExprFor _ iterator body => Just ({ value := ExprFor pattern iterator body } expression)
+      _ => Nothing
+
+    replaceStatement : CanonicalPattern -> Statement CanonicalAstPhase -> Maybe (Statement CanonicalAstPhase)
+    replaceStatement pattern statement = case statement.value of
+      StatementExpression expression => do
+        expression <- replaceExpression pattern expression
+        pure ({ value := StatementExpression expression } statement)
+      StatementSemiExpression expression => do
+        expression <- replaceExpression pattern expression
+        pure ({ value := StatementSemiExpression expression } statement)
+      _ => Nothing
+
+    moveInFunction : Item CanonicalAstPhase -> Maybe (Item CanonicalAstPhase)
+    moveInFunction item = case item.value of
+      ItemFunction fn => do
+        first :: loop :: rest <- pure fn.functionBody.value.blockStatements | _ => Nothing
+        StatementLet binding <- pure first.value | _ => Nothing
+        loop <- replaceStatement binding.letPattern loop
+        let body : CanonicalBlock =
+              { value := { blockStatements := loop :: rest } fn.functionBody.value } fn.functionBody
+        pure ({ value := ItemFunction ({ functionBody := body } fn) } item)
+      _ => Just item
+
+withForPattern : String -> (Either FixtureError ResolvedModule -> Either String a) -> Either String a
+withForPattern source inspect = do
+  canonical <- either (Left . show) Right (canonicalSource source)
+  adjusted <- case moveLetPatternToFor canonical of
+    Nothing => Left "Expected a let pattern followed by a for loop in the canonical fixture"
+    Just adjusted => Right adjusted
+  inspect (resolveCanonicalSource adjusted)
+
+export
+checkForPattern : String -> (ResolvedModule -> Maybe a) -> Either String a
+checkForPattern source inspect = withForPattern source $ \result => case result of
+  Left err => Left (show err)
+  Right resolved => case inspect resolved of
+    Nothing => Left "Unexpected resolved for-pattern fixture or missing table entry"
+    Just value => Right value
 
 -- Resolve a matching single declaration to obtain the expected conflicting
 -- SymbolId without depending on how many synthetic Prelude symbols exist.
@@ -287,6 +389,24 @@ duplicateDeclaration first second name expectedSpan = do
     Left err => Left (show err)
     Right _ => Left "Expected DuplicateDeclaration, but resolution succeeded"
 
+-- Duplicate binders are a resolution error, whereas repeated constant pattern
+-- occurrences are legal and must not be rejected by post-parse validation.
+export
+duplicateBinder : String -> Either String (String, (Nat, Nat, Nat, Nat), (Nat, Nat, Nat, Nat))
+duplicateBinder source = case resolveSource source of
+  Left (ResolutionFailure (DuplicateDeclaration name [_] current previous)) =>
+    Right (name, coordinates current, coordinates previous)
+  Left err => Left (show err)
+  Right _ => Left "Expected DuplicateDeclaration, but resolution succeeded"
+
+export
+duplicateForBinder : String -> Either String (String, (Nat, Nat, Nat, Nat), (Nat, Nat, Nat, Nat))
+duplicateForBinder source = withForPattern source $ \result => case result of
+  Left (ResolutionFailure (DuplicateDeclaration name [_] current previous)) =>
+    Right (name, coordinates current, coordinates previous)
+  Left err => Left (show err)
+  Right _ => Left "Expected DuplicateDeclaration, but resolution succeeded"
+
 -- Returns the name and the binder and constant coordinates of the expected
 -- BindingShadowsConstant diagnostic.
 export
@@ -296,3 +416,31 @@ constantShadowing source = case resolveSource source of
     Right (name, coordinates binder, coordinates constant)
   Left err => Left (show err)
   Right _ => Left "Expected BindingShadowsConstant, but resolution succeeded"
+
+export
+forConstantShadowing : String -> Either String (String, (Nat, Nat, Nat, Nat), (Nat, Nat, Nat, Nat))
+forConstantShadowing source = withForPattern source $ \result => case result of
+  Left (ResolutionFailure (BindingShadowsConstant name _ binder constant)) =>
+    Right (name, coordinates binder, coordinates constant)
+  Left err => Left (show err)
+  Right _ => Left "Expected BindingShadowsConstant, but resolution succeeded"
+
+-- Returns the name and the use and local declaration coordinates of the
+-- expected LocalValueUsedAsConstant diagnostic.
+export
+nonConstantUse : String -> Either String (String, (Nat, Nat, Nat, Nat), (Nat, Nat, Nat, Nat))
+nonConstantUse source = case resolveSource source of
+  Left (ResolutionFailure (LocalValueUsedAsConstant name _ use local)) =>
+    Right (name, coordinates use, coordinates local)
+  Left err => Left (show err)
+  Right _ => Left "Expected LocalValueUsedAsConstant, but resolution succeeded"
+
+-- Every value reference resolves to a symbol with the given kind, in source order.
+export
+valueReferenceKinds : ResolvedModule -> Maybe (List (String, String))
+valueReferenceKinds resolved = traverse describe (valueReferences resolved)
+  where
+    describe : SymbolReference -> Maybe (String, String)
+    describe reference = do
+      symbol <- lookup reference.target resolved.tables.symbols
+      pure (reference.writtenName, kindText symbol.symbolKind)

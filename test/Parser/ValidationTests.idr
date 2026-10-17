@@ -1,9 +1,9 @@
-module PostParseValidator.PostParseValidationTest
+module Parser.ValidationTests
 
 import Test.Simple
 
 import Frontend.ASTPhases
-import Frontend.PostParseValidation
+import Frontend.Parser.Validate
 import Frontend.Syntax.AST
 import Parser.Helper
 
@@ -60,33 +60,35 @@ runPostParseValidationTests = runTests $ Test.do
           "qasm_def are mutually exclusive)"
         ]
 
-  test "a repeated parameter name is rejected after parsing" $
+  test "repeated parameter names are deferred to name resolution" $
     validationMessages "fn f(x: i32, x: i32) {}" `shouldBe`
-      Just
-        [ "test-fixture.rs:1:14: parameter `x` is already used earlier " ++
-          "in this parameter list"
-        ]
+      Just []
 
-  test "a repeated let-pattern binding is rejected after parsing" $
+  test "repeated let-pattern names are deferred to name resolution" $
     validationMessages "fn f() {let (x, x) = pair;}" `shouldBe`
-      Just
-        [ "test-fixture.rs:1:17: duplicate pattern binding, the name `x` " ++
-          "is already bound earlier in the same let pattern"
-        ]
+      Just []
 
-  test "a repeated binding across nested tuple patterns is rejected" $
+  test "repeated names across nested tuple patterns require name resolution" $
     validationMessages "fn f() {let ((x, y), (z, x)) = value;}" `shouldBe`
-      Just
-        [ "test-fixture.rs:1:26: duplicate pattern binding, the name `x` " ++
-          "is already bound earlier in the same let pattern"
-        ]
+      Just []
 
-  test "a repeated binding in a nested array pattern is rejected" $
+  test "repeated names in nested array patterns require name resolution" $
     validationMessages "fn f() {let (x, [y, x]) = value;}" `shouldBe`
-      Just
-        [ "test-fixture.rs:1:21: duplicate pattern binding, the name `x` " ++
-          "is already bound earlier in the same let pattern"
-        ]
+      Just []
+
+  test "repeated constant patterns in parameters and lets pass syntax validation" $
+    validationMessages
+      "const U: () = (); fn f(U: (), U: ()) {let (U, U) = ((), ());}" `shouldBe`
+      Just []
+
+  test "constant names in consecutive for loops pass syntax validation" $
+    validationMessages
+      "const U: () = (); fn f() {for U in [()] {} for U in [()] {}}" `shouldBe`
+      Just []
+
+  test "repeated parameter names do not skip type validation" $
+    map length (validationMessages "fn f(x: &mut qubit, x: &mut qubit) {}") `shouldBe`
+      Just 2
 
   test "a control basis matching the number of controls is accepted" $
     validationMessages

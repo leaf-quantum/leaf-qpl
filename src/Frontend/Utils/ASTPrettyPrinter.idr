@@ -35,7 +35,7 @@ import Frontend.Syntax.Type
 -- re-parse to the same tree.
 --
 -- TOTALITY: this module follows the discipline documented at the top of
--- Frontend.PostParseValidation ("learned the hard way"): Idris 2's size-change checker
+-- Frontend.Parser.Validate ("learned the hard way"): Idris 2's size-change checker
 -- credits CONSTRUCTOR PATTERNS ONLY. Every record is destructured via its
 -- constructor in the pattern head (never through a `.field` projection) when
 -- the projected value feeds a recursive call, and every List/List1 that is

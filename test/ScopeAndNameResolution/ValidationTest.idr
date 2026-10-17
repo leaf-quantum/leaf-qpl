@@ -59,6 +59,7 @@ validModule = MkResolvedModule
     (MkScopeId 0)
     ModuleScope
     (MkSymbolId 0)
+    Nothing
     (fromList [(MkNodeId 0 0, MkScopeId 0), (MkNodeId 10 0, MkScopeId 1), (MkNodeId 11 0, MkScopeId 1)])
     (fromList [(MkSymbolId 0, rootSymbol), (MkSymbolId 1, localSymbol)])
     (fromList [(MkSymbolId 1, MkLocalVariableInfo ImmutableVariable NotQubitLocal)])
@@ -71,6 +72,42 @@ withSymbol key symbol resolved = { tables.symbols := insert (MkSymbolId key) sym
 
 withScope : Nat -> ScopeInfo -> ResolvedModule -> ResolvedModule
 withScope key scope resolved = { tables.scopes := insert (MkScopeId key) scope resolved.tables.scopes } resolved
+
+withUpdatedScope : Nat -> (ScopeInfo -> ScopeInfo) -> ResolvedModule -> ResolvedModule
+withUpdatedScope key update resolved =
+  { tables.scopes := updateExisting update (MkScopeId key) resolved.tables.scopes } resolved
+
+withScopeOrder : Nat -> SnocList SymbolId -> ResolvedModule -> ResolvedModule
+withScopeOrder key order resolved =
+  { tables.scopes := updateExisting (\scope => { declaredSymbolsInOrder := order } scope)
+                                    (MkScopeId key) resolved.tables.scopes } resolved
+
+-- Compound assignments retain their operator, so each written value occurrence
+-- should be visited once, including occurrences inside scoped target expressions.
+repeatedReads : ResolvedModule -> List String
+repeatedReads resolved =
+  let reads = valueReferences resolved
+      repeated = filter (\read => length (filter (\other => other.occurrence.nodeId == read.occurrence.nodeId) reads) > 1) reads
+  in sort (nub (map (.writtenName) repeated))
+
+localNames : ResolvedModule -> List String
+localNames resolved =
+  sort (map (.declaredName) (filter isLocal (map snd (SortedMap.toList resolved.tables.symbols))))
+  where
+    isLocal : ResolvedSymbolInfo -> Bool
+    isLocal symbol = case symbol.symbolKind of
+      SymbolLocalBinding => True
+      _ => False
+
+uniqueBlockScopeOrigins : ResolvedModule -> Bool
+uniqueBlockScopeOrigins resolved =
+  let origins = mapMaybe sourceOrigin (map snd (SortedMap.toList resolved.tables.scopes)) in
+    length origins == length (nub origins)
+  where
+    sourceOrigin : ScopeInfo -> Maybe NodeId
+    sourceOrigin scope = case (scope.kind, scope.origin) of
+      (BlockScope, SourceScope source) => Just source.nodeId
+      _ => Nothing
 
 diagnostics : ResolvedModule -> List String
 diagnostics = map show . validateResolvedModule
@@ -125,6 +162,23 @@ memberModule =
                  withScope 0 declaringScope $ withScope 2 members $ withScope 3 implScope validModule
   in { tables.memberScopes := insert (MkSymbolId 2) (MkScopeId 2) resolved.tables.memberScopes } resolved
 
+-- Isolate Point's type binding so its declaration-order test cannot rely on
+-- another binding to the same symbol in the value namespace.
+typeOnlyModule : ResolvedModule
+typeOnlyModule = withUpdatedScope 0 (\scope => { valueBindings := empty } scope) memberModule
+
+childModuleSymbol : ResolvedSymbolInfo
+childModuleSymbol = MkSymbolInfo (MkSymbolId 2) SymbolModule () "nested"
+                                (MkScopeId 0) (MkSymbolId 0) PublicVisibility (SourceSymbol (info 2))
+
+childModule : ResolvedModule
+childModule =
+  let declaringScope = { typeBindings := fromList [("nested", binding "nested" 2 DeclaredBinding)],
+                         declaredSymbolsInOrder := [< MkSymbolId 2] } rootScope
+      resolved = withSymbol 2 childModuleSymbol $ withScope 0 declaringScope $
+                 withScope 2 (newScope 2 ModuleScope (Just (MkScopeId 0))) validModule
+  in { tables.memberScopes := insert (MkSymbolId 2) (MkScopeId 2) resolved.tables.memberScopes } resolved
+
 withMemberOwnerKind : SymbolKind -> ResolvedModule
 withMemberOwnerKind kind =
   { tables.symbols := updateExisting (\symbol => { symbolKind := kind } symbol)
@@ -148,11 +202,19 @@ runResolutionValidationTests = runTests $ Test.do
   test "shadowed declarations and earlier references remain valid" $
     diagnostics shadowedModule `shouldBe` []
 
+  -- `Point` is bound in both the type and value namespaces of the root scope.
   test "multiple namespaces share a symbol listed once in declaration order" $
-    diagnostics memberModule `shouldBe` []
+    (diagnostics memberModule,
+     diagnostics (withScopeOrder 0 [< MkSymbolId 2, MkSymbolId 2] memberModule)) `shouldBe`
+      ([], [show (DuplicateDeclaredSymbol (MkScopeId 0) (MkSymbolId 2))])
 
-  test "impl methods may be exposed through a separate member scope" $
-    diagnostics memberModule `shouldBe` []
+  -- `update` is bound in the struct's MemberScope but declared in its ImplScope.
+  test "impl methods exposed through a member scope remain declared in their impl scope" $
+    (diagnostics memberModule,
+     diagnostics (withScopeOrder 3 [<] memberModule),
+     reports (WrongDeclarationScope (MkScopeId 2) (MkSymbolId 4) (MkScopeId 3))
+       (withScopeOrder 2 [< MkSymbolId 3, MkSymbolId 4] memberModule)) `shouldBe`
+      ([], [show (MissingDeclarationOrderEntry (MkScopeId 3) (MkSymbolId 4))], True)
 
   test "a module may also have a separate MemberScope" $
     diagnostics ({ tables.memberScopes := fromList [(MkSymbolId 0, MkScopeId 2)] }
@@ -330,41 +392,49 @@ runResolutionValidationTests = runTests $ Test.do
     diagnostics (withMemberOwnerKind SymbolEnumVariant) `shouldBe` []
 
   test "type binding keys must agree with their written names" $
-    diagnostics (withScope 1 ({ typeBindings := fromList [("wrong", binding "x" 1 DeclaredBinding)] }
-                             blockScope) validModule) `shouldBe`
-      [show (BindingNameMismatch (MkScopeId 1) TypeNamespace "wrong" "x")]
+    (diagnostics typeOnlyModule,
+     diagnostics (withUpdatedScope 0
+       (\scope => { typeBindings := fromList [("wrong", binding "Point" 2 DeclaredBinding)] } scope)
+       typeOnlyModule)) `shouldBe`
+      ([], [show (BindingNameMismatch (MkScopeId 0) TypeNamespace "wrong" "Point")])
 
   test "field binding keys must agree with their written names" $
-    diagnostics (withScope 1 ({ fieldBindings := fromList [("wrong", binding "x" 1 DeclaredBinding)] }
-                             blockScope) validModule) `shouldBe`
-      [show (BindingNameMismatch (MkScopeId 1) FieldNamespace "wrong" "x")]
+    (diagnostics memberModule,
+     diagnostics (withUpdatedScope 2
+       (\scope => { fieldBindings := fromList [("wrong", binding "x" 3 DeclaredBinding)] } scope)
+       memberModule)) `shouldBe`
+      ([], [show (BindingNameMismatch (MkScopeId 2) FieldNamespace "wrong" "x")])
 
   test "type declarations must appear in declaration order" $
-    diagnostics (withScope 1 ({ valueBindings := empty,
-                               typeBindings := fromList [("x", binding "x" 1 DeclaredBinding)],
-                               declaredSymbolsInOrder := [<] } blockScope) validModule) `shouldBe`
-      [show (MissingDeclarationOrderEntry (MkScopeId 1) (MkSymbolId 1))]
+    (diagnostics typeOnlyModule,
+     diagnostics (withScopeOrder 0 [<] typeOnlyModule)) `shouldBe`
+      ([], [show (MissingDeclarationOrderEntry (MkScopeId 0) (MkSymbolId 2))])
 
   test "field declarations must appear in declaration order" $
-    diagnostics (withScope 1 ({ valueBindings := empty,
-                               fieldBindings := fromList [("x", binding "x" 1 DeclaredBinding)],
-                               declaredSymbolsInOrder := [<] } blockScope) validModule) `shouldBe`
-      [show (MissingDeclarationOrderEntry (MkScopeId 1) (MkSymbolId 1))]
+    (diagnostics memberModule,
+     diagnostics (withScopeOrder 2 [<] memberModule)) `shouldBe`
+      ([], [show (MissingDeclarationOrderEntry (MkScopeId 2) (MkSymbolId 3))])
 
   test "a non-root module cannot be its own declaring module" $
-    diagnostics (withSymbol 2
-      ({ symbolId := MkSymbolId 2, declaringModule := MkSymbolId 2,
-         declaredName := "nested", origin := SourceSymbol (info 2) } rootSymbol) validModule) `shouldBe`
-      [show (SelfDeclaringModule (MkSymbolId 2))]
+    (diagnostics childModule,
+     diagnostics (withSymbol 2 ({ declaringModule := MkSymbolId 2 } childModuleSymbol) childModule)) `shouldBe`
+      ([], [show (SelfDeclaringModule (MkSymbolId 2))])
 
   test "disconnected cycles are each reported once despite additional incoming paths" $
-    sort (diagnostics (withScope 1 ({ parent := Just (MkScopeId 2) } blockScope) $
-                      withScope 2 (newScope 2 BlockScope (Just (MkScopeId 1))) $
-                      withScope 3 (newScope 3 BlockScope (Just (MkScopeId 4))) $
-                      withScope 4 (newScope 4 BlockScope (Just (MkScopeId 3))) $
-                      withScope 5 (newScope 5 BlockScope (Just (MkScopeId 1))) $
-                      withScope 6 (newScope 6 BlockScope (Just (MkScopeId 3))) validModule)) `shouldBe`
-      sort (map show [ScopeParentCycle (MkScopeId 1), ScopeParentCycle (MkScopeId 3)])
+    -- Sorted traversal enters the cycles through scopes 1 and 2 before visiting
+    -- any cycle member. Scopes 7 and 8 revisit the already diagnosed cycles.
+    let acyclic = withScope 1 ({ parent := Just (MkScopeId 3) } blockScope) $
+                  withScope 2 (newScope 2 BlockScope (Just (MkScopeId 5))) $
+                  withScope 3 (newScope 3 BlockScope (Just (MkScopeId 4))) $
+                  withScope 4 (newScope 4 BlockScope (Just (MkScopeId 0))) $
+                  withScope 5 (newScope 5 BlockScope (Just (MkScopeId 6))) $
+                  withScope 6 (newScope 6 BlockScope (Just (MkScopeId 0))) $
+                  withScope 7 (newScope 7 BlockScope (Just (MkScopeId 3))) $
+                  withScope 8 (newScope 8 BlockScope (Just (MkScopeId 5))) validModule
+        cyclic = withUpdatedScope 4 (\scope => { parent := Just (MkScopeId 3) } scope) $
+                 withUpdatedScope 6 (\scope => { parent := Just (MkScopeId 5) } scope) acyclic
+    in (diagnostics acyclic, sort (diagnostics cyclic)) `shouldBe`
+      ([], sort (map show [ScopeParentCycle (MkScopeId 3), ScopeParentCycle (MkScopeId 5)]))
 
   test "resolution must restore the root scope cursor" $
     diagnostics ({ tables.currentScope := MkScopeId 1 } validModule) `shouldBe`
@@ -377,6 +447,10 @@ runResolutionValidationTests = runTests $ Test.do
   test "resolution must restore the ModuleScope cursor kind" $
     diagnostics ({ tables.currentScopeKind := BlockScope } validModule) `shouldBe`
       [show (InvalidCurrentScopeKind (MkScopeId 0))]
+
+  test "resolution must leave every constant context" $
+    diagnostics ({ tables.constContextBoundary := Just (MkScopeId 1) } validModule) `shouldBe`
+      [show (UnrestoredConstContext (MkScopeId 1))]
 
   test "all unrestored cursor fields are reported together" $
     diagnostics ({ tables.currentScope := MkScopeId 1,
@@ -428,14 +502,16 @@ runResolutionValidationTests = runTests $ Test.do
       [show (DeclaredBindingNameMismatch (MkScopeId 1) ValueNamespace "renamed" (MkSymbolId 1) "x")]
 
   test "declared type bindings must use the target's declared name" $
-    diagnostics (withScope 1 ({ typeBindings := fromList [("renamed", binding "renamed" 1 DeclaredBinding)] }
-                             blockScope) validModule) `shouldBe`
-      [show (DeclaredBindingNameMismatch (MkScopeId 1) TypeNamespace "renamed" (MkSymbolId 1) "x")]
+    diagnostics (withUpdatedScope 0
+      (\scope => { typeBindings := fromList [("renamed", binding "renamed" 2 DeclaredBinding)] } scope)
+      typeOnlyModule) `shouldBe`
+      [show (DeclaredBindingNameMismatch (MkScopeId 0) TypeNamespace "renamed" (MkSymbolId 2) "Point")]
 
   test "declared field bindings must use the target's declared name" $
-    diagnostics (withScope 1 ({ fieldBindings := fromList [("renamed", binding "renamed" 1 DeclaredBinding)] }
-                             blockScope) validModule) `shouldBe`
-      [show (DeclaredBindingNameMismatch (MkScopeId 1) FieldNamespace "renamed" (MkSymbolId 1) "x")]
+    diagnostics (withUpdatedScope 2
+      (\scope => { fieldBindings := fromList [("renamed", binding "renamed" 3 DeclaredBinding)] } scope)
+      memberModule) `shouldBe`
+      [show (DeclaredBindingNameMismatch (MkScopeId 2) FieldNamespace "renamed" (MkSymbolId 3) "x")]
 
   test "reference occurrences require a node-scope mapping" $
     diagnostics ({ tables.nodeScopes := fromList [(MkNodeId 0 0, MkScopeId 0), (MkNodeId 11 0, MkScopeId 1)] }
@@ -462,7 +538,7 @@ runResolutionValidationTests = runTests $ Test.do
                  validModule) `shouldBe`
       [show (ReferenceNodeScopeMismatch (MkNodeId 11 0) (MkScopeId 1) (MkScopeId 0))]
 
-  test "identical reference records from shared desugared subexpressions are accepted" $
+  test "identical reference records are accepted by table consistency validation" $
     diagnostics ({ tables.references := fromList [(MkSymbolId 1, [< reference, reference])] }
                  validModule) `shouldBe` []
 
@@ -500,14 +576,39 @@ runResolutionValidationTests = runTests $ Test.do
                     [(MkSymbolId 1, [< { role := DeclarationReference } reference])] }
                  validModule) `shouldBe` []
 
-  test "indexed compound assignments remain valid after duplicating target subexpressions" $
-    checkSource "fn f(mut a: [i32; 2], i: i32, x: i32) { a[i] += x; }" (\_ => Just True) `shouldBe` Right True
+  test "indexed compound assignments resolve each target subexpression once" $
+    checkSource "fn f(mut a: [i32; 2], i: i32, x: i32) { a[i] += x; }" (\resolved =>
+      Just (map (.writtenName) (valueReferences resolved), repeatedReads resolved))
+      `shouldBe` Right (["a", "i", "x"], [])
 
-  test "tuple-index compound assignments remain valid after duplicating their base" $
-    checkSource "fn f(mut pair: (i32, i32), x: i32) { pair.0 += x; }" (\_ => Just True) `shouldBe` Right True
+  test "tuple-index compound assignments resolve their base once" $
+    checkSource "fn f(mut pair: (i32, i32), x: i32) { pair.0 += x; }" (\resolved =>
+      Just (map (.writtenName) (valueReferences resolved), repeatedReads resolved))
+      `shouldBe` Right (["pair", "x"], [])
 
   test "field compound assignments retain deferred member lookup" $
-    checkSource "fn f(mut value: i32, x: i32) { value.field += x; }" (\_ => Just True) `shouldBe` Right True
+    checkSource "fn f(mut value: i32, x: i32) { value.field += x; }" (\resolved =>
+      Just (map (.writtenName) (valueReferences resolved), repeatedReads resolved,
+            filter (== "field") (map (.writtenName) (allReferences resolved)),
+            filter (== "field") (map (.declaredName) (map snd (SortedMap.toList resolved.tables.symbols)))))
+      `shouldBe` Right (["value", "x"], [], [], [])
+
+  test "a compound-assignment block index resolves an outer variable in one scope" $
+    checkSource "fn f(mut a: [i32; 2], i: i32) { a[{ i }] += 1; }" (\resolved =>
+      Just (map (.writtenName) (valueReferences resolved), repeatedReads resolved, uniqueBlockScopeOrigins resolved))
+      `shouldBe` Right (["a", "i"], [], True)
+
+  test "a compound-assignment block index creates its local symbol and scope once" $
+    checkSource "fn f(mut a: [i32; 2]) { a[{ let i = 0; i }] += 1; }" (\resolved =>
+      Just (map (.writtenName) (valueReferences resolved), repeatedReads resolved,
+            localNames resolved, uniqueBlockScopeOrigins resolved))
+      `shouldBe` Right (["a", "i"], [], ["i"], True)
+
+  test "compound-assignment conditional indices preserve distinct branch scopes" $
+    checkSource "fn f(mut a: [i32; 2], choose: bool) { a[if choose { let i = 0; i } else { let i = 1; i }] += 1; }" (\resolved =>
+      Just (map (.writtenName) (valueReferences resolved), repeatedReads resolved,
+            localNames resolved, uniqueBlockScopeOrigins resolved))
+      `shouldBe` Right (["a", "choose", "i", "i"], [], ["i", "i"], True)
 
   test "collapsed path qualifier occurrences may lack their own scope mapping" $
     diagnostics ({ tables.references := fromList [(MkSymbolId 0,
