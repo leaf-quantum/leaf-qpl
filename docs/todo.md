@@ -11,10 +11,10 @@ Higher priority:
 - `affine` & `scratch` qubits.
 - Quantum contracts.
 - Support for mutable variables.
+- Classical subroutines & support in Lean.
 - Quantum conditionals.
   - `qif`+`qelse` & `qmatch`.
   - `sif`+`selse` & `smatch`.
-- Classical subroutines & support in Lean.
 
 Other:
 
