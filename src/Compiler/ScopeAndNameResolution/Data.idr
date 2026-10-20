@@ -3,9 +3,10 @@ module Compiler.ScopeAndNameResolution.Data
 import Frontend.ASTData
 import Frontend.ASTPhases
 import Frontend.Helper
+import Frontend.QuantumProperties
 import Frontend.Source
 import Frontend.Syntax.AST
-import Frontend.Type
+import Compiler.Type
 
 import Data.SortedMap
 

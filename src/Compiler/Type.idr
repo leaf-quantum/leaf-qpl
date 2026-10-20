@@ -1,8 +1,9 @@
-module Frontend.Type
+module Compiler.Type
 
 import Data.List1
 
 import Frontend.ASTData
+import Frontend.QuantumProperties
 import Frontend.Token
 import Frontend.Syntax.Common
 import Frontend.Syntax.Operator
@@ -15,18 +16,7 @@ import Frontend.Syntax.Operator
 -- Unlike Frontend.Syntax.Type.TyNode, LeafType describes a checked type rather
 -- than preserving how a type was written. In particular, named types refer to
 -- resolved symbols and array lengths are evaluated natural numbers.
---------------------------------------------------------------------------------
-
-public export
-data QubitTypeQualifier
-  = Linear
-  | Affine
-
-public export
-record QuantumStorageProperties where
-  constructor MkQuantumStorageProperties
-  usage   : QubitTypeQualifier
-  scratch : Bool
+--------------------------------------------------------------------------------LeafNamed
 
 public export
 data LeafType
@@ -39,3 +29,5 @@ data LeafType
   | LeafReference BorrowKind LeafType
   | LeafFunction FunctionEffect (List LeafType) LeafType
   | LeafQualified QuantumStorageProperties LeafType
+  | UnresolvedInt     -- integer numerical value, exact primitive type remains to be resolved
+  | UnresovedFloat    -- float numerical value, exact primitive type remains to be resolved

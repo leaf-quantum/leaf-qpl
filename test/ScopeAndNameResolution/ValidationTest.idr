@@ -6,7 +6,7 @@ import Frontend.ASTData
 import Frontend.ASTPhases
 import Frontend.Source
 import Frontend.Syntax.AST
-import Frontend.Type
+import Compiler.Type
 import ScopeAndNameResolution.Helper
 
 import Data.List

@@ -7,7 +7,7 @@ import Frontend.ASTPhases
 import Compiler.Validation.PostParseValidation
 import Frontend.Source
 import Frontend.Token
-import Frontend.Type
+import Compiler.Type
 import Frontend.Lexer.Error
 import Frontend.Lexer.Lexer
 import Frontend.Lexer.Regex

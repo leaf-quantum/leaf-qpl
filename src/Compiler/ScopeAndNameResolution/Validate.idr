@@ -172,7 +172,7 @@ public export
 Interpolation ResolutionInvariantError where
   interpolate err = show err
 
-hasKey : Ord key => key -> SortedMap key value -> Bool
+hasKey : Ord k => k -> SortedMap k v -> Bool
 hasKey key entries = isJust (lookup key entries)
 
 check : Bool -> ResolutionInvariantError -> List ResolutionInvariantError
