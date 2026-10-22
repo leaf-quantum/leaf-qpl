@@ -29,5 +29,3 @@ data LeafType
   | LeafReference BorrowKind LeafType
   | LeafFunction FunctionEffect (List LeafType) LeafType
   | LeafQualified QuantumStorageProperties LeafType
-  | UnresolvedInt     -- integer numerical value, exact primitive type remains to be resolved
-  | UnresovedFloat    -- float numerical value, exact primitive type remains to be resolved
