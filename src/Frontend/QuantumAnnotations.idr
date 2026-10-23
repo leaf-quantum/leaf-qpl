@@ -1,4 +1,4 @@
-module Frontend.QuantumProperties
+module Frontend.QuantumAnnotations
 
 import Frontend.ASTData
 

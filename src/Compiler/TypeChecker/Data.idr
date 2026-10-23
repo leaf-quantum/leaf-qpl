@@ -18,8 +18,8 @@ TypedSymbolInfo : Type
 TypedSymbolInfo = SymbolInfo (Maybe LeafType)
 
 public export
-record ScopeAndTypeTables where
-  constructor MkScopeAndTypeTables
+record TypeTables where
+  constructor MkTypeTables
   currentScope     : ScopeId                                  -- this field reflects the current scope while ScopeTables are being threaded through code using a State monad
   currentScopeKind : ScopeKind
   currentModule    : SymbolId                                 -- the module enclosing the current scope; threaded like currentScope
@@ -38,7 +38,7 @@ record TypedModule where
   rootModule     : SymbolId
   rootScope      : ScopeId
   ast            : TypedSourceFile
-  tables         : ScopeAndTypeTables
+  tables         : TypeTables
 
 public export
 data TypeError
@@ -58,4 +58,5 @@ data TypeError
   | EffectViolation FunctionEffect FunctionEffect SourceSpan   -- enclosing effect restriction, offending operation's effect, ex: measr(&q) inside a unitary function,
   | MissingCapability String SourceSpan                        -- required capability (adjoint or ctrl), ex: adjoint(f) when f has no established adjoint support
   | InvalidQuantumPattern String SourceSpan               -- explanation of the invalid pattern, ex: mixing integer and basis-string patterns in one qmatch, or using _ in smatch.
+                                                              -- type cycles?
 

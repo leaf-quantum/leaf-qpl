@@ -3,7 +3,7 @@ module Compiler.ScopeAndNameResolution.Data
 import Frontend.ASTData
 import Frontend.ASTPhases
 import Frontend.Helper
-import Frontend.QuantumProperties
+import Frontend.QuantumAnnotations
 import Frontend.Source
 import Frontend.Syntax.AST
 import Compiler.Type

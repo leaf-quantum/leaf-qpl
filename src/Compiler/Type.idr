@@ -3,7 +3,7 @@ module Compiler.Type
 import Data.List1
 
 import Frontend.ASTData
-import Frontend.QuantumProperties
+import Frontend.QuantumAnnotations
 import Frontend.Token
 import Frontend.Syntax.Common
 import Frontend.Syntax.Operator

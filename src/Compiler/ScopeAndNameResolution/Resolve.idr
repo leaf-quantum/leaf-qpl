@@ -2,6 +2,7 @@ module Compiler.ScopeAndNameResolution.Resolve
 
 import Control.Monad.State
 import Compiler.Prelude
+import Compiler.TypeChecker.Data
 import Compiler.ScopeAndNameResolution.Data
 import Compiler.ScopeAndNameResolution.Helper
 import Data.List
