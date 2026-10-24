@@ -30,4 +30,4 @@ import Frontend.Syntax.Type
 import Compiler.Desugar.Desugar
 import Compiler.Desugar.Helper
 import Compiler.ScopeAndNameResolution.Resolve
-import Compiler.TypeChecker.TypeCheck
+import Compiler.TypeChecker.InitialTypeCheckPass

@@ -14,8 +14,13 @@ import Data.SortedMap
 %default total
 
 public export
+data InferredType
+  = TypeNotYetResolved
+  | ResolvedType LeafType
+
+public export
 TypedSymbolInfo : Type
-TypedSymbolInfo = SymbolInfo (Maybe LeafType)
+TypedSymbolInfo = SymbolInfo InferredType
 
 public export
 record TypeTables where
@@ -30,7 +35,7 @@ record TypeTables where
   references       : SortedMap SymbolId (SnocList SymbolReference)
   scopes           : SortedMap ScopeId ScopeInfo
   memberScopes     : SortedMap SymbolId ScopeId               -- Given a symbol, which scope contains its members? Member example: const and functions inside a module
-  expressionTypes  : SortedMap NodeId LeafType
+  expressionTypes  : SortedMap NodeId InferredType
 
 public export
 record TypedModule where
