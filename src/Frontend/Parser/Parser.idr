@@ -302,31 +302,34 @@ parsePathType typeNodeId firstName firstBounds nodeId tokens acc =
                 (TyPath path)
            in Succ0 (ty, finalNodeId) finalTokens
 
-||| Wraps a parsed inner type with the already-collected storage qualifiers.
-wrapQualifiedType :
-     {0 tokens : List (Bounded Token)}
-  -> NodeId
-  -> StorageQualifiers
-  -> Bounds
+||| Parses the `qubit` following an ownership qualifier. A qualifier applies to
+||| a single qubit, so anything else is rejected at the token following it: a
+||| second qualifier, and qubit collections, which qualify their elements.
+||| Tested by: `fn qualified(q: affine qubit, pair: (linear qubit, affine qubit)) {}`.
+parseQualifiedQubit :
+     NodeId
+  -> SurfaceAstNode OwnershipQualifier
+  -> (nextNodeId : Nat)
+  -> (tokens : List (Bounded Token))
   -> Res True Token tokens CustomParseError (SurfaceTy, Nat)
-  -> Res True Token tokens CustomParseError (SurfaceTy, Nat)
-wrapQualifiedType _ _ _ (Fail0 err) = Fail0 err
-wrapQualifiedType typeNodeId qualifiers firstBounds
-    (Succ0 (inner, finalNodeId) finalTokens) =
-  case qualifiers.ordered <>> [] of
-    first :: rest =>
-      Succ0
+parseQualifiedQubit typeNodeId qualifier nodeId
+    ((B (TokTypPrim TypPrimQubit) qubitBounds) :: remaining) =
+  let (qubitNodeId, nextNodeId) = reserveNodeId nodeId
+      qubitType = surfaceAstNode
+        (MkAstInfo qubitNodeId (sourceSpan qubitBounds))
+        (TyPrimitive TypPrimQubit)
+   in Succ0
         (surfaceAstNode
           (MkAstInfo typeNodeId
-            (mergeSpans (sourceSpan firstBounds) inner.astInfo.span))
-          (TyQualified (first ::: rest) inner),
-         finalNodeId)
-        finalTokens
-    [] =>
-      failWithCustomError
-        (ParseErrorWithMessage
-          "Internal parser error: qualified type has no qualifiers.")
-        firstBounds
+            (mergeSpans qualifier.astInfo.span qubitType.astInfo.span))
+          (TyQualified qualifier qubitType),
+         nextNodeId)
+        remaining
+parseQualifiedQubit _ qualifier _ ((B token bounds) :: _) =
+  failWithCustomError
+    (ParseErrorWithMessage (qualifiedNonQubitMessage qualifier.value token))
+    bounds
+parseQualifiedQubit _ _ _ [] = Fail0 (B EOI NoBounds)
 
 ||| Wraps a parsed inner type as a reference type with the given borrow node.
 wrapReferenceType :
@@ -349,8 +352,8 @@ wrapReferenceType typeNodeId borrow ampBounds
 
 mutual
   ||| Dispatches a type after its head token has already been consumed.
-  ||| Indexing the result by that head makes the strict decrease visible both to
-  ||| ordinary type parsing and to the qualified-type continuation.
+  ||| Indexing the result by that head makes the strict decrease visible to
+  ||| the continuations parsing the rest of the type.
   parseTypeAfterHead :
        (typeNodeId : NodeId)
     -> (nextNodeId : Nat)
@@ -387,19 +390,18 @@ mutual
         succT $ parsePathType typeNodeId name bounds nextNodeId remaining acc
       TokKw keyword =>
         case storageQualifierFromKeyword keyword of
-          Just qualifier =>
-            let (qualifierNodeId, afterQualifierNodeId) =
-                  reserveNodeId nextNodeId
-                located = surfaceAstNode
-                  (MkAstInfo qualifierNodeId (sourceSpan bounds)) qualifier
-             in case addStorageQualifier emptyStorageQualifiers located of
-                  Left message =>
-                    failWithCustomError (ParseErrorWithMessage message) bounds
-                  Right qualifiers =>
-                    succT $
-                      parseMoreTypeQualifiers typeNodeId qualifiers bounds
+          Just storageQualifier =>
+            case typeOwnershipQualifier storageQualifier of
+              Left message =>
+                failWithCustomError (ParseErrorWithMessage message) bounds
+              Right ownership =>
+                let (qualifierNodeId, afterQualifierNodeId) =
+                      reserveNodeId nextNodeId
+                    located = surfaceAstNode
+                      (MkAstInfo qualifierNodeId (sourceSpan bounds)) ownership
+                 in succT $
+                      parseQualifiedQubit typeNodeId located
                         afterQualifierNodeId remaining
-                        afterHeadSmaller acc
           Nothing =>
             case functionEffectFromKeyword keyword of
               Just effect =>
@@ -437,48 +439,29 @@ mutual
           MutableBorrow
      in wrapReferenceType typeNodeId borrow ampBounds $
           succT $
-            parseTypeWithin afterBorrowNodeId remaining
+            parseReferentType afterBorrowNodeId remaining
               (rebaseSmaller smaller (uncons Same)) recur
   parseReferenceType typeNodeId ampBounds nodeId tokens smaller acc =
     let (borrowNodeId, afterBorrowNodeId) = reserveNodeId nodeId
         borrow = surfaceAstNode
           (MkAstInfo borrowNodeId (sourceSpan ampBounds)) SharedBorrow
      in wrapReferenceType typeNodeId borrow ampBounds $
-          parseTypeWithin afterBorrowNodeId tokens smaller acc
+          parseReferentType afterBorrowNodeId tokens smaller acc
 
-  ||| Collects consecutive quantum-storage qualifiers and parses their inner type.
-  ||| Tested by: `fn qualified(q: affine qubit, pair: (scratch linear qubit, affine qubit)) {}`.
-  parseMoreTypeQualifiers :
-       NodeId
-    -> StorageQualifiers
-    -> Bounds
-    -> TypeRule True SurfaceTy
-  parseMoreTypeQualifiers typeNodeId qualifiers firstBounds nodeId
-      ((B (TokKw keyword) bounds) :: remaining) smaller (SA recur) =
-    case storageQualifierFromKeyword keyword of
-      Just qualifier =>
-        let (qualifierNodeId, nextNodeId) = reserveNodeId nodeId
-            located = surfaceAstNode
-              (MkAstInfo qualifierNodeId (sourceSpan bounds)) qualifier
-         in case addStorageQualifier qualifiers located of
-              Left message =>
-                failWithCustomError (ParseErrorWithMessage message) bounds
-              Right updated =>
-                succT $ parseMoreTypeQualifiers typeNodeId updated firstBounds
-                  nextNodeId remaining
-                  (rebaseSmaller smaller (uncons Same)) recur
-      Nothing =>
-        let (innerTypeNodeId, nextNodeId) = reserveNodeId nodeId
-         in wrapQualifiedType typeNodeId qualifiers firstBounds $
-              parseTypeAfterHead innerTypeNodeId nextNodeId
-                (TokKw keyword) bounds remaining smaller recur
-  parseMoreTypeQualifiers typeNodeId qualifiers firstBounds nodeId
-      ((B token bounds) :: remaining) smaller (SA recur) =
-    let (innerTypeNodeId, nextNodeId) = reserveNodeId nodeId
-     in wrapQualifiedType typeNodeId qualifiers firstBounds $
-          parseTypeAfterHead innerTypeNodeId nextNodeId token bounds
-            remaining smaller recur
-  parseMoreTypeQualifiers _ _ _ _ [] _ _ = Fail0 (B EOI NoBounds)
+  ||| Parses the type a reference refers to. A reference borrows its referent
+  ||| without owning it, so an ownership qualifier written directly after `&`
+  ||| or `&mut` is rejected here; post-parse validation rejects one nested
+  ||| deeper (`&[linear qubit]`).
+  ||| Tested by: `fn bad(q: &affine qubit) {}`.
+  parseReferentType : TypeRule True SurfaceTy
+  parseReferentType nodeId ((B token bounds) :: remaining) smaller acc =
+    case ownershipQualifierFromToken token of
+      Just ownership =>
+        failWithCustomError
+          (ParseErrorWithMessage (qualifierBehindReferenceMessage ownership))
+          bounds
+      Nothing => parseTypeWithin nodeId ((B token bounds) :: remaining) smaller acc
+  parseReferentType nodeId [] smaller acc = parseTypeWithin nodeId [] smaller acc
 
   ||| Parses an effect-qualified function type, requiring `fn` after the effect.
   ||| Tested by:
@@ -692,7 +675,7 @@ mutual
   ||| trailing-comma case. It consumes the closing delimiter and returns its bounds
   ||| separately, allowing `parseParenType` to distinguish grouping from tuple
   ||| syntax and to span the complete tuple.
-  ||| Tested by: `fn qualified(pair: (scratch linear qubit, affine qubit)) {}`.
+  ||| Tested by: `fn qualified(pair: (linear qubit, affine qubit)) {}`.
   parseTupleTail :
        SnocList SurfaceTy
     -> TypeRule True (CommaList SurfaceTy)

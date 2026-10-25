@@ -38,33 +38,39 @@ runDesugaringTests = runTests $ Test.do
     desugarAndPrettyPrint "fn allocate() { let q: qubit = qalloc(); }"
       `shouldBe`
       Just
-        "general fn allocate() -> () { let linear q: qubit = qalloc(); return (); }"
+        "general fn allocate() -> () { let q: linear qubit = qalloc(); return (); }"
 
-  test "explicitly typed qubit array let binding is linear by default" $
+  test "explicitly typed qubit array let binding has linear elements by default" $
     desugarAndPrettyPrint "fn allocate() { let qs: [qubit; 3] = qalloc(3); }"
       `shouldBe`
       Just
-        "general fn allocate() -> () { let linear qs: [qubit; 3] = qalloc(3); return (); }"
+        "general fn allocate() -> () { let qs: [linear qubit; 3] = qalloc(3); return (); }"
+
+  test "nested qubit arrays have linear innermost elements by default" $
+    desugarAndPrettyPrint "fn allocate() { let qs: [[qubit; 2]; 3] = qalloc(6); }"
+      `shouldBe`
+      Just
+        "general fn allocate() -> () { let qs: [[linear qubit; 2]; 3] = qalloc(6); return (); }"
 
   test "explicitly typed qubit tuple let binding is linear by default" $
     desugarAndPrettyPrint
       "fn allocate() { let qs: (qubit, qubit) = (qalloc(), qalloc()); }"
       `shouldBe`
       Just
-        "general fn allocate() -> () { let linear qs: (qubit, qubit) = (qalloc(), qalloc()); return (); }"
+        "general fn allocate() -> () { let qs: (linear qubit, linear qubit) = (qalloc(), qalloc()); return (); }"
 
-  test "mixed tuple containing a qubit is linear by default" $
+  test "only the qubit element of a mixed tuple is linear by default" $
     desugarAndPrettyPrint
       "fn allocate() { let pair: (i32, qubit) = (0, qalloc()); }"
       `shouldBe`
       Just
-        "general fn allocate() -> () { let linear pair: (i32, qubit) = (0, qalloc()); return (); }"
+        "general fn allocate() -> () { let pair: (i32, linear qubit) = (0, qalloc()); return (); }"
 
   test "parenthesized qubit type is linear by default" $
     desugarAndPrettyPrint "fn allocate() { let q: ((qubit)) = qalloc(); }"
       `shouldBe`
       Just
-        "general fn allocate() -> () { let linear q: qubit = qalloc(); return (); }"
+        "general fn allocate() -> () { let q: linear qubit = qalloc(); return (); }"
 
   test "qubit reference let binding is not linear by default" $
     desugarAndPrettyPrint "fn borrow(q: &qubit) { let qref: &qubit = &q; }"
@@ -79,17 +85,106 @@ runDesugaringTests = runTests $ Test.do
       Just
         "general fn values() -> () { let values: [i32; 3] = [0, 0, 0]; return (); }"
 
-  test "explicit affine qualifier is preserved for a qubit let binding" $
+  test "an explicit affine let qualifier moves into the qubit type" $
     desugarAndPrettyPrint "fn allocate() { let affine q: qubit = qalloc(); }"
       `shouldBe`
       Just
-        "general fn allocate() -> () { let affine q: qubit = qalloc(); return (); }"
+        "general fn allocate() -> () { let q: affine qubit = qalloc(); return (); }"
+
+  test "an explicit linear let qualifier moves into the qubit array elements" $
+    desugarAndPrettyPrint "fn allocate() { let linear qs: [qubit; 2] = qalloc(2); }"
+      `shouldBe`
+      Just
+        "general fn allocate() -> () { let qs: [linear qubit; 2] = qalloc(2); return (); }"
+
+  test "an explicit let qualifier moves into every owned qubit position" $
+    desugarAndPrettyPrint
+      "fn allocate() { let affine (a, n, qs): (qubit, i32, [qubit; 2]) = (qalloc(), 0, qalloc(2)); }"
+      `shouldBe`
+      Just
+        "general fn allocate() -> () { let (a, n, qs): (affine qubit, i32, [affine qubit; 2]) = (qalloc(), 0, qalloc(2)); return (); }"
+
+  test "a moved let qualifier keeps the span of the written keyword at every position" $
+    firstLetTypeQualifierSpans
+      "fn allocate() { let affine (a, qs): (qubit, [qubit; 2]) = (qalloc(), qalloc(2)); }"
+      `shouldBe` Just [((1, 21), (1, 27)), ((1, 21), (1, 27))]
+
+  test "a default qualifier takes the span of the type it qualifies" $
+    firstLetTypeQualifierSpans "fn allocate() { let q: qubit = qalloc(); }"
+      `shouldBe` Just [((1, 24), (1, 29))]
+
+  test "a default qualifier on an array element takes the span of the element" $
+    firstLetTypeQualifierSpans "fn allocate() { let qs: [qubit; 2] = qalloc(2); }"
+      `shouldBe` Just [((1, 26), (1, 31))]
+
+  test "an explicit let qualifier stays on a let without owned qubit positions" $
+    desugarAndPrettyPrint "fn allocate() { let linear r: &qubit = &q; }"
+      `shouldBe`
+      Just
+        "general fn allocate() -> () { let linear r: &qubit = (&q); return (); }"
+
+  test "an explicit let qualifier stays on a let without a type annotation" $
+    desugarAndPrettyPrint "fn allocate() { let affine q = qalloc(); }"
+      `shouldBe`
+      Just
+        "general fn allocate() -> () { let affine q = qalloc(); return (); }"
 
   test "scratch qubit let binding is linear by default" $
     desugarAndPrettyPrint "fn allocate() { let scratch q: qubit = qalloc(); }"
       `shouldBe`
       Just
-        "general fn allocate() -> () { let scratch linear q: qubit = qalloc(); return (); }"
+        "general fn allocate() -> () { let scratch q: linear qubit = qalloc(); return (); }"
+
+  test "scratch with an explicit ownership qualifier keeps scratch on the let" $
+    desugarAndPrettyPrint "fn allocate() { let affine scratch q: qubit = qalloc(); }"
+      `shouldBe`
+      Just
+        "general fn allocate() -> () { let scratch q: affine qubit = qalloc(); return (); }"
+
+  test "qubit parameters, qubit array parameters and qubit results are linear by default" $
+    desugarAndPrettyPrint
+      "unitary fn f(q: qubit, qs: [qubit; 2], n: i32, r: &qubit) -> (qubit, [qubit; 2]) { (q, qs) }"
+      `shouldBe`
+      Just
+        "unitary fn f(q: linear qubit, qs: [linear qubit; 2], n: i32, r: &qubit) -> (linear qubit, [linear qubit; 2]) { return (q, qs); }"
+
+  test "an explicitly qualified parameter keeps its qualifier" $
+    desugarAndPrettyPrint "fn f(q: affine qubit) {}"
+      `shouldBe`
+      Just "general fn f(q: affine qubit) -> () { return (); }"
+
+  test "qubits inside function types are linear by default" $
+    desugarAndPrettyPrint
+      "fn run(oracle: unitary fn(qs: [qubit; 4], target: qubit) -> ([qubit; 4], qubit)) {}"
+      `shouldBe`
+      Just
+        "general fn run(oracle: unitary fn(qs: [linear qubit; 4], target: linear qubit) -> ([linear qubit; 4], linear qubit)) -> () { return (); }"
+
+  test "an array of mixed tuples qualifies only the qubit elements" $
+    desugarAndPrettyPrint "fn f(pairs: [(qubit, i32); 2]) {}"
+      `shouldBe`
+      Just "general fn f(pairs: [(linear qubit, i32); 2]) -> () { return (); }"
+
+  test "qubits inside a referenced function type are linear by default" $
+    desugarAndPrettyPrint "fn run(oracle: &fn(q: qubit) -> qubit) {}"
+      `shouldBe`
+      Just
+        "general fn run(oracle: &fn(q: linear qubit) -> linear qubit) -> () { return (); }"
+
+  test "qubits inside a function type in a let annotation are linear by default" $
+    desugarAndPrettyPrint "fn run(g: fn(q: qubit)) { let affine h: fn(q: qubit) = g; }"
+      `shouldBe`
+      Just
+        "general fn run(g: fn(q: linear qubit)) -> () { let affine h: fn(q: linear qubit) = g; return (); }"
+
+  test "a qubit const type is linear by default" $
+    desugarAndPrettyPrint "const C: qubit = 3;"
+      `shouldBe` Just "const C: linear qubit = 3;"
+
+  test "a qubit cast target is linear by default" $
+    desugarAndPrettyPrint "fn f() { let q = 3 as qubit; }"
+      `shouldBe`
+      Just "general fn f() -> () { let q = (3 as linear qubit); return (); }"
 
   test "inferred qubit let binding receives no qualifier during desugaring" $
     desugarAndPrettyPrint "fn allocate() { let q = qalloc(); }"

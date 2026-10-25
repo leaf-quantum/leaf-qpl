@@ -1,5 +1,6 @@
 module Compiler.Validation.PostParseValidation
 
+import Data.List
 import Data.List1
 import Frontend.ASTData
 import Frontend.ASTPhases
@@ -7,6 +8,8 @@ import Frontend.Source
 import Frontend.Token
 import Frontend.Syntax.AST
 import Frontend.Syntax.Attribute
+import Frontend.Syntax.Common
+import Frontend.Syntax.Literal
 import Frontend.Syntax.Name
 import Frontend.Syntax.Operator
 import Frontend.Syntax.Type
@@ -35,6 +38,20 @@ import Frontend.Syntax.Type
 --   * `continue` outside a loop
 --   * `return` outside a function body (for example in a const initializer),
 --       while still walking and validating its optional value expression
+--   * an ownership qualifier written both on a `let` and inside its type
+--       annotation (`let linear q: affine qubit = ...`); reported at every
+--       qualifier at an owned position of the annotation (see "Owned
+--       positions" in Frontend.Syntax.Type), so qualifiers inside function
+--       types are not repeats
+--   * an ownership qualifier behind a reference, nested in its referent
+--       (`&[linear qubit]`, `&(i32, affine qubit)`): a reference borrows its
+--       referent without owning it; the parser already rejects one directly
+--       after `&` (`&affine qubit`)
+--   * an array length written as a (possibly parenthesized) integer literal
+--       with a signed type suffix (`[qubit; 3i8]`, `[0; (3i8)]`) or a value
+--       that does not fit its unsigned suffix type (`[qubit; 256u8]`): an
+--       array length is unsigned, so only an unsigned suffix or none is
+--       accepted
 --
 -- Duplicate bindings are checked by name resolution: an immutable bare
 -- pattern name may denote a constant rather than introduce a binding.
@@ -107,6 +124,38 @@ data ValidationError : Type where
     -> (basisLength : Nat)
     -> ValidationError
 
+  -- An ownership qualifier written both on a `let` and inside its type
+  -- annotation, e.g. `let linear q: affine qubit = qalloc();`. `errorSpan`
+  -- points at the qualifier inside the annotation.
+  OwnershipQualifierInLetAndType :
+       (errorSpan : SourceSpan)
+    -> (letQualifier : OwnershipQualifier)
+    -> (typeQualifier : OwnershipQualifier)
+    -> ValidationError
+
+  -- An ownership qualifier at an owned position of a reference's referent,
+  -- e.g. `&[linear qubit]`. `errorSpan` points at the qualifier.
+  OwnershipQualifierBehindReference :
+       (errorSpan : SourceSpan)
+    -> (qualifier : OwnershipQualifier)
+    -> ValidationError
+
+  -- An array length written as an integer literal with a signed type
+  -- suffix, e.g. `[qubit; 3i8]`. `errorSpan` points at the literal.
+  SignedArrayLength :
+       (errorSpan : SourceSpan)
+    -> (suffixType : TypPrimName)
+    -> ValidationError
+
+  -- An array length written as an integer literal whose value does not fit
+  -- its suffix type, e.g. `[qubit; 256u8]`. `errorSpan` points at the literal.
+  ArrayLengthOutOfRange :
+       (errorSpan : SourceSpan)
+    -> (literalText : String)
+    -> (suffixType : TypPrimName)
+    -> (suffixMaximum : Nat)
+    -> ValidationError
+
 -- The span a renderer should point at.
 public export
 validationErrorSpan : ValidationError -> SourceSpan
@@ -120,6 +169,10 @@ validationErrorSpan err =
     ContinueOutsideLoop s       => s
     ReturnOutsideFunction s     => s
     ControlBasisLengthMismatch s _ _ => s
+    OwnershipQualifierInLetAndType s _ _ => s
+    OwnershipQualifierBehindReference s _ => s
+    SignedArrayLength s _ => s
+    ArrayLengthOutOfRange s _ _ _ => s
 
 withValidationErrorFile : String -> ValidationError -> ValidationError
 withValidationErrorFile fileName err =
@@ -135,6 +188,14 @@ withValidationErrorFile fileName err =
        ReturnOutsideFunction _            => ReturnOutsideFunction withFile
        ControlBasisLengthMismatch _ controlCount basisLength =>
          ControlBasisLengthMismatch withFile controlCount basisLength
+       OwnershipQualifierInLetAndType _ letQualifier typeQualifier =>
+         OwnershipQualifierInLetAndType withFile letQualifier typeQualifier
+       OwnershipQualifierBehindReference _ qualifier =>
+         OwnershipQualifierBehindReference withFile qualifier
+       SignedArrayLength _ suffixType =>
+         SignedArrayLength withFile suffixType
+       ArrayLengthOutOfRange _ literalText suffixType suffixMaximum =>
+         ArrayLengthOutOfRange withFile literalText suffixType suffixMaximum
 
 -- "file:line:col" prefix, matching the lexer-error rendering style.
 renderSpanPrefix : SourceSpan -> String
@@ -168,6 +229,19 @@ Interpolation ValidationError where
           "control basis contains " ++ show basisLength ++
           " states, but the control expression has " ++ show controlCount ++
           " control qubits"
+        OwnershipQualifierInLetAndType _ letQualifier typeQualifier =>
+          "`" ++ show typeQualifier ++ "` cannot be written in the type " ++
+          "annotation because the `let` already has the `" ++ show letQualifier ++
+          "` qualifier; write the ownership qualifier in one place only"
+        OwnershipQualifierBehindReference _ qualifier =>
+          "`" ++ show qualifier ++ "` cannot be written behind a reference; " ++
+          "a reference borrows its referent without owning it"
+        SignedArrayLength _ suffixType =>
+          "an array length cannot have the signed type suffix `" ++
+          show suffixType ++ "`; write an unsigned suffix such as `u32`, or none"
+        ArrayLengthOutOfRange _ literalText suffixType suffixMaximum =>
+          "the array length `" ++ literalText ++ "` does not fit in `" ++
+          show suffixType ++ "`, whose largest value is " ++ show suffixMaximum
 
 --------------------------------------------------------------------------------
 -- Validation context
@@ -255,6 +329,51 @@ isSyntacticallyQubitTy ty =
     TySlice (MkAstNode _ _ element)            => isSyntacticallyQubitTy element
     TyArray (MkAstNode _ _ element) _          => isSyntacticallyQubitTy element
     _                                          => False
+
+-- Ownership qualifiers written at the owned positions of a type.
+ownedPositionQualifiers : SurfaceTy -> List (SurfaceAstNode OwnershipQualifier)
+ownedPositionQualifiers = mapMaybe positionQualifier . ownedPositions
+
+-- A `let` carrying `linear` or `affine` must not repeat an ownership qualifier
+-- inside its type annotation. `scratch` on the `let` is unaffected.
+letOwnershipConflicts :
+     List (AstNode SurfaceAstPhase QuantumStorageQualifier)
+  -> Maybe SurfaceTy
+  -> List ValidationError
+letOwnershipConflicts _ Nothing = []
+letOwnershipConflicts letQualifiers (Just annotation) =
+  case mapMaybe (storageOwnership . (.value)) letQualifiers of
+    [] => []
+    letQualifier :: _ =>
+      map (\(MkAstNode qualifierInfo _ typeQualifier) =>
+             OwnershipQualifierInLetAndType qualifierInfo.span letQualifier typeQualifier)
+          (ownedPositionQualifiers annotation)
+
+-- A reference's referent holds no ownership qualifier at an owned position.
+-- Qualifiers behind a nested reference are reported when the walk reaches
+-- that reference, since owned positions do not enter references.
+qualifiersBehindReference : SurfaceTy -> List ValidationError
+qualifiersBehindReference referent =
+  map (\(MkAstNode qualifierInfo _ qualifier) =>
+         OwnershipQualifierBehindReference qualifierInfo.span qualifier)
+      (ownedPositionQualifiers referent)
+
+-- An array length written as an integer literal may carry only an unsigned
+-- type suffix, and its value must fit that type. Parentheses are looked
+-- through because desugaring removes them, leaving the bare literal for
+-- typing. Lengths computed by other expressions are left to typing.
+arrayLengthErrors : SurfaceExpr -> List ValidationError
+arrayLengthErrors (MkAstNode _ _ (ExprParenthesized innerLength)) =
+  arrayLengthErrors innerLength
+arrayLengthErrors
+    (MkAstNode lengthInfo _ (ExprLiteral (MkAstNode _ _ (LiteralIntegerRaw raw)))) =
+  case arrayLengthProblem raw of
+    Just (SignedLengthSuffix suffixType) =>
+      [SignedArrayLength lengthInfo.span suffixType]
+    Just (LengthExceedsSuffixType suffixType suffixMaximum) =>
+      [ArrayLengthOutOfRange lengthInfo.span raw suffixType suffixMaximum]
+    Nothing => []
+arrayLengthErrors _ = []
 
 --------------------------------------------------------------------------------
 -- The traversal
@@ -402,8 +521,9 @@ mutual
   validateStatement : ValidationContext -> SurfaceStatement -> List ValidationError
   validateStatement ctx (MkAstNode _ _ stmt) =
     case stmt of
-      StatementLet (MkLetBindingNode _ _ tyAnn maybeInit) =>
-           validateMaybeTy ctx tyAnn
+      StatementLet (MkLetBindingNode letQualifiers _ tyAnn maybeInit) =>
+           letOwnershipConflicts letQualifiers tyAnn
+        ++ validateMaybeTy ctx tyAnn
         ++ (case maybeInit of
               Nothing => []
               Just (MkLetInitializerNode _ initValue) =>
@@ -453,7 +573,8 @@ mutual
       ExprParenthesized e   => validateExpr ctx e
       ExprTuple es          => validateExprList1 ctx es
       ExprArray es          => validateExprList ctx es
-      ExprRepeatedArray e c => validateExpr ctx e ++ validateExpr ctx c
+      ExprRepeatedArray e c =>
+        validateExpr ctx e ++ arrayLengthErrors c ++ validateExpr ctx c
 
       ExprCall callee args =>
         validateExpr ctx callee ++ validateExprList ctx args
@@ -610,8 +731,9 @@ mutual
       AdjointBlock body          => validateBlock ctx body
 
   ------------------------------------------------------------------
-  -- Types: the &mut-qubit check, and recursion into array-size
-  -- expressions (which are full surface expressions).
+  -- Types: the &mut-qubit check, the qualifier-behind-reference check, the
+  -- array-length literal check, and recursion into array-size expressions
+  -- (which are full surface expressions).
   ------------------------------------------------------------------
 
   validateTyList :
@@ -639,7 +761,7 @@ mutual
       TyParenthesized t    => validateTy ctx t
       TyTuple ts           => validateTyList1 ctx ts
       TyArray element size =>
-        validateTy ctx element ++ validateExpr ctx size
+        validateTy ctx element ++ arrayLengthErrors size ++ validateExpr ctx size
       TySlice element      => validateTy ctx element
       TyReference (MkAstNode borrowInfo _ borrow)
                   innerNode@(MkAstNode _ _ innerTy) =>
@@ -649,6 +771,7 @@ mutual
                then [MutableBorrowOfQubit borrowInfo.span]
                else []
            SharedBorrow  => [])
+          ++ qualifiersBehindReference innerNode
           ++ validateTy ctx innerNode
       TyQualified _ inner => validateTy ctx inner
       TyFunction _ params returnTy =>

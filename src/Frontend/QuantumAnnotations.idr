@@ -1,16 +1,11 @@
 module Frontend.QuantumAnnotations
 
-import Frontend.ASTData
+import Frontend.Syntax.Common
 
 %default total
 
 public export
-data QubitTypeQualifier
-  = Linear
-  | Affine
-
-public export
 record QuantumStorageProperties where
   constructor MkQuantumStorageProperties
-  usage   : QubitTypeQualifier
+  usage   : OwnershipQualifier
   scratch : Bool

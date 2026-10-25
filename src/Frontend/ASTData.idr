@@ -86,6 +86,7 @@ data NodeProvenance
   | DesugaredDefaultFunctionEffect
   | DesugaredDefaultFunctionReturnType
   | DesugaredDefaultQubitQualifier
+  | DesugaredMovedQubitQualifier
 
 
 public export
@@ -101,6 +102,7 @@ Show NodeProvenance where
   show DesugaredDefaultFunctionEffect = "inferred default function effect"
   show DesugaredDefaultFunctionReturnType = "inferred default function return type"
   show DesugaredDefaultQubitQualifier = "inferred default qubit qualifier"
+  show DesugaredMovedQubitQualifier = "ownership qualifier moved from a let binding into its type"
   show WrittenCode = "user written code"
 
 --------------------------------------------------------------------------------

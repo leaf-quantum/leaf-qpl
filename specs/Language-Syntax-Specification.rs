@@ -226,6 +226,8 @@ let i = -7;
 
 // qubit declaration 
 let q: qubit = qalloc();
+let q: linear qubit = qalloc();
+let linear q: qubit = qalloc();
 
 // inferred type for qubit allocation
 let q = qalloc();
@@ -337,6 +339,9 @@ let a: [i32; 4];          // integer literal, inferred as usize
 let b: [i32; 2 + 2];      // constant expression
 const N: i64 = 4;
 let c: [i32; N];          // named constant
+let d: [i32; 4u32];       // an integer literal length may have an unsigned suffix
+let e: [i32; 4i32];       // INVALID: an array length cannot have a signed suffix
+let f: [i32; 256u8];      // INVALID: 256 does not fit in u8
 
 // array declarations with inferred type
 let bools = [true, false, true, false];
@@ -452,6 +457,8 @@ apply_hadamard_layer(&qs);   // &[qubit; 4] coerces to &[qubit]
 
 // explicit type annotations for qubits and bits
 let q: qubit = qalloc();
+let q: linear qubit = qalloc();
+let linear q: qubit = qalloc();
 let qs: [qubit; 1] = qalloc(1);
 let qs: [qubit; 3] = qalloc(3);
 let b : bit = measr(q);
@@ -487,24 +494,56 @@ let state = bs"iiiiIIIII";
 let linear q: qubit = qalloc();
 let linear qs: [qubit; 2] = qalloc(2);
 
+// the code above is equivalent to:
+let q: linear qubit = qalloc();
+let qs: [linear qubit; 2] = qalloc(2);
+
 // affine qubits: must be consumed at most once, no copying allowed, but implicit discarding is allowed
 let affine q: qubit = qalloc();
 let affine qs: [qubit; 2] = qalloc(2);
 
+// the code above is equivalent to:
+let q: affine qubit = qalloc();
+let qs: [affine qubit; 2] = qalloc(2);
+
+// in a type, a linear/affine qualifier applies to a single qubit only: arrays and tuples qualify each of their qubits
+let qs: [affine qubit; 2] = qalloc(2);                          // valid
+let p: (affine qubit, affine qubit) = (qalloc(), qalloc());     // valid
+let qs: affine [qubit; 2] = qalloc(2);                          // INVALID
+let p: affine (qubit, qubit) = (qalloc(), qalloc());            // INVALID
+
+// a reference borrows its referent without owning it, so no linear/affine qualifier is ever written behind a reference:
+// borrowing a linear qubit and borrowing an affine qubit both give a &qubit
+let r: &qubit = &q;                                             // valid, whether q is linear or affine
+let v: &[qubit] = &qs[..];                                      // valid, whether qs holds linear or affine qubits
+let r: &affine qubit = &q;                                      // INVALID
+let v: &[linear qubit] = &qs[..];                               // INVALID
+
 // scratch qubits are automatically uncomputed when they go out of scope and reclaimed automatically (no explicit discard is needed)
+// the scratch qualifier belongs to let binding and CANNOT appear on qubit type specifications
 let scratch q: qubit = qalloc();
 let scratch qs: [qubit; 2] = qalloc(2);
+
 
 // linear/affine type qualifiers can be combined with scratch
 // both "scratch linear" and "linear scratch" are accepted syntax for linear scratch qubits, and the same applies for affine scratch qubits
 let scratch linear q: qubit = qalloc();
+let scratch q: linear qubit = qalloc();
 let scratch linear qs: [qubit; 2] = qalloc(2);
 let linear scratch qs: [qubit; 2] = qalloc(2);
+let scratch qs: [linear qubit; 2] = qalloc(2);
 let scratch affine q: qubit = qalloc();
-let scratch affine qs: [qubit; 2] = qalloc(2);
 let linear scratch q: qubit = qalloc();
 let affine scratch q: qubit = qalloc();
+let scratch q: affine qubit = qalloc();
+let scratch affine qs: [qubit; 2] = qalloc(2);
 let affine scratch qs: [qubit; 2] = qalloc(2);
+let scratch qs: [affine qubit; 2] = qalloc(2);
+
+// linear/affine type annotations can be added to a function signature
+fn applyHadamard(q: linear qubit) -> linear qubit {
+  H(q)
+}
 
 /////////////////////////////////////////
 // (13) Syntax for working with Quantum Gates
@@ -512,6 +551,8 @@ let affine scratch qs: [qubit; 2] = qalloc(2);
 
 // canonical gate application syntax:
 let q: qubit = H(q);
+let linear q: qubit = H(q);
+let q: linear qubit = H(q);
 // gate application syntax with inferred types:
 let q = H(q);
 // borrowing qubit syntax if the qubit will be needed later.
@@ -1195,7 +1236,7 @@ let affine q = weaken(q);
 let linear qs: [qubit; 3] = qalloc(3);
 let affine qs = weaken(qs);
 
-let linear (q1, q2, q3): (qubit, qubit, qubit) = weaken(q1, q2, q3);
+let affine (q1, q2, q3): (qubit, qubit, qubit) = weaken(q1, q2, q3);
 let (q1, q2, q3) = weaken(q1, q2, q3);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////

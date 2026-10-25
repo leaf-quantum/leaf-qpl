@@ -13,6 +13,7 @@ import Parser.TopModuleParseTest
 import ScopeAndNameResolution.ValidationTest
 import ScopeAndNameResolution.ResolveTest
 import ScopeAndNameResolution.PreludeTest
+import TypeChecker.TypeTranslationTest
 
 main : IO ()
 main = do
@@ -25,6 +26,7 @@ main = do
   runSymbolAndScopeResolutionTests
   runPreludeFunctionsResolutionTests
   runResolutionValidationTests
+  runTypeTranslationTests
   runCompileCodeExamplesTests
   Right () <- discoverAndCompileExamples
     | Left err => do

@@ -216,6 +216,19 @@ storageQualifierFromKeyword KwScratch = Just QualifierScratch
 storageQualifierFromKeyword _         = Nothing
 
 public export
+storageQualifierFromToken : Token -> Maybe QuantumStorageQualifier
+storageQualifierFromToken (TokKw keyword) = storageQualifierFromKeyword keyword
+storageQualifierFromToken _               = Nothing
+
+||| The ownership qualifier a `linear` or `affine` token denotes.
+public export
+ownershipQualifierFromToken : Token -> Maybe OwnershipQualifier
+ownershipQualifierFromToken token =
+  case storageQualifierFromToken token of
+    Just qualifier => storageOwnership qualifier
+    Nothing => Nothing
+
+public export
 unsupportedTopLevelItem : Keyword -> Maybe CustomParseError
 unsupportedTopLevelItem KwMod =
   Just (UnsupportedFeature "Modules are not yet supported.")
@@ -354,6 +367,13 @@ public export
 emptyStorageQualifiers : StorageQualifiers
 emptyStorageQualifiers = MkStorageQualifiers Nothing Nothing [<]
 
+||| Diagnostic for a qualifier written after one occupying the same slot.
+secondQualifierMessage : (Eq qualifier, Show qualifier) => qualifier -> qualifier -> String
+secondQualifierMessage first second =
+  if first == second
+    then "Duplicate `" ++ show second ++ "` storage qualifier."
+    else "Cannot combine `" ++ show first ++ "` and `" ++ show second ++ "` storage qualifiers."
+
 ||| Adds one located qualifier or returns the diagnostic for an invalid combination.
 public export
 addStorageQualifier :
@@ -364,7 +384,7 @@ addStorageQualifier qualifiers located =
   case located.value of
     QualifierScratch =>
       case qualifiers.scratch of
-        Just _ => Left "Duplicate `scratch` storage qualifier."
+        Just existing => Left (secondQualifierMessage existing.value located.value)
         Nothing => Right $ MkStorageQualifiers qualifiers.ownership
           (Just located) (qualifiers.ordered :< located)
     QualifierLinear => addOwnership
@@ -375,10 +395,55 @@ addStorageQualifier qualifiers located =
       case qualifiers.ownership of
         Nothing => Right $ MkStorageQualifiers (Just located)
           qualifiers.scratch (qualifiers.ordered :< located)
-        Just existing =>
-          if existing.value == located.value
-            then Left
-              ("Duplicate `" ++ show located.value ++ "` storage qualifier.")
-            else Left
-              ("Cannot combine `" ++ show existing.value ++ "` and `" ++
-               show located.value ++ "` storage qualifiers.")
+        Just existing => Left (secondQualifierMessage existing.value located.value)
+
+||| `scratch` describes cleanup at the end of a binding's scope, so it is only
+||| valid on `let` bindings, never inside a type.
+public export
+scratchInTypeMessage : String
+scratchInTypeMessage = "The `scratch` qualifier is only allowed on `let` bindings, not in types: write `let scratch q: qubit = ...`."
+
+||| The ownership qualifier a storage keyword denotes inside a type, or the
+||| diagnostic for `scratch`.
+public export
+typeOwnershipQualifier : QuantumStorageQualifier -> Either String OwnershipQualifier
+typeOwnershipQualifier qualifier =
+  maybe (Left scratchInTypeMessage) Right (storageOwnership qualifier)
+
+||| Diagnostic for a second storage keyword following an ownership qualifier
+||| inside a type: a type holds exactly one ownership qualifier.
+secondTypeQualifierMessage : OwnershipQualifier -> QuantumStorageQualifier -> String
+secondTypeQualifierMessage first second =
+  either id (secondQualifierMessage first) (typeOwnershipQualifier second)
+
+||| Diagnostic for a token other than `qubit` following an ownership qualifier
+||| inside a type: a qualifier applies to a single qubit, so a qubit array or
+||| tuple qualifies each of its qubits instead. A slice is only ever borrowed,
+||| and nothing behind a reference is qualified, so no slice suggestion.
+public export
+qualifiedNonQubitMessage : OwnershipQualifier -> Token -> String
+qualifiedNonQubitMessage qualifier token =
+  case storageQualifierFromToken token of
+    Just second => secondTypeQualifierMessage qualifier second
+    Nothing =>
+      case token of
+        TokSym SymLBracket =>
+          written ++ " cannot qualify an array or slice: qualify the qubits of an array instead, e.g. `[" ++
+          qualifiedQubit ++ "; 2]`."
+        TokSym SymLParen =>
+          written ++ " cannot qualify a parenthesized type or tuple: qualify each qubit inside it instead, e.g. `" ++
+          qualifiedQubit ++ "` or `(" ++ qualifiedQubit ++ ", " ++ qualifiedQubit ++ ")`."
+        _ => written ++ " can only qualify `qubit`, not " ++ describeToken token ++ "."
+  where
+    written : String
+    written = "The `" ++ show qualifier ++ "` qualifier"
+
+    qualifiedQubit : String
+    qualifiedQubit = show qualifier ++ " qubit"
+
+||| Diagnostic for an ownership qualifier written directly after `&` or `&mut`.
+public export
+qualifierBehindReferenceMessage : OwnershipQualifier -> String
+qualifierBehindReferenceMessage qualifier =
+  "The `" ++ show qualifier ++ "` qualifier cannot be written behind a reference: " ++
+  "a reference borrows its referent without owning it, so remove the qualifier."

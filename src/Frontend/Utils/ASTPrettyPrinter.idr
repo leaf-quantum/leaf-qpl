@@ -272,10 +272,6 @@ showOnBasis : Maybe (AstNode phase String) -> String
 showOnBasis Nothing                    = ""
 showOnBasis (Just (MkAstNode _ _ raw)) = ".on(" ++ raw ++ ")"
 
-showQualifiersPrefix1 : List1 (AstNode phase QuantumStorageQualifier) -> String
-showQualifiersPrefix1 quals =
-  joinWith " " (map (\(MkAstNode _ _ q) => show q) (forget quals)) ++ " "
-
 showMutabilityPrefix : Maybe (AstNode phase Mutability) -> String
 showMutabilityPrefix Nothing = ""
 showMutabilityPrefix (Just (MkAstNode _ _ mutability)) =
@@ -494,8 +490,8 @@ mutual
       TySlice elemTy                   => brackets (showTy style elemTy)
       TyReference (MkAstNode _ _ borrow) innerTy =>
         showBorrowPrefixed borrow (showTy style innerTy)
-      TyQualified quals innerTy =>
-        showQualifiersPrefix1 quals ++ showTy style innerTy
+      TyQualified (MkAstNode _ _ qualifier) innerTy =>
+        show qualifier ++ " " ++ showTy style innerTy
       TyFunction effect params retTy =>
         (case effect of
            Nothing                     => ""

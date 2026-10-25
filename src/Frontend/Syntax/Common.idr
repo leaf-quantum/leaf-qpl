@@ -179,6 +179,45 @@ implementation Show QuantumStorageQualifier where
   show = showQuantumStorageQualifierLeaf
 
 --------------------------------------------------------------------------------
+-- Ownership qualifiers
+--------------------------------------------------------------------------------
+-- The single qualifier that may be written inside a TYPE:
+--
+--   fn maybe_drop(q: affine qubit) { ... }
+--   oracle: unitary fn(q: linear qubit) -> qubit
+--
+-- `scratch` is deliberately absent: it describes cleanup at the end of a
+-- binding's scope, so it is only valid on `let` bindings (see
+-- QuantumStorageQualifier above). At most one ownership qualifier can be
+-- written, so a qualified type holds exactly one of these.
+--------------------------------------------------------------------------------
+
+public export
+data OwnershipQualifier
+  = OwnershipLinear   -- consume exactly once; discard must be explicit
+  | OwnershipAffine   -- consume at most once; implicit discard allowed
+
+%runElab derive "OwnershipQualifier" [Eq]
+
+public export
+showOwnershipQualifierLeaf : OwnershipQualifier -> String
+showOwnershipQualifierLeaf q =
+  case q of
+    OwnershipLinear => "linear"
+    OwnershipAffine => "affine"
+
+public export
+implementation Show OwnershipQualifier where
+  show = showOwnershipQualifierLeaf
+
+||| The ownership a storage qualifier denotes; `scratch` denotes none.
+public export
+storageOwnership : QuantumStorageQualifier -> Maybe OwnershipQualifier
+storageOwnership QualifierLinear  = Just OwnershipLinear
+storageOwnership QualifierAffine  = Just OwnershipAffine
+storageOwnership QualifierScratch = Nothing
+
+--------------------------------------------------------------------------------
 -- Initializer markers
 --------------------------------------------------------------------------------
 -- The operator between a let-binder and its initializer:

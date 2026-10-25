@@ -1,5 +1,7 @@
 module Frontend.Syntax.Type
 
+import Control.Applicative.Const
+import Control.Monad.Identity
 import Data.List1
 import Frontend.Token
 import Frontend.ASTPhases
@@ -45,7 +47,6 @@ import Frontend.Syntax.Operator
 --   &[i32]  &mut [i32]             TyReference around TySlice
 --   &qubit                         TyReference
 --   affine qubit                   TyQualified
---   scratch linear qubit           TyQualified (source order preserved)
 --   unitary fn(qs: [qubit; 4], target: qubit) -> ([qubit; 4], qubit)
 --                                  TyFunction
 --
@@ -54,7 +55,12 @@ import Frontend.Syntax.Operator
 --
 --   * `&mut qubit` / `&mut [qubit]`   -- mut is never written on qubit refs
 --   * `[T; N]` with non-const N       -- const-ness of the size expression
---   * `linear affine qubit`           -- mutually exclusive qualifiers
+--   * `[T; 3i8]`  `[T; 256u8]`        -- a literal array length with a signed
+--                                        suffix, or too large for its suffix
+--
+-- `linear [qubit; 2]` and `affine (qubit, qubit)` are representable too, but
+-- the parser never produces them: an ownership qualifier applies to a single
+-- `qubit`, so collections qualify their elements (`[linear qubit; 2]`).
 --------------------------------------------------------------------------------
 
 -- A function-type parameter's name (`qs` in `fn(qs: [qubit; 4]) -> ...`),
@@ -135,21 +141,26 @@ mutual
     -- Reference type: &T or &mut T, reusing BorrowKind so shared-vs-mutable
     -- is spelled once for both expressions and types. The borrow kind is
     -- located so "`mut` is never written on a qubit reference" can point at
-    -- the `&mut` itself rather than the whole type.
+    -- the `&mut` itself rather than the whole type. A reference borrows its
+    -- referent without owning it, so the referent never holds an ownership
+    -- qualifier at an owned position: the parser rejects one written directly
+    -- after `&` (`&affine qubit`), post-parse validation one nested deeper
+    -- (`&[linear qubit]`), and desugaring inserts none.
     TyReference :
          (borrowKind     : AstNode phase BorrowKind)
       -> (referencedType : AstNode phase (TyNode phase arraySizeExpr))
       -> TyNode phase arraySizeExpr
 
-    -- Quantum-qualified type: linear qubit, affine qubit, scratch linear
-    -- qubit, ... Qualifiers are non-empty (a TyQualified node exists only
-    -- because at least one qualifier was written), kept in SOURCE ORDER,
-    -- and individually located, so `scratch linear` round-trips distinctly
-    -- from `linear scratch` and a validation pass can point at the exact
-    -- offending keyword in `linear affine qubit`.
+    -- Ownership-qualified type: linear qubit, affine qubit. Exactly one
+    -- qualifier, located so diagnostics can point at the keyword. `scratch`
+    -- is unrepresentable here: it describes cleanup at the end of a binding's
+    -- scope and is only valid on `let` bindings. The parser accepts only
+    -- `qubit` after the qualifier, so it rejects a second qualifier
+    -- (`linear affine qubit`) and a qualified collection (`linear [qubit; 2]`,
+    -- `affine (qubit, qubit)`) at the span of the token following it.
     TyQualified :
-         (storageQualifiers : List1 (AstNode phase QuantumStorageQualifier))
-      -> (qualifiedType     : AstNode phase (TyNode phase arraySizeExpr))
+         (ownershipQualifier : AstNode phase OwnershipQualifier)
+      -> (qualifiedType      : AstNode phase (TyNode phase arraySizeExpr))
       -> TyNode phase arraySizeExpr
 
     -- Function type, as used for higher-order parameters:
@@ -215,3 +226,67 @@ mutual
 public export
 Ty : (phase : AstPhase) -> (arraySizeExpr : Type) -> Type
 Ty phase arraySizeExpr = AstNode phase (TyNode phase arraySizeExpr)
+
+--------------------------------------------------------------------------------
+-- Owned positions
+--------------------------------------------------------------------------------
+-- The parts of a type that an ownership qualifier (`linear`, `affine`)
+-- applies to. Post-parse validation and desugaring both use this, so they
+-- agree on where a qualifier may be written and where one is inserted.
+--
+-- A type's OWNED POSITIONS are its qubits, each either unqualified (`qubit`)
+-- or with its ownership qualifier (`affine qubit`, a TyQualified), found by
+-- entering parentheses, tuples, arrays and slices. Nothing else is entered:
+--
+--   * a reference borrows its referent, so the referent is not owned and
+--     holds no ownership qualifier (see TyReference)
+--   * a function type's parameters and result belong to the function's
+--     calls, not to the value the type describes
+--
+--   (qubit, i32, [affine qubit; 2], &qubit, fn(q: qubit))
+--     owned positions: `qubit`, `affine qubit`
+--------------------------------------------------------------------------------
+
+-- Applies `onOwned` to every owned position, rebuilding the type around the results.
+traverseOwnedPositions :
+     {0 phase : AstPhase}
+  -> {0 arraySizeExpr : Type}
+  -> Applicative f
+  => (onOwned : Ty phase arraySizeExpr -> f (Ty phase arraySizeExpr))
+  -> Ty phase arraySizeExpr
+  -> f (Ty phase arraySizeExpr)
+traverseOwnedPositions onOwned typeAstNode@(MkAstNode typeInfo metadata typeNode) =
+  case typeNode of
+    TyPrimitive TypPrimQubit => onOwned typeAstNode
+    TyQualified _ _ => onOwned typeAstNode
+    TyParenthesized innerType => rebuild . TyParenthesized <$> recur innerType
+    TyTuple elementTypes => rebuild . TyTuple <$> traverse recur elementTypes
+    TyArray elementType sizeExpression =>
+      rebuild . (\element => TyArray element sizeExpression) <$> recur elementType
+    TySlice elementType => rebuild . TySlice <$> recur elementType
+    _ => pure typeAstNode
+  where
+    rebuild : TyNode phase arraySizeExpr -> Ty phase arraySizeExpr
+    rebuild = MkAstNode typeInfo metadata
+
+    recur : Ty phase arraySizeExpr -> f (Ty phase arraySizeExpr)
+    recur nestedType = traverseOwnedPositions onOwned (assert_smaller typeAstNode nestedType)
+
+||| Every owned position of a type, in source order.
+export
+ownedPositions : Ty phase arraySizeExpr -> List (Ty phase arraySizeExpr)
+ownedPositions = runConst . traverseOwnedPositions (\position => MkConst [position])
+
+||| Rewrites every owned position of a type.
+export
+mapOwnedPositions :
+     (Ty phase arraySizeExpr -> Ty phase arraySizeExpr)
+  -> Ty phase arraySizeExpr
+  -> Ty phase arraySizeExpr
+mapOwnedPositions rewritePosition = runIdentity . traverseOwnedPositions (Id . rewritePosition)
+
+||| The ownership qualifier written at an owned position, if any.
+export
+positionQualifier : Ty phase arraySizeExpr -> Maybe (AstNode phase OwnershipQualifier)
+positionQualifier (MkAstNode _ _ (TyQualified qualifier _)) = Just qualifier
+positionQualifier _ = Nothing

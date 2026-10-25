@@ -536,10 +536,10 @@ mutual
           pure $ TyReference
             (resolveAstNode borrowKind)
             resolvedReferenceType
-        TyQualified storageQualifiers qualifiedType => do
+        TyQualified ownershipQualifier qualifiedType => do
           resolvedQualifiedType <- resolveNestedType qualifiedType
           pure $ TyQualified
-            (map resolveAstNode storageQualifiers)
+            (resolveAstNode ownershipQualifier)
             resolvedQualifiedType
         TyFunction functionEffect functionParameters returnType => do
           resolvedFunctionParameters <- traverse resolveParameter functionParameters

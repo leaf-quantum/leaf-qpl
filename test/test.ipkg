@@ -20,6 +20,7 @@ modules = Lexer.LexerTest,
           ScopeAndNameResolution.Helper,
           ScopeAndNameResolution.ResolveTestHelper,
           ScopeAndNameResolution.ResolveTest,
+          TypeChecker.TypeTranslationTest,
           CompileCodeExamples,
           Run
 

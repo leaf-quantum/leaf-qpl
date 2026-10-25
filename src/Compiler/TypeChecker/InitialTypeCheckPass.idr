@@ -201,8 +201,8 @@ mutual
 --          TyReference 
 --            (typecheckAstNode borrowKind) 
 --            (typecheckNestedType referencedType)
---        TyQualified storageQualifiers qualifiedType =>
---          TyQualified (map typecheckAstNode storageQualifiers) (typecheckNestedType qualifiedType)
+--        TyQualified ownershipQualifier qualifiedType =>
+--          TyQualified (typecheckAstNode ownershipQualifier) (typecheckNestedType qualifiedType)
 --        TyFunction functionEffect functionParameters returnType =>
 --          TyFunction
 --            (map typecheckAstNode functionEffect)

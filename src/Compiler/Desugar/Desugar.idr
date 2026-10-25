@@ -247,9 +247,14 @@ mutual
   desugarExpression (MkAstNode expressionInfo metadata expressionNode) =
     canonicalAstNode expressionInfo WrittenCode (desugarExpressionNode expressionInfo expressionNode)
 
-  -- Perenthesized types will be removed
   desugarType : Ty SurfaceAstPhase (Expr SurfaceAstPhase) -> Ty CanonicalAstPhase (Expr CanonicalAstPhase)
-  desugarType (MkAstNode tyAstInfo metadata typeNode) =
+  desugarType writtenType = defaultQubitOwnership (desugarWrittenType writtenType)
+
+  -- Perenthesized types will be removed. The parameters and result of a
+  -- function type own their values, so they get the default `linear`; the
+  -- rest of the type's owned positions are left to the caller.
+  desugarWrittenType : Ty SurfaceAstPhase (Expr SurfaceAstPhase) -> Ty CanonicalAstPhase (Expr CanonicalAstPhase)
+  desugarWrittenType (MkAstNode tyAstInfo metadata typeNode) =
     canonicalAstNode tyAstInfo WrittenCode $
       case typeNode of
         TyPrimitive primitiveName =>
@@ -272,22 +277,25 @@ mutual
           TyReference 
             (desugarAstNode borrowKind) 
             (desugarNestedType referencedType)
-        TyQualified storageQualifiers qualifiedType =>
-          TyQualified (map desugarAstNode storageQualifiers) (desugarNestedType qualifiedType)
+        TyQualified ownershipQualifier qualifiedType =>
+          TyQualified (desugarAstNode ownershipQualifier) (desugarNestedType qualifiedType)
         TyFunction functionEffect functionParameters returnType =>
           TyFunction
             (map desugarAstNode functionEffect)
             (map desugarParameter functionParameters)
-            (map desugarNestedType returnType)
+            (map desugarSignatureType returnType)
       where
         desugarNestedType : SurfaceTy -> CanonicalTy
         desugarNestedType nestedType =
+          desugarWrittenType (assert_smaller typeNode nestedType)
+        desugarSignatureType : SurfaceTy -> CanonicalTy
+        desugarSignatureType nestedType =
           desugarType (assert_smaller typeNode nestedType)
         desugarParameter : SurfaceAstNode (FunctionTypeParameterNode SurfaceAstPhase (SurfaceAstNode (ExpressionNode SurfaceAstPhase))) ->
           CanonicalAstNode (FunctionTypeParameterNode CanonicalAstPhase (CanonicalAstNode (ExpressionNode CanonicalAstPhase)))
         desugarParameter (MkAstNode parameterAstInfo metadata (MkFunctionTypeParameterNode parameterName parameterType)) =
           canonicalAstNode parameterAstInfo WrittenCode $
-            MkFunctionTypeParameterNode (desugarAstNode parameterName) (desugarNestedType parameterType)
+            MkFunctionTypeParameterNode (desugarAstNode parameterName) (desugarSignatureType parameterType)
 
   desugarFunctionParameter: AstNode SurfaceAstPhase (FunctionParameterNode SurfaceAstPhase) -> AstNode CanonicalAstPhase (FunctionParameterNode CanonicalAstPhase)
   desugarFunctionParameter (MkAstNode parameterInfo metadata (NormalParameter parameterDocs parameterMutability parameterName parameterType)) =
@@ -361,7 +369,9 @@ mutual
             (desugarExpression targetObject)
             tupleIndexRawText
 
-  ||| The default "linear" qubit qualifier is added if no qubit qualifier is present
+  ||| A `let`'s `linear`/`affine` is moved into the owned positions of its
+  ||| annotation, keeping the keyword's span, and the default `linear` is
+  ||| added where none was written.
   ||| Desugar each assignment target and value once, preserving the operator.
   ||| Compound assignment lowering must wait until types and places are known:
   ||| copying a target into the RHS would duplicate evaluation and any scopes
@@ -371,12 +381,16 @@ mutual
     canonicalAstNode statementAstInfo WrittenCode $
       case statementNode of
         StatementLet (MkLetBindingNode qualifiers pattern typeAnnotation initializer) =>
-          StatementLet $
-            MkLetBindingNode
-              (desugarLetQualifiers typeAnnotation qualifiers)
-              (desugarPattern pattern)
-              (map (\ty => desugarType (assert_smaller statementNode ty)) typeAnnotation)
-              (map (\init => desugarLetInitializer (assert_smaller statementNode init)) initializer)
+          let (letQualifiers, letTypeAnnotation) =
+                moveLetOwnershipIntoType
+                  (map desugarAstNode qualifiers)
+                  (map (\ty => desugarWrittenType (assert_smaller statementNode ty)) typeAnnotation)
+          in StatementLet $
+               MkLetBindingNode
+                 letQualifiers
+                 (desugarPattern pattern)
+                 letTypeAnnotation
+                 (map (\init => desugarLetInitializer (assert_smaller statementNode init)) initializer)
         StatementAssignment (MkAssignmentNode assignmentTarget assignmentOperator assignmentValue) =>
           StatementAssignment $
             MkAssignmentNode
@@ -387,17 +401,6 @@ mutual
           StatementSemiExpression (desugarExpression statementExpression)
         StatementExpression statementExpression =>
           StatementExpression (desugarExpression statementExpression)
-      where
-        inferredLinearQualifier : CanonicalAstNode QuantumStorageQualifier
-        inferredLinearQualifier = let linearAstInfo = incrementedAstInfo statementAstInfo 1 in
-                                    canonicalAstNode linearAstInfo DesugaredDefaultQubitQualifier QualifierLinear
-
-        desugarLetQualifiers : Maybe SurfaceTy -> List (AstNode SurfaceAstPhase QuantumStorageQualifier) -> List (AstNode CanonicalAstPhase QuantumStorageQualifier)
-        desugarLetQualifiers typeAnnotation [] = if isQubitLikeType typeAnnotation then [inferredLinearQualifier] else []
-        desugarLetQualifiers typeAnnotation [scratchQualifier@(MkAstNode _ _ QualifierScratch)] =
-          let scratch = desugarAstNode scratchQualifier in
-            if isQubitLikeType typeAnnotation then [scratch, inferredLinearQualifier] else [scratch]
-        desugarLetQualifiers _ qualifiers = map desugarAstNode qualifiers
 
 ||| A final expression is desugared to a return statement. If there is no
 ||| final expression, an explicit `return ();` statement is generated.
