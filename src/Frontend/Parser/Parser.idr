@@ -1037,8 +1037,10 @@ mutual
 ||| their left expression, then delegated to `parseAssignmentStatement`.
 ||| Expressions are entered through the `StatementStartExpression` callback mode,
 ||| which prevents an unparenthesized statement-leading block form from absorbing a
-||| following operator or postfix token. The block-like check is performed before
-||| symbol/assignment dispatch so the untouched token begins the next statement.
+||| following operator or postfix token. The closing-brace check comes first, so a
+||| final block-like expression is also the block's result value; the block-like
+||| check follows, before symbol/assignment dispatch, so the untouched token begins
+||| the next statement.
 |||
 ||| `blockNodeId`, the opening bounds, and accumulated statements remain stable
 ||| across recursion. Each recursive call advances the token suffix and threads the
@@ -2368,6 +2370,15 @@ parseBlockContents blockNodeId openBounds statements smaller nodeId
                       (suffixWithinStrict (uncons expressionSuffix) suffix)
                       recur
 
+            (B (TokSym SymRBrace) closeBounds) :: afterClose =>
+              Succ0
+                (surfaceAstNode
+                  (MkAstInfo blockNodeId
+                    (sourceSpan (openBounds <+> closeBounds)))
+                  (MkBlockNode [] (statements <>> []) (Just expression)),
+                 afterExpressionNodeId)
+                afterClose
+
             (B nextToken nextBounds) :: afterNext =>
               if isBlockLikeExpression expression
                 then
@@ -2384,15 +2395,6 @@ parseBlockContents blockNodeId openBounds statements smaller nodeId
                           recur
                 else
                   case nextToken of
-                    TokSym SymRBrace =>
-                      Succ0
-                        (surfaceAstNode
-                          (MkAstInfo blockNodeId
-                            (sourceSpan (openBounds <+> nextBounds)))
-                          (MkBlockNode [] (statements <>> []) (Just expression)),
-                         afterExpressionNodeId)
-                        afterNext
-
                     TokSym symbol =>
                       case assignmentOperator symbol of
                         Just operator =>

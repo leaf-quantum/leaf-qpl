@@ -22,6 +22,60 @@ runDesugaringTests = runTests $ Test.do
     desugarAndPrettyPrint "fn f() -> i32 { return 1 }"
       `shouldBe` Just "general fn f() -> i32 { return 1; }"
 
+  test "a block final if expression is returned as block's final expression" $
+    desugarAndPrettyPrint "classical fn fact(n: u32) -> u32 {\n    if n == 0 { 1 } else { n * fact(n - 1) }\n}"
+      `shouldBe`
+      Just "classical fn fact(n: u32) -> u32 { return if (n == 0) { 1 } else { (n * fact((n - 1))) }; }"
+
+  test "a final if expression after statements is returned" $
+    desugarAndPrettyPrint "fn f() -> i32 { let x = 1; if ready { x } else { 2 } }"
+      `shouldBe` Just "general fn f() -> i32 { let x = 1; return if ready { x } else { 2 }; }"
+
+  test "a final else-if chain is returned" $
+    desugarAndPrettyPrint "fn f(n: i32) -> i32 { if n < 0 { 1 } else if n == 0 { 2 } else { 3 } }"
+      `shouldBe` Just "general fn f(n: i32) -> i32 { return if (n < 0) { 1 } else if (n == 0) { 2 } else { 3 }; }"
+
+  test "a final if without else is returned with its unit else block" $
+    desugarAndPrettyPrint "fn f() { if ready { work(); } }"
+      `shouldBe` Just "general fn f() -> () { return if ready { work(); } else { () }; }"
+
+  test "a final if with a returning branch is returned" $
+    desugarAndPrettyPrint "general fn sample_until_zero() -> qubit {\n    let q = qalloc();\n    H(&q);\n    let b = measr(&q);\n    if b == 0 {\n        return q;\n    } else {\n        discard(q);\n        sample_until_zero()\n    }\n}"
+      `shouldBe`
+      Just "general fn sample_until_zero() -> linear qubit { let q = qalloc(); H((&q)); let b = measr((&q)); return if (b == 0) { return q; } else { discard(q); sample_until_zero() }; }"
+
+  test "a final block expression is returned" $
+    desugarAndPrettyPrint "fn f() -> i32 { { 1 } }"
+      `shouldBe` Just "general fn f() -> i32 { return { 1 }; }"
+
+  test "a final loop expression is returned" $
+    desugarAndPrettyPrint "fn f() -> i32 { loop { break 5; } }"
+      `shouldBe` Just "general fn f() -> i32 { return loop { break 5; }; }"
+
+  test "a final while loop is returned" $
+    desugarAndPrettyPrint "fn f() { while ready { work(); } }"
+      `shouldBe` Just "general fn f() -> () { return while ready { work(); }; }"
+
+  test "a final for loop is returned" $
+    desugarAndPrettyPrint "fn f() { for i in 1..6 { work(i); } }"
+      `shouldBe` Just "general fn f() -> () { return for i in (1..6) { work(i); }; }"
+
+  test "a final adjoint block is returned" $
+    desugarAndPrettyPrint "fn f(q: &qubit) { adjoint { H(q); } }"
+      `shouldBe` Just "general fn f(q: &qubit) -> () { return adjoint { H(q); }; }"
+
+  test "a final ctrl block is returned" $
+    desugarAndPrettyPrint "fn f(c: &qubit, t: &qubit) { ctrl(c) { H(t); } }"
+      `shouldBe` Just "general fn f(c: &qubit, t: &qubit) -> () { return ctrl(c).on(bs\"1\") { H(t); }; }"
+
+  test "a block-like expression before the final expression stays a statement" $
+    desugarAndPrettyPrint "fn f() -> i32 { if ready { work(); } 1 }"
+      `shouldBe` Just "general fn f() -> i32 { if ready { work(); } else { () } return 1; }"
+
+  test "a final block-like expression followed by a semicolon stays a statement" $
+    desugarAndPrettyPrint "fn f() { if ready { work(); }; }"
+      `shouldBe` Just "general fn f() -> () { if ready { work(); } else { () }; return (); }"
+
   test "a valueless explicit final return receives a unit value" $
     desugarAndPrettyPrint "fn f() { return }"
       `shouldBe` Just "general fn f() -> () { return (); }"
@@ -278,7 +332,7 @@ runDesugaringTests = runTests $ Test.do
   test "missing classical else is filled in with a unit block" $
     desugarAndPrettyPrint "fn f() { if ready {} }"
       `shouldBe`
-      Just "general fn f() -> () { if ready { } else { () } return (); }"
+      Just "general fn f() -> () { return if ready { } else { () }; }"
 
   test "const declarations desugar unchanged" $
     desugarAndPrettyPrint "const N: i64 = 4;"

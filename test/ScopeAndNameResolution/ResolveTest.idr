@@ -873,7 +873,7 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
     checkSource "const U: () = (); fn f() { { let U = (); } }" (\resolved => do
       (_, con) <- constantNamed "U" resolved
       (_, fn) <- functionNamed "f" resolved
-      inner <- exprAt 0 fn.functionBody >>= blockBody
+      inner <- returnedAt 0 fn.functionBody >>= blockBody
       binding <- letAt 0 inner
       pure (constantPatternMatches resolved con.constName binding.letPattern &&
             null (SortedMap.toList resolved.tables.localVariables))) `shouldBe` Right True
@@ -894,7 +894,7 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
     checkSource "const U: () = (); fn f() { for U in [()] { U; } }" (\resolved => do
       (_, con) <- constantNamed "U" resolved
       (_, fn) <- functionNamed "f" resolved
-      loop <- exprAt 0 fn.functionBody
+      loop <- returnedAt 0 fn.functionBody
       ExprFor pattern _ body <- pure loop.value | _ => Nothing
       use <- exprAt 0 body
       useOK <- useMatches resolved con.constName use
@@ -905,7 +905,7 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
     checkForPattern "const U: () = (); fn f() { let (U, U) = ((), ()); for unused in [((), ())] { U; } }" (\resolved => do
       (_, con) <- constantNamed "U" resolved
       (_, fn) <- functionNamed "f" resolved
-      loop <- exprAt 0 fn.functionBody
+      loop <- returnedAt 0 fn.functionBody
       ExprFor pattern _ body <- pure loop.value | _ => Nothing
       PatternTuple patterns <- pure pattern.value | _ => Nothing
       [first, second] <- pure (forget patterns) | _ => Nothing
@@ -1109,7 +1109,7 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       outer <- binder outerBinding.letPattern
       after <- exprAt 2 fn.functionBody
       block <- exprAt 1 fn.functionBody >>= blockBody
-      loop <- exprAt 0 block
+      loop <- block.value.finalExpression
       ExprFor pattern _ body <- pure loop.value | _ => Nothing
       loopName <- binder pattern
       inner <- exprAt 0 body

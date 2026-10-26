@@ -67,6 +67,15 @@ exprAt index block = do
     StatementExpression expression => Just expression
     _ => Nothing
 
+-- The value returned by the statement at `index`. Desugaring turns a function
+-- body's final expression into such a `return` statement.
+export
+returnedAt : Nat -> ResolvedBlock -> Maybe ResolvedExpr
+returnedAt index block = do
+  MkAstNode _ _ (ExprReturn (Just value)) <- exprAt index block
+    | _ => Nothing
+  Just value
+
 export
 binder : ResolvedPattern -> Maybe ResolvedName
 binder (MkAstNode _ _ (PatternName _ name)) = Just name
@@ -330,10 +339,18 @@ moveLetPatternToFor source = do
   items <- traverse moveInFunction items
   pure ({ value := MkSourceFileNode docs items } source)
   where
-    replaceExpression : CanonicalPattern -> CanonicalExpr -> Maybe CanonicalExpr
-    replaceExpression pattern expression = case expression.value of
+    replaceLoopPattern : CanonicalPattern -> CanonicalExpr -> Maybe CanonicalExpr
+    replaceLoopPattern pattern expression = case expression.value of
       ExprFor _ iterator body => Just ({ value := ExprFor pattern iterator body } expression)
       _ => Nothing
+
+    -- A loop that ends the function body was desugared into its `return` statement.
+    replaceExpression : CanonicalPattern -> CanonicalExpr -> Maybe CanonicalExpr
+    replaceExpression pattern expression = case expression.value of
+      ExprReturn (Just returned) => do
+        returned <- replaceLoopPattern pattern returned
+        pure ({ value := ExprReturn (Just returned) } expression)
+      _ => replaceLoopPattern pattern expression
 
     replaceStatement : CanonicalPattern -> Statement CanonicalAstPhase -> Maybe (Statement CanonicalAstPhase)
     replaceStatement pattern statement = case statement.value of

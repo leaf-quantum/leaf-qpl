@@ -613,6 +613,6 @@ runExpressionParseTests = runTests $ Test.do
       [ "fn f() { if a {1} else if b {2} else {3} }"
       , "fn f() { for x in v { x } }"
       ] `shouldBe`
-      [ Just [0, 1, 3, 19, 4]
-      , Just [0, 1, 3, 12, 4, 7, 9, 10]
+      [ Just [0, 1, 3, 4]
+      , Just [0, 1, 3, 4, 7, 9, 10]
       ]
