@@ -29,31 +29,31 @@ firstParameterType inputProgram = do
 firstParameterArrayLength : String -> Maybe Nat
 firstParameterArrayLength inputProgram =
   case firstParameterType inputProgram of
-    Just (ResolvedType (LeafArray _ arrayLength)) => Just arrayLength
+    Just (ResolvedType (LeafArrayType _ arrayLength)) => Just arrayLength
     _ => Nothing
 
 -- Whether the referent of a program's first parameter, a reference, holds an
--- ownership qualifier at an owned position.
+-- multiplicity qualifier at an owned position.
 firstParameterReferentIsQualified : String -> Maybe Bool
 firstParameterReferentIsQualified inputProgram =
   case firstParameterType inputProgram of
-    Just (ResolvedType (LeafReference _ referent)) => Just (qualified referent)
+    Just (ResolvedType (LeafReferenceType _ referent)) => Just (qualified referent)
     _ => Nothing
   where
     qualified : LeafType -> Bool
-    qualified (LeafQualified _ _) = True
-    qualified leafType@(LeafTuple elementTypes) =
+    qualified (LeafQualifiedType _ _) = True
+    qualified leafType@(LeafTupleType elementTypes) =
       any (\elementType => qualified (assert_smaller leafType elementType)) elementTypes
-    qualified (LeafArray elementType _) = qualified elementType
-    qualified (LeafSlice elementType) = qualified elementType
+    qualified (LeafArrayType elementType _) = qualified elementType
+    qualified (LeafSliceType elementType) = qualified elementType
     qualified _ = False
 
--- The ownership of the qubit elements of a program's first parameter array.
-firstParameterElementOwnership : String -> Maybe OwnershipQualifier
-firstParameterElementOwnership inputProgram =
+-- The multiplicity of the qubit elements of a program's first parameter array.
+firstParameterElementMultiplicity : String -> Maybe QuantumMultiplicityQualifier
+firstParameterElementMultiplicity inputProgram =
   case firstParameterType inputProgram of
-    Just (ResolvedType (LeafArray (LeafQualified ownership (LeafPrimitive TypPrimQubit)) _)) =>
-      Just ownership
+    Just (ResolvedType (LeafArrayType (LeafQualifiedType multiplicity (LeafPrimitiveType TypPrimQubit)) _)) =>
+      Just multiplicity
     _ => Nothing
 
 export
@@ -82,15 +82,15 @@ runTypeTranslationTests = runTests $ Test.do
     firstParameterArrayLength "fn f(qs: [qubit; ((3u8))]) {}" `shouldBe` Just 3
 
   test "the qubit elements of an array are linear by default" $
-    firstParameterElementOwnership "fn f(qs: [qubit; 2]) {}" `shouldBe` Just OwnershipLinear
+    firstParameterElementMultiplicity "fn f(qs: [qubit; 2]) {}" `shouldBe` Just QuantumMultiplicityLinear
 
   test "the qubit elements of an array keep a written qualifier" $
-    firstParameterElementOwnership "fn f(qs: [affine qubit; 2]) {}" `shouldBe` Just OwnershipAffine
+    firstParameterElementMultiplicity "fn f(qs: [affine qubit; 2]) {}" `shouldBe` Just QuantumMultiplicityAffine
 
-  test "a reference to qubits holds no ownership qualifier" $
+  test "a reference to qubits holds no multiplicity qualifier" $
     firstParameterReferentIsQualified "fn f(r: &(qubit, [qubit; 2])) {}" `shouldBe` Just False
 
   -- Validation rejects this annotation; translating it anyway shows that a
-  -- reference type holds no ownership qualifier by construction.
-  test "an ownership qualifier written behind a reference is not translated" $
+  -- reference type holds no multiplicity qualifier by construction.
+  test "a multiplicity qualifier written behind a reference is not translated" $
     firstParameterReferentIsQualified "fn f(r: &(i32, [affine qubit; 2])) {}" `shouldBe` Just False

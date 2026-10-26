@@ -179,7 +179,7 @@ implementation Show QuantumStorageQualifier where
   show = showQuantumStorageQualifierLeaf
 
 --------------------------------------------------------------------------------
--- Ownership qualifiers
+-- Quantum multiplicity qualifiers
 --------------------------------------------------------------------------------
 -- The single qualifier that may be written inside a TYPE:
 --
@@ -188,34 +188,34 @@ implementation Show QuantumStorageQualifier where
 --
 -- `scratch` is deliberately absent: it describes cleanup at the end of a
 -- binding's scope, so it is only valid on `let` bindings (see
--- QuantumStorageQualifier above). At most one ownership qualifier can be
+-- QuantumStorageQualifier above). At most one multiplicity qualifier can be
 -- written, so a qualified type holds exactly one of these.
 --------------------------------------------------------------------------------
 
 public export
-data OwnershipQualifier
-  = OwnershipLinear   -- consume exactly once; discard must be explicit
-  | OwnershipAffine   -- consume at most once; implicit discard allowed
+data QuantumMultiplicityQualifier
+  = QuantumMultiplicityLinear   -- consume exactly once; discard must be explicit
+  | QuantumMultiplicityAffine   -- consume at most once; implicit discard allowed
 
-%runElab derive "OwnershipQualifier" [Eq]
+%runElab derive "QuantumMultiplicityQualifier" [Eq]
 
 public export
-showOwnershipQualifierLeaf : OwnershipQualifier -> String
-showOwnershipQualifierLeaf q =
+showQuantumMultiplicityQualifierLeaf : QuantumMultiplicityQualifier -> String
+showQuantumMultiplicityQualifierLeaf q =
   case q of
-    OwnershipLinear => "linear"
-    OwnershipAffine => "affine"
+    QuantumMultiplicityLinear => "linear"
+    QuantumMultiplicityAffine => "affine"
 
 public export
-implementation Show OwnershipQualifier where
-  show = showOwnershipQualifierLeaf
+implementation Show QuantumMultiplicityQualifier where
+  show = showQuantumMultiplicityQualifierLeaf
 
-||| The ownership a storage qualifier denotes; `scratch` denotes none.
+||| The multiplicity a storage qualifier denotes; `scratch` denotes none.
 public export
-storageOwnership : QuantumStorageQualifier -> Maybe OwnershipQualifier
-storageOwnership QualifierLinear  = Just OwnershipLinear
-storageOwnership QualifierAffine  = Just OwnershipAffine
-storageOwnership QualifierScratch = Nothing
+storageMultiplicity : QuantumStorageQualifier -> Maybe QuantumMultiplicityQualifier
+storageMultiplicity QualifierLinear  = Just QuantumMultiplicityLinear
+storageMultiplicity QualifierAffine  = Just QuantumMultiplicityAffine
+storageMultiplicity QualifierScratch = Nothing
 
 --------------------------------------------------------------------------------
 -- Initializer markers

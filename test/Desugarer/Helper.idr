@@ -32,7 +32,7 @@ desugarAndPrettyPrint : String -> Maybe String
 desugarAndPrettyPrint inputProgram =
   map showSourceFileStrict (lexParseThenDesugar "test-fixture.rs" inputProgram)
 
-||| Start and end (line, column) of each ownership qualifier at an owned
+||| Start and end (line, column) of each multiplicity qualifier at an owned
 ||| position of the first function's first `let` annotation, after desugaring.
 export
 firstLetTypeQualifierSpans : String -> Maybe (List ((Nat, Nat), (Nat, Nat)))

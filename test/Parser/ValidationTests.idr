@@ -33,32 +33,32 @@ runPostParseValidationTests = runTests $ Test.do
           "qubit references are mutable by default"
         ]
 
-  test "an ownership qualifier repeated in a let type annotation is rejected" $
+  test "a multiplicity qualifier repeated in a let type annotation is rejected" $
     validationMessages "fn f() {let linear q: linear qubit = qalloc();}" `shouldBe`
       Just
         [ "test-fixture.rs:1:23: `linear` cannot be written in the type " ++
           "annotation because the `let` already has the `linear` qualifier; " ++
-          "write the ownership qualifier in one place only"
+          "write the multiplicity qualifier in one place only"
         ]
 
-  test "a conflicting ownership qualifier nested in a let type annotation is rejected" $
+  test "a conflicting multiplicity qualifier nested in a let type annotation is rejected" $
     validationMessages "fn f() {let linear (a, b): (affine qubit, qubit) = (qalloc(), qalloc());}" `shouldBe`
       Just
         [ "test-fixture.rs:1:29: `affine` cannot be written in the type " ++
           "annotation because the `let` already has the `linear` qualifier; " ++
-          "write the ownership qualifier in one place only"
+          "write the multiplicity qualifier in one place only"
         ]
 
-  test "an ownership qualifier written in one place only is accepted" $
+  test "a multiplicity qualifier written in one place only is accepted" $
     validationMessages
       "fn f() {let linear a: qubit = qalloc(); let b: affine qubit = qalloc(); let scratch c: affine qubit = qalloc();}"
       `shouldBe` Just []
 
-  test "ownership qualifiers inside a function type in a let annotation are not repeats" $
+  test "multiplicity qualifiers inside a function type in a let annotation are not repeats" $
     validationMessages "fn f(g: fn(q: affine qubit) -> qubit) {let linear h: fn(q: affine qubit) -> linear qubit = g;}"
       `shouldBe` Just []
 
-  test "an ownership qualifier behind a reference in a let annotation is not reported as a repeat" $
+  test "a multiplicity qualifier behind a reference in a let annotation is not reported as a repeat" $
     validationMessages
       "fn f(q: qubit) {let affine x: (qubit, &[linear qubit; 1]) = (qalloc(), &q);}"
       `shouldBe`
@@ -67,28 +67,28 @@ runPostParseValidationTests = runTests $ Test.do
           "a reference borrows its referent without owning it"
         ]
 
-  test "an ownership qualifier in a referenced slice is rejected" $
+  test "a multiplicity qualifier in a referenced slice is rejected" $
     validationMessages "fn f(qs: &[linear qubit]) {}" `shouldBe`
       Just
         [ "test-fixture.rs:1:12: `linear` cannot be written behind a reference; " ++
           "a reference borrows its referent without owning it"
         ]
 
-  test "an ownership qualifier deep in a referenced tuple is rejected" $
+  test "a multiplicity qualifier deep in a referenced tuple is rejected" $
     validationMessages "fn f(p: &(i32, [affine qubit; 2])) {}" `shouldBe`
       Just
         [ "test-fixture.rs:1:17: `affine` cannot be written behind a reference; " ++
           "a reference borrows its referent without owning it"
         ]
 
-  test "an ownership qualifier behind nested references is rejected once" $
+  test "a multiplicity qualifier behind nested references is rejected once" $
     validationMessages "fn f(v: &[&[affine qubit]]) {}" `shouldBe`
       Just
         [ "test-fixture.rs:1:13: `affine` cannot be written behind a reference; " ++
           "a reference borrows its referent without owning it"
         ]
 
-  test "an ownership qualifier behind a mutable qubit reference is rejected with the mut" $
+  test "a multiplicity qualifier behind a mutable qubit reference is rejected with the mut" $
     validationMessages "fn f(qs: &mut [affine qubit]) {}" `shouldBe`
       Just
         [ "test-fixture.rs:1:10: `mut` should never be written on a qubit reference; " ++
@@ -97,16 +97,16 @@ runPostParseValidationTests = runTests $ Test.do
           "a reference borrows its referent without owning it"
         ]
 
-  test "ownership qualifiers in a referenced function type are allowed" $
+  test "multiplicity qualifiers in a referenced function type are allowed" $
     validationMessages "fn f(g: &fn(q: affine qubit) -> linear qubit) {}"
       `shouldBe` Just []
 
-  test "an ownership qualifier on a qubit array element repeated in a let is rejected" $
+  test "a multiplicity qualifier on a qubit array element repeated in a let is rejected" $
     validationMessages "fn f() {let affine qs: [linear qubit; 2] = qalloc(2);}" `shouldBe`
       Just
         [ "test-fixture.rs:1:25: `linear` cannot be written in the type " ++
           "annotation because the `let` already has the `affine` qualifier; " ++
-          "write the ownership qualifier in one place only"
+          "write the multiplicity qualifier in one place only"
         ]
 
   test "a signed suffix on an array type length is rejected" $

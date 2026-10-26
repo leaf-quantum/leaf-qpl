@@ -59,7 +59,7 @@ import Frontend.Syntax.Operator
 --                                        suffix, or too large for its suffix
 --
 -- `linear [qubit; 2]` and `affine (qubit, qubit)` are representable too, but
--- the parser never produces them: an ownership qualifier applies to a single
+-- the parser never produces them: a multiplicity qualifier applies to a single
 -- `qubit`, so collections qualify their elements (`[linear qubit; 2]`).
 --------------------------------------------------------------------------------
 
@@ -142,7 +142,7 @@ mutual
     -- is spelled once for both expressions and types. The borrow kind is
     -- located so "`mut` is never written on a qubit reference" can point at
     -- the `&mut` itself rather than the whole type. A reference borrows its
-    -- referent without owning it, so the referent never holds an ownership
+    -- referent without owning it, so the referent never holds a multiplicity
     -- qualifier at an owned position: the parser rejects one written directly
     -- after `&` (`&affine qubit`), post-parse validation one nested deeper
     -- (`&[linear qubit]`), and desugaring inserts none.
@@ -151,7 +151,7 @@ mutual
       -> (referencedType : AstNode phase (TyNode phase arraySizeExpr))
       -> TyNode phase arraySizeExpr
 
-    -- Ownership-qualified type: linear qubit, affine qubit. Exactly one
+    -- Multiplicity-qualified type: linear qubit, affine qubit. Exactly one
     -- qualifier, located so diagnostics can point at the keyword. `scratch`
     -- is unrepresentable here: it describes cleanup at the end of a binding's
     -- scope and is only valid on `let` bindings. The parser accepts only
@@ -159,7 +159,7 @@ mutual
     -- (`linear affine qubit`) and a qualified collection (`linear [qubit; 2]`,
     -- `affine (qubit, qubit)`) at the span of the token following it.
     TyQualified :
-         (ownershipQualifier : AstNode phase OwnershipQualifier)
+         (multiplicityQualifier : AstNode phase QuantumMultiplicityQualifier)
       -> (qualifiedType      : AstNode phase (TyNode phase arraySizeExpr))
       -> TyNode phase arraySizeExpr
 
@@ -230,16 +230,16 @@ Ty phase arraySizeExpr = AstNode phase (TyNode phase arraySizeExpr)
 --------------------------------------------------------------------------------
 -- Owned positions
 --------------------------------------------------------------------------------
--- The parts of a type that an ownership qualifier (`linear`, `affine`)
+-- The parts of a type that a multiplicity qualifier (`linear`, `affine`)
 -- applies to. Post-parse validation and desugaring both use this, so they
 -- agree on where a qualifier may be written and where one is inserted.
 --
 -- A type's OWNED POSITIONS are its qubits, each either unqualified (`qubit`)
--- or with its ownership qualifier (`affine qubit`, a TyQualified), found by
+-- or with its multiplicity qualifier (`affine qubit`, a TyQualified), found by
 -- entering parentheses, tuples, arrays and slices. Nothing else is entered:
 --
 --   * a reference borrows its referent, so the referent is not owned and
---     holds no ownership qualifier (see TyReference)
+--     holds no multiplicity qualifier (see TyReference)
 --   * a function type's parameters and result belong to the function's
 --     calls, not to the value the type describes
 --
@@ -285,8 +285,8 @@ mapOwnedPositions :
   -> Ty phase arraySizeExpr
 mapOwnedPositions rewritePosition = runIdentity . traverseOwnedPositions (Id . rewritePosition)
 
-||| The ownership qualifier written at an owned position, if any.
+||| The multiplicity qualifier written at an owned position, if any.
 export
-positionQualifier : Ty phase arraySizeExpr -> Maybe (AstNode phase OwnershipQualifier)
+positionQualifier : Ty phase arraySizeExpr -> Maybe (AstNode phase QuantumMultiplicityQualifier)
 positionQualifier (MkAstNode _ _ (TyQualified qualifier _)) = Just qualifier
 positionQualifier _ = Nothing

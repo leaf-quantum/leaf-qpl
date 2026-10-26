@@ -221,8 +221,8 @@ mutual
           TyReference 
             (resolveAstNode borrowKind) 
             (resolveNestedType referencedType)
-        TyQualified ownershipQualifier qualifiedType =>
-          TyQualified (resolveAstNode ownershipQualifier) (resolveNestedType qualifiedType)
+        TyQualified multiplicityQualifier qualifiedType =>
+          TyQualified (resolveAstNode multiplicityQualifier) (resolveNestedType qualifiedType)
         TyFunction functionEffect functionParameters returnType =>
           TyFunction
             (map resolveAstNode functionEffect)

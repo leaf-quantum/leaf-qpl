@@ -125,7 +125,7 @@ runFunctionParseTests = runTests $ Test.do
       Just
         "fn qualified(q: affine qubit, pair: (linear qubit, affine qubit)) { }"
 
-  test "conflicting ownership qualifiers in a type are rejected" $
+  test "conflicting multiplicity qualifiers in a type are rejected" $
     parseErrorDetails "fn bad(q: linear affine qubit) {}" `shouldBe`
       Just
         ( "Cannot combine `linear` and `affine` storage qualifiers."
@@ -134,7 +134,7 @@ runFunctionParseTests = runTests $ Test.do
         , (1, 24)
         )
 
-  test "duplicate ownership qualifiers in a type are rejected" $
+  test "duplicate multiplicity qualifiers in a type are rejected" $
     parseErrorDetails "fn bad(q: affine affine qubit) {}" `shouldBe`
       Just
         ( "Duplicate `affine` storage qualifier."
@@ -152,7 +152,7 @@ runFunctionParseTests = runTests $ Test.do
         , (1, 18)
         )
 
-  test "scratch qualifier after an ownership qualifier in a type is rejected" $
+  test "scratch qualifier after a multiplicity qualifier in a type is rejected" $
     parseAndPrettyPrint "fn bad(q: linear scratch qubit) {}" `shouldBe` Nothing
 
   test "scratch qualifier in a nested type is rejected" $

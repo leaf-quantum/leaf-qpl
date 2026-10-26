@@ -135,7 +135,7 @@ runDesugaringTests = runTests $ Test.do
       Just
         "general fn allocate() -> () { let scratch q: linear qubit = qalloc(); return (); }"
 
-  test "scratch with an explicit ownership qualifier keeps scratch on the let" $
+  test "scratch with an explicit multiplicity qualifier keeps scratch on the let" $
     desugarAndPrettyPrint "fn allocate() { let affine scratch q: qubit = qalloc(); }"
       `shouldBe`
       Just

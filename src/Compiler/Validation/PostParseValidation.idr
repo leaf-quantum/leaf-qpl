@@ -38,12 +38,12 @@ import Frontend.Syntax.Type
 --   * `continue` outside a loop
 --   * `return` outside a function body (for example in a const initializer),
 --       while still walking and validating its optional value expression
---   * an ownership qualifier written both on a `let` and inside its type
+--   * a multiplicity qualifier written both on a `let` and inside its type
 --       annotation (`let linear q: affine qubit = ...`); reported at every
 --       qualifier at an owned position of the annotation (see "Owned
 --       positions" in Frontend.Syntax.Type), so qualifiers inside function
 --       types are not repeats
---   * an ownership qualifier behind a reference, nested in its referent
+--   * a multiplicity qualifier behind a reference, nested in its referent
 --       (`&[linear qubit]`, `&(i32, affine qubit)`): a reference borrows its
 --       referent without owning it; the parser already rejects one directly
 --       after `&` (`&affine qubit`)
@@ -124,20 +124,20 @@ data ValidationError : Type where
     -> (basisLength : Nat)
     -> ValidationError
 
-  -- An ownership qualifier written both on a `let` and inside its type
+  -- A multiplicity qualifier written both on a `let` and inside its type
   -- annotation, e.g. `let linear q: affine qubit = qalloc();`. `errorSpan`
   -- points at the qualifier inside the annotation.
-  OwnershipQualifierInLetAndType :
+  MultiplicityQualifierInLetAndType :
        (errorSpan : SourceSpan)
-    -> (letQualifier : OwnershipQualifier)
-    -> (typeQualifier : OwnershipQualifier)
+    -> (letQualifier : QuantumMultiplicityQualifier)
+    -> (typeQualifier : QuantumMultiplicityQualifier)
     -> ValidationError
 
-  -- An ownership qualifier at an owned position of a reference's referent,
+  -- A multiplicity qualifier at an owned position of a reference's referent,
   -- e.g. `&[linear qubit]`. `errorSpan` points at the qualifier.
-  OwnershipQualifierBehindReference :
+  MultiplicityQualifierBehindReference :
        (errorSpan : SourceSpan)
-    -> (qualifier : OwnershipQualifier)
+    -> (qualifier : QuantumMultiplicityQualifier)
     -> ValidationError
 
   -- An array length written as an integer literal with a signed type
@@ -169,8 +169,8 @@ validationErrorSpan err =
     ContinueOutsideLoop s       => s
     ReturnOutsideFunction s     => s
     ControlBasisLengthMismatch s _ _ => s
-    OwnershipQualifierInLetAndType s _ _ => s
-    OwnershipQualifierBehindReference s _ => s
+    MultiplicityQualifierInLetAndType s _ _ => s
+    MultiplicityQualifierBehindReference s _ => s
     SignedArrayLength s _ => s
     ArrayLengthOutOfRange s _ _ _ => s
 
@@ -188,10 +188,10 @@ withValidationErrorFile fileName err =
        ReturnOutsideFunction _            => ReturnOutsideFunction withFile
        ControlBasisLengthMismatch _ controlCount basisLength =>
          ControlBasisLengthMismatch withFile controlCount basisLength
-       OwnershipQualifierInLetAndType _ letQualifier typeQualifier =>
-         OwnershipQualifierInLetAndType withFile letQualifier typeQualifier
-       OwnershipQualifierBehindReference _ qualifier =>
-         OwnershipQualifierBehindReference withFile qualifier
+       MultiplicityQualifierInLetAndType _ letQualifier typeQualifier =>
+         MultiplicityQualifierInLetAndType withFile letQualifier typeQualifier
+       MultiplicityQualifierBehindReference _ qualifier =>
+         MultiplicityQualifierBehindReference withFile qualifier
        SignedArrayLength _ suffixType =>
          SignedArrayLength withFile suffixType
        ArrayLengthOutOfRange _ literalText suffixType suffixMaximum =>
@@ -229,11 +229,11 @@ Interpolation ValidationError where
           "control basis contains " ++ show basisLength ++
           " states, but the control expression has " ++ show controlCount ++
           " control qubits"
-        OwnershipQualifierInLetAndType _ letQualifier typeQualifier =>
+        MultiplicityQualifierInLetAndType _ letQualifier typeQualifier =>
           "`" ++ show typeQualifier ++ "` cannot be written in the type " ++
           "annotation because the `let` already has the `" ++ show letQualifier ++
-          "` qualifier; write the ownership qualifier in one place only"
-        OwnershipQualifierBehindReference _ qualifier =>
+          "` qualifier; write the multiplicity qualifier in one place only"
+        MultiplicityQualifierBehindReference _ qualifier =>
           "`" ++ show qualifier ++ "` cannot be written behind a reference; " ++
           "a reference borrows its referent without owning it"
         SignedArrayLength _ suffixType =>
@@ -330,32 +330,32 @@ isSyntacticallyQubitTy ty =
     TyArray (MkAstNode _ _ element) _          => isSyntacticallyQubitTy element
     _                                          => False
 
--- Ownership qualifiers written at the owned positions of a type.
-ownedPositionQualifiers : SurfaceTy -> List (SurfaceAstNode OwnershipQualifier)
+-- Multiplicity qualifiers written at the owned positions of a type.
+ownedPositionQualifiers : SurfaceTy -> List (SurfaceAstNode QuantumMultiplicityQualifier)
 ownedPositionQualifiers = mapMaybe positionQualifier . ownedPositions
 
--- A `let` carrying `linear` or `affine` must not repeat an ownership qualifier
+-- A `let` carrying `linear` or `affine` must not repeat a multiplicity qualifier
 -- inside its type annotation. `scratch` on the `let` is unaffected.
-letOwnershipConflicts :
+letMultiplicityConflicts :
      List (AstNode SurfaceAstPhase QuantumStorageQualifier)
   -> Maybe SurfaceTy
   -> List ValidationError
-letOwnershipConflicts _ Nothing = []
-letOwnershipConflicts letQualifiers (Just annotation) =
-  case mapMaybe (storageOwnership . (.value)) letQualifiers of
+letMultiplicityConflicts _ Nothing = []
+letMultiplicityConflicts letQualifiers (Just annotation) =
+  case mapMaybe (storageMultiplicity . (.value)) letQualifiers of
     [] => []
     letQualifier :: _ =>
       map (\(MkAstNode qualifierInfo _ typeQualifier) =>
-             OwnershipQualifierInLetAndType qualifierInfo.span letQualifier typeQualifier)
+             MultiplicityQualifierInLetAndType qualifierInfo.span letQualifier typeQualifier)
           (ownedPositionQualifiers annotation)
 
--- A reference's referent holds no ownership qualifier at an owned position.
+-- A reference's referent holds no multiplicity qualifier at an owned position.
 -- Qualifiers behind a nested reference are reported when the walk reaches
 -- that reference, since owned positions do not enter references.
 qualifiersBehindReference : SurfaceTy -> List ValidationError
 qualifiersBehindReference referent =
   map (\(MkAstNode qualifierInfo _ qualifier) =>
-         OwnershipQualifierBehindReference qualifierInfo.span qualifier)
+         MultiplicityQualifierBehindReference qualifierInfo.span qualifier)
       (ownedPositionQualifiers referent)
 
 -- An array length written as an integer literal may carry only an unsigned
@@ -522,7 +522,7 @@ mutual
   validateStatement ctx (MkAstNode _ _ stmt) =
     case stmt of
       StatementLet (MkLetBindingNode letQualifiers _ tyAnn maybeInit) =>
-           letOwnershipConflicts letQualifiers tyAnn
+           letMultiplicityConflicts letQualifiers tyAnn
         ++ validateMaybeTy ctx tyAnn
         ++ (case maybeInit of
               Nothing => []

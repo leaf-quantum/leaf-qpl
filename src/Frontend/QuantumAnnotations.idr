@@ -7,5 +7,5 @@ import Frontend.Syntax.Common
 public export
 record QuantumStorageProperties where
   constructor MkQuantumStorageProperties
-  usage   : OwnershipQualifier
+  usage   : QuantumMultiplicityQualifier
   scratch : Bool

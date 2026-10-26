@@ -26,7 +26,7 @@ preludeFunctionNames =
     "sqrt",
     "tan",
     "turns",
-    -- Quantum gates from the language specification, section 14.
+    -- Quantum gates
     "I", "X", "Y", "Z", "H", "S", "SDG", "T", "TDG", "SX", "SXDG",
     "RX", "RY", "RZ", "U1", "U2", "U3", "CNOT", "CX", "CY", "CZ",
     "CS", "CSDG", "CT", "CTDG", "CSX", "CSXDG", "CRX", "CRY", "CRZ",

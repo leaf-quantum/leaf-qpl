@@ -45,27 +45,27 @@ writtenLeafType : {astPhase : AstPhase} -> Ty astPhase (Expr astPhase) -> Maybe 
 writtenLeafType typeAstNode@(MkAstNode _ _ typeNode) =
   case typeNode of
     TyPrimitive primitiveName =>
-      Just (LeafPrimitive primitiveName)
+      Just (LeafPrimitiveType primitiveName)
     TyPath typePath =>
-      Just (LeafNamed (pathTarget typePath))
+      Just (LeafNamedType (pathTarget typePath))
     TyUnit =>
-      Just LeafUnit
+      Just LeafUnitType
     TyParenthesized innerType =>
       recur innerType
     TyTuple elementTypes =>
-      LeafTuple <$> traverse recur elementTypes
+      LeafTupleType <$> traverse recur elementTypes
     TyArray elementType sizeExpression =>
-      LeafArray <$> recur elementType <*> arrayLength sizeExpression
+      LeafArrayType <$> recur elementType <*> arrayLength sizeExpression
     TySlice elementType =>
-      LeafSlice <$> recur elementType
+      LeafSliceType <$> recur elementType
     TyReference borrowKind referencedType =>
-      referenceTo borrowKind.value <$> recur referencedType
-    TyQualified ownershipQualifier qualifiedType =>
-      LeafQualified ownershipQualifier.value <$> recur qualifiedType
+      quantumMultiplicityFreeReference borrowKind.value <$> recur referencedType
+    TyQualified multiplicityQualifier qualifiedType =>
+      LeafQualifiedType multiplicityQualifier.value <$> recur qualifiedType
     TyFunction functionEffect functionParameters returnType =>
-      LeafFunction (maybe EffectGeneral (.value) functionEffect)
+      LeafFunctionType (maybe EffectGeneral (.value) functionEffect)
         <$> traverse (\parameter => recur parameter.value.parameterType) functionParameters
-        <*> maybe (Just LeafUnit) recur returnType
+        <*> maybe (Just LeafUnitType) recur returnType
   where
     recur : Ty astPhase (Expr astPhase) -> Maybe LeafType
     recur nestedType = writtenLeafType (assert_smaller typeAstNode nestedType)
