@@ -403,7 +403,8 @@ mutual
           StatementExpression (desugarExpression statementExpression)
 
 ||| A final expression is desugared to a return statement. If there is no
-||| final expression, an explicit `return ();` statement is generated.
+||| final expression, an explicit `return ();` statement is generated, unless
+||| the body already ends in a `return` statement such as "return x;".
 ||| Also "return 2" is desugared to "return 2;"
 ||| Also "(return 2)" is desugared to "return 2;"
 desugarFunctionBody : Block SurfaceAstPhase -> Block CanonicalAstPhase
@@ -411,23 +412,38 @@ desugarFunctionBody (MkAstNode functionBodyAstInfo metadata (MkBlockNode blockIn
   canonicalAstNode functionBodyAstInfo WrittenCode $
     MkBlockNode
       (map desugarAstNode blockInnerDocs)
-      (map desugarStatement blockStatements ++ desugarFinalExpression finalExpression)
+      (desugaredStatements ++ desugarFinalExpression finalExpression)
       Nothing
     where
+      desugaredStatements : List (AstNode CanonicalAstPhase (StatementNode CanonicalAstPhase))
+      desugaredStatements = map desugarStatement blockStatements
+
+      -- Only a written `return` is recognized here; a statement that leaves the
+      -- function on every path, like an if whose branches all return, needs
+      -- typechecking to be recognized.
+      endsInReturn : Bool
+      endsInReturn =
+        case last' desugaredStatements of
+          Just (MkAstNode _ _ (StatementSemiExpression (MkAstNode _ _ (ExprReturn _)))) => True
+          _ => False
+
       desugarFinalExpression : Maybe (AstNode SurfaceAstPhase (ExpressionNode SurfaceAstPhase)) -> List (AstNode CanonicalAstPhase (StatementNode CanonicalAstPhase))
       desugarFinalExpression Nothing =
-        let statementSemiExpressionInfo = incrementedAstInfo functionBodyAstInfo 1
-            expressionReturnInfo = incrementedAstInfo functionBodyAstInfo 2
-            unitExpressionInfo = incrementedAstInfo functionBodyAstInfo 3
-            unitValueInfo = incrementedAstInfo functionBodyAstInfo 4
-        in
-          [canonicalAstNode statementSemiExpressionInfo DesugaredReturnStatement
-            (StatementSemiExpression $
-              canonicalAstNode expressionReturnInfo DesugaredReturnStatement $
-                ExprReturn $ Just $
-                  canonicalAstNode unitExpressionInfo DesugaredExpression $
-                    ExprLiteral $
-                      canonicalAstNode unitValueInfo DesugaredUnitValue LiteralUnit)]
+        if endsInReturn
+          then []
+          else
+            let statementSemiExpressionInfo = incrementedAstInfo functionBodyAstInfo 1
+                expressionReturnInfo = incrementedAstInfo functionBodyAstInfo 2
+                unitExpressionInfo = incrementedAstInfo functionBodyAstInfo 3
+                unitValueInfo = incrementedAstInfo functionBodyAstInfo 4
+            in
+              [canonicalAstNode statementSemiExpressionInfo DesugaredReturnStatement
+                (StatementSemiExpression $
+                  canonicalAstNode expressionReturnInfo DesugaredReturnStatement $
+                    ExprReturn $ Just $
+                      canonicalAstNode unitExpressionInfo DesugaredExpression $
+                        ExprLiteral $
+                          canonicalAstNode unitValueInfo DesugaredUnitValue LiteralUnit)]
       desugarFinalExpression (Just finalExpression@(MkAstNode finalExpressionInfo _ _)) =
         let statementSemiExpressionInfo = { span := finalExpressionInfo.span } (incrementedAstInfo functionBodyAstInfo 1)
             desugaredFinalExpression = desugarExpression finalExpression

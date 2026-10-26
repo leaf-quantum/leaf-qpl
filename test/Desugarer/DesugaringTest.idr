@@ -88,6 +88,22 @@ runDesugaringTests = runTests $ Test.do
     desugarAndPrettyPrint "fn f() -> i32 { ((return 2)) }"
       `shouldBe` Just "general fn f() -> i32 { return 2; }"
 
+  test "a final return statement is not followed by a generated return" $
+    desugarAndPrettyPrint "fn f() -> f64 {\n    let x = 2.0;\n    return x;\n}"
+      `shouldBe` Just "general fn f() -> f64 { let x = 2.0; return x; }"
+
+  test "a final valueless return statement is not followed by a generated return" $
+    desugarAndPrettyPrint "fn f() { work(); return; }"
+      `shouldBe` Just "general fn f() -> () { work(); return (); }"
+
+  test "a final parenthesized return statement is not followed by a generated return" $
+    desugarAndPrettyPrint "fn f() -> i32 { (return 2); }"
+      `shouldBe` Just "general fn f() -> i32 { return 2; }"
+
+  test "a return statement before other statements is still followed by a generated return" $
+    desugarAndPrettyPrint "fn f() { return; work(); }"
+      `shouldBe` Just "general fn f() -> () { return (); work(); return (); }"
+
   test "explicitly typed qubit let binding is linear by default" $
     desugarAndPrettyPrint "fn allocate() { let q: qubit = qalloc(); }"
       `shouldBe`
