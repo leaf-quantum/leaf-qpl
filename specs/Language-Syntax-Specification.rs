@@ -335,9 +335,9 @@ let units: [(); 5] = [(), (), (), (), ()];
 let params: [param; 2] = [Param("theta"), Param("phi")];
 
 // arrays can be declared with [T; N] where N must be a const expression:
-let a: [i32; 4];          // integer literal, inferred as usize
+let a: [i32; 4];          // integer literal, inferred as u32
 let b: [i32; 2 + 2];      // constant expression
-const N: i64 = 4;
+const N: u64 = 4;
 let c: [i32; N];          // named constant
 let d: [i32; 4u32];       // an integer literal length may have an unsigned suffix
 let e: [i32; 4i32];       // INVALID: an array length cannot have a signed suffix
