@@ -25,9 +25,12 @@ data LeafType
   | LeafTupleType (List1 LeafType)
   | LeafArrayType LeafType Nat
   | LeafSliceType LeafType
+  | LeafRangeType LeafType
   | LeafReferenceType BorrowKind LeafType
   | LeafFunctionType FunctionEffect (List LeafType) LeafType
   | LeafQualifiedType QuantumMultiplicityQualifier LeafType
+  | LeafNeverType     -- expressions that never finish: return, break, continue, loop with no break
+                      -- none of them ever produce a value at the point where they appear: control jumps somewhere else
 
 --------------------------------------------------------------------------------
 -- References

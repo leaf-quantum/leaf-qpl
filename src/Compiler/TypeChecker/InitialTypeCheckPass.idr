@@ -1,11 +1,14 @@
 module Compiler.TypeChecker.InitialTypeCheckPass
 
+import Data.List1
+import Data.SortedMap
+
 import Control.Monad.State
+import Compiler.ScopeAndNameResolution.Data
 import Compiler.Type
 import Compiler.TypeChecker.Data
 import Compiler.TypeChecker.Helper
-import Data.List1
-import Data.SortedMap
+import Compiler.TypeChecker.State
 import Frontend.ASTData
 import Frontend.ASTPhases
 import Frontend.Syntax.Attribute
@@ -171,7 +174,7 @@ mutual
 --      typecheckAdjointExpressionNode (AdjointOfCallable adjointedCallable) = AdjointOfCallable (typecheckNestedExpression adjointedCallable)
 --      typecheckAdjointExpressionNode (AdjointBlock adjointedBlock) = AdjointBlock (typecheckBlockExpression adjointedBlock)
 --
-  typecheckExpression : ResolvedExpr ->  StateT TypeTables (Either TypeError) TypedExpr
+  typecheckExpression : ResolvedExpr ->  StateT CheckerState (Either TypeError) TypedExpr
   typecheckExpression (MkAstNode expressionInfo (MkProvenanceMetadata provenance) expressionNode) =
     ?xxx88
     --typecheckNode expressionInfo (MkProvenanceMetadata provenance) (typecheckExpressionNode expressionNode)
@@ -328,7 +331,7 @@ typecheckFunctionBody (MkAstNode functionBodyAstInfo (MkProvenanceMetadata prove
   --    (map typecheckStatement blockStatements)
   --    (map typecheckExpression finalExpression)
 
-typecheckItem : ResolvedItem -> StateT TypeTables (Either TypeError) TypedItem
+typecheckItem : ResolvedItem -> StateT CheckerState (Either TypeError) TypedItem
 typecheckItem (MkAstNode itemInfo metadata item) = do
   resolvedItem <- case item of
       ItemModule declaration => notImplemented {function = "typecheckItem"} {feature = "ItemModule"}
@@ -345,23 +348,17 @@ typecheckItem (MkAstNode itemInfo metadata item) = do
         pure $ ItemFunction typedDeclaration
   pure $ typecheckNode itemInfo metadata resolvedItem
   where
-    typecheckConstDeclaration : ConstDeclarationNode ResolvedAstPhase ->  StateT TypeTables (Either TypeError) (ConstDeclarationNode TypedAstPhase)
+    typecheckConstDeclaration : ConstDeclarationNode ResolvedAstPhase ->  StateT CheckerState (Either TypeError) (ConstDeclarationNode TypedAstPhase)
     typecheckConstDeclaration (MkConstDeclarationNode constDocs constVisibility constName constType constValue) = do
-      let MkAstNode (MkAstInfo nameNodeId nameSpan) nameMetadata (MkResolvedNameNode nameText nameSymbolId) = constName
-      typedConstValue <- typecheckExpression constValue
-      typeTables <- get
-      modify $ \typeTables =>
-        {
-          expressionTypes := insert nameNodeId (toInferredType constType) typeTables.expressionTypes
-        } typeTables
-      pure $ MkConstDeclarationNode
-        (map typecheckAstNode constDocs)
-        (map typecheckAstNode constVisibility)
-        (typecheckName constName)
-        (typecheckType constType)
-        typedConstValue
+      ?xxxxxxxxxxxxxxxxxx1
+      -- MkConstDeclarationNode
+      --   (map typecheckAstNode constDocs)
+      --   (map typecheckAstNode constVisibility)
+      --   (typecheckName constName)
+      --   (typecheckType constType)
+      --   typedConstValue
 
-    typecheckFunctionDeclaration : FunctionDeclarationNode ResolvedAstPhase -> StateT TypeTables (Either TypeError) (FunctionDeclarationNode TypedAstPhase)
+    typecheckFunctionDeclaration : FunctionDeclarationNode ResolvedAstPhase -> StateT CheckerState (Either TypeError) (FunctionDeclarationNode TypedAstPhase)
     typecheckFunctionDeclaration
         (MkFunctionDeclarationNode
           functionDocs
@@ -375,7 +372,7 @@ typecheckItem (MkAstNode itemInfo metadata item) = do
           supportClause
           contractClauses
           functionBody
-        ) = ?xxxxxxxxxxxxxxxxxx
+        ) = ?xxxxxxxxxxxxxxxxxx2
             --MkFunctionDeclarationNode
             --  (map typecheckAstNode functionDocs)
             --  (map typecheckAttribute functionAttributes)
@@ -389,17 +386,18 @@ typecheckItem (MkAstNode itemInfo metadata item) = do
             --  (map typecheckContractClause contractClauses)
             --  (typecheckFunctionBody functionBody)
 
-initalTypeCheckPass : ResolvedModule -> Either TypeError TypedModule
-initalTypeCheckPass (
+export
+initialTypeCheckPass : ResolvedModule -> Either TypeError TypeTables
+initialTypeCheckPass (
   MkResolvedModule
-    rootModule
-    rootScope
-    (MkAstNode fileInfo metadata (MkSourceFileNode docs items))
+    _                                                     -- rootModule
+    _                                                     -- rootScope
+    (MkAstNode _ _ (MkSourceFileNode _ items))            -- astInfo, metadata, sourceFileInnerDocs
     (MkScopeTables
-      currentScope
-      currentScopeKind
-      currentModule
-      constContextBoundary
+      _                                                   -- resolver traversal state is not carried over:
+      _                                                   -- currentScope, currentScopeKind,
+      _                                                   -- currentModule, constContextBoundary
+      _
       nodeScopes
       symbols
       localVariables
@@ -408,23 +406,18 @@ initalTypeCheckPass (
       memberScopes)
   ) = do
     let initialTypeTables = MkTypeTables
-          currentScope
-          currentScopeKind
-          currentModule
-          constContextBoundary
+          scopes
           nodeScopes
           (map (\symbol => { symbolType :=  TypeNotYetResolved } symbol) symbols)
           localVariables
-          references
-          scopes
           memberScopes
+          references
           empty
-    (typeTables, typedItems) <- runStateT initialTypeTables $ do
-      traverse typecheckItem items
-    let typedAst = typecheckNode fileInfo metadata $ 
-                      MkSourceFileNode (map typecheckAstNode docs) typedItems
-    pure $ MkTypedModule
-      rootModule
-      rootScope
-      typedAst
-      typeTables
+          empty
+          empty
+          empty
+          empty
+    let initialCheckerState = MkCheckerState initialTypeTables Nothing emptyInferenceState
+    (checkerState, _) <- runStateT initialCheckerState $ do
+      traverse_ typecheckItem items
+    pure checkerState.tables

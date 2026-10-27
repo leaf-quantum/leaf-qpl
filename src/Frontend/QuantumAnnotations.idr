@@ -4,6 +4,7 @@ import Frontend.Syntax.Common
 
 %default total
 
+public export
 data QuantumCleanup
   = NoAutomaticCleanup
   | ScratchCleanup
