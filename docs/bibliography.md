@@ -126,3 +126,8 @@ Entanglement and type systems (scratch)
 * **Zhou, L., Barthe, G., Hsu, J., Ying, M., & Yu, N.** (2021). A Quantum Interpretation of Bunched Logic & Quantum Separation Logic. In *Proceedings of the 36th Annual ACM/IEEE Symposium on Logic in Computer Science (LICS 2021)*, pp. 1–14. IEEE. DOI: [10.1109/LICS52264.2021.9470673](https://doi.org/10.1109/LICS52264.2021.9470673). [arXiv:2102.00329](https://arxiv.org/abs/2102.00329).
 
 * **Matsushita, Y., Hirata, K., Wakizaka, R., & D'Osualdo, E.** (2026). RapunSL: Untangling Quantum Computing with Separation, Linear Combination and Mixing. *Proceedings of the ACM on Programming Languages* 10(POPL), Article 6, pp. 144–173. DOI: [10.1145/3776648](https://doi.org/10.1145/3776648). [arXiv:2511.23472](https://arxiv.org/abs/2511.23472).
+
+
+Lean formalization of quantum algorithms:
+
+https://arxiv.org/pdf/2610.30216
