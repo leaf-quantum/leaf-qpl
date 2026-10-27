@@ -99,6 +99,9 @@
 <a id="mints-2025-compositional-quantum-control-flow-qunity"></a>
 - **Mints, M., Voichick, F., Lampropoulos, L., & Rand, R.** (2025). *Compositional Quantum Control Flow with Efficient Compilation in Qunity*. [arXiv:2508.02857](https://arxiv.org/abs/2508.02857).
 
+<a id="Hirata-2025-qurts-qutomatic-quantum-uncomputation-by-qffine-types"></a>
+- **Hirata, K., & Heunen, C.** (2025). Qurts: Automatic Quantum Uncomputation by Affine Types with Lifetime. Proceedings of the ACM on Programming Languages 9(POPL), Article 6, pp. 155–182. DOI: [10.1145/3704842] (https://dl.acm.org/doi/10.1145/3704842).
+
 <a id="barsse-2025-quantum-control-and-general-recursion-beyond-the-unitary-case"></a>
 - **Barsse, K., Péchoux, R., & Perdrix, S.** (2025). *Quantum Control and General Recursion beyond the Unitary Case*. [arXiv:2507.10466](https://arxiv.org/abs/2507.10466).
 
