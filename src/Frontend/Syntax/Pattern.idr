@@ -233,7 +233,7 @@ TypedStructPatternField = StructPatternField TypedAstPhase
 --     wildcards there -- no `_` token even appears in valid smatch source,
 --     so this is a parse error with a perfect span, not a deferred check)
 --   * smatch never constructs QuantumPatternQenumVariant (smatch scrutinees
---     are qubits/registers, not qenums)
+--     are qbits/registers, not qenums)
 --   * "no mixing bs-strings with integers in one qmatch/smatch" is also the
 --     parser's (or an early validator's) check -- the AST does not encode
 --     arm-set homogeneity
@@ -267,7 +267,7 @@ data QuantumMatchPatternNode : (phase : AstPhase) -> Type where
 
   -- Data::Left(a), Data::Right(b, c) -- qmatch over a qenum. Arguments are
   -- plain BINDER NAMES, not nested patterns: that is all the spec shows,
-  -- and qenum payloads are qubits, which deeper patterns could not usefully
+  -- and qenum payloads are qbits, which deeper patterns could not usefully
   -- destructure anyway. If nested destructuring is ever ruled legal, this
   -- becomes List (Pattern phase).
   QuantumPatternQenumVariant :

@@ -5,7 +5,7 @@
 Qubits are treated as mutable computational resources whose quantum state evolves when quantum gates are applied.
 
 ```leaf
-let q: qubit = qalloc();
+let q: qbit = qalloc();
 let q = H(q);
 ```
 
@@ -29,7 +29,7 @@ let sq: [qstate; 2] = plus.tensor(zero - phase(turns(1.0/3.0)) * one);
 An implementation of Hadamard gate using `sif/then/selse` pattern is shown next:
 
 ```leaf
-unitary fn had(q: qubit) -> qubit {
+unitary fn had(q: qbit) -> qbit {
     sif q then
         (zero - one)
     selse
@@ -37,10 +37,10 @@ unitary fn had(q: qubit) -> qubit {
 }
 ```
 
-Note that while the branches of `sif/then/selse` are both `qstate` expressions the type returned by the quantum conditional expression `sif/then/selse` is `qubit`. The above code is equivalent to:
+Note that while the branches of `sif/then/selse` are both `qstate` expressions the type returned by the quantum conditional expression `sif/then/selse` is `qbit`. The above code is equivalent to:
 
 ```leaf
-unitary fn had(q: qubit) -> qubit {
+unitary fn had(q: qbit) -> qbit {
     sif q then minus selse plus
 }
 ```
@@ -51,7 +51,7 @@ Using `qstate` variables, the Hadamard operation can be implemented as:
 let plusAlias : qstate = zero + one;
 let minusAlias : qstate = zero - one;
 
-unitary fn had(q: qubit) -> qubit {
+unitary fn had(q: qbit) -> qbit {
     sif q then minusAlias selse plusAlias
 }
 ```

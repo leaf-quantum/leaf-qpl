@@ -9,7 +9,7 @@ import DSL.Control
 
 public export
 data UnitaryGate : Nat -> Type where
-  -- 1-qubit (Clifford + T and friends)
+  -- 1-qbit (Clifford + T and friends)
   Id    : (q : Fin n) -> UnitaryGate n
   X     : (q : Fin n) -> UnitaryGate n
   Y     : (q : Fin n) -> UnitaryGate n
@@ -22,7 +22,7 @@ data UnitaryGate : Nat -> Type where
   SX    : (q : Fin n) -> UnitaryGate n
   SXDG  : (q : Fin n) -> UnitaryGate n
 
-  -- Parametric 1-qubit rotations
+  -- Parametric 1-qbit rotations
   RX    : Radians -> (q : Fin n) -> UnitaryGate n
   RY    : Radians -> (q : Fin n) -> UnitaryGate n
   RZ    : Radians -> (q : Fin n) -> UnitaryGate n
@@ -33,7 +33,7 @@ data UnitaryGate : Nat -> Type where
   U2    : Radians -> Radians -> (q : Fin n) -> UnitaryGate n                 -- U2(φ,λ) == U(π/2, φ, λ)
   U3    : Radians -> Radians -> Radians -> (q : Fin n) -> UnitaryGate n      -- U3(θ,φ,λ) == U(θ, φ, λ)
 
--- 2-qubit (with a proof that control ≠ target)
+-- 2-qbit (with a proof that control ≠ target)
   CNOT : (c,t : Fin n) -> {auto 0 neq : Not (c = t)} -> UnitaryGate n
   CY    : (c,t : Fin n) -> {auto 0 neq : Not (c = t)} -> UnitaryGate n
   CZ    : (c,t : Fin n) -> {auto 0 neq : Not (c = t)} -> UnitaryGate n
@@ -58,7 +58,7 @@ data UnitaryGate : Nat -> Type where
   RZZ   : Radians -> (a,b : Fin n) -> {auto 0 neq : Not (a = b)} -> UnitaryGate n
   RZX   : Radians -> (a,b : Fin n) -> {auto 0 neq : Not (a = b)} -> UnitaryGate n
 
-  -- 3-qubit (all distinct)
+  -- 3-qbit (all distinct)
   CCX   : (c1,c2,t : Fin n)
         -> {auto 0 d12 : Not (c1 = c2)}
         -> {auto 0 d1t : Not (c1 = t)}

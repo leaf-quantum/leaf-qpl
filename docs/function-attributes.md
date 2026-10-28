@@ -4,25 +4,25 @@ By default, a quantum program written in Leaf is compiled as a flat OpenQASM fil
 
 ```leaf
 #[qasm_gate]
-unitary fn myfun(q: qubit) -> qubit {
+unitary fn myfun(q: qbit) -> qbit {
   let q = H(q);
   q
 }
 
 #[qasm_gate("qasm_subroutine_name")]
-unitary fn myfun(q: qubit) -> qubit {
+unitary fn myfun(q: qbit) -> qbit {
   let q = H(q);
   q
 }
 
 #[qasm_def]
-general fn myfun(q: qubit) -> bit {
+general fn myfun(q: qbit) -> bit {
   let q = H(q);
   measr(q)
 }
 
 #[qasm_def("qasm_subroutine_name")]
-general fn myfun(q: qubit) -> bit {
+general fn myfun(q: qbit) -> bit {
   let q = H(q);
   measr(q)
 }

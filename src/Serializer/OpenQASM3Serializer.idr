@@ -9,7 +9,7 @@ import DSL.Gates   -- UnitaryGate, etc.
 %default total
 
 --------------------------------------------------------------------------------
--- Helpers: indices, qubit pretty-printers, list helpers
+-- Helpers: indices, qbit pretty-printers, list helpers
 --------------------------------------------------------------------------------
 
 public export
@@ -17,8 +17,8 @@ qasmIndex : {n : Nat} -> Fin n -> String
 qasmIndex i = show (finToNat i)
 
 public export
-qasmQubit : {n : Nat} -> String -> Fin n -> String
-qasmQubit qreg q = qreg ++ "[" ++ qasmIndex q ++ "]"
+qasmQbit : {n : Nat} -> String -> Fin n -> String
+qasmQbit qreg q = qreg ++ "[" ++ qasmIndex q ++ "]"
 
 public export
 angleToStr : Radians -> String
@@ -43,7 +43,7 @@ joinWith sep (x :: xs) = x ++ sep ++ joinWith sep xs
 --------------------------------------------------------------------------------
 -- Core representation: a gate + (possibly) ctrl/negctrl modifiers
 --
--- ctrls: one Bool per control qubit at the START of 'qubits'
+-- ctrls: one Bool per control qbit at the START of 'qbits'
 --        True  = ctrl    @   (control on |1>)
 --        False = negctrl @   (control on |0>)
 --------------------------------------------------------------------------------
@@ -54,7 +54,7 @@ record CoreGate (n : Nat) where
   ctrls  : List Bool
   gname  : String
   params : List Radians
-  qubits : List (Fin n)
+  qbits : List (Fin n)
 
 --------------------------------------------------------------------------------
 -- Flatten UnitaryGate (including Controlled wrapper) into CoreGate
@@ -63,7 +63,7 @@ record CoreGate (n : Nat) where
 public export
 unitaryToCore : UnitaryGate n -> CoreGate n
 
--- 1-qubit (Clifford + T and friends)
+-- 1-qbit (Clifford + T and friends)
 
 unitaryToCore (Id q)    = MkCoreGate [] "id"   [] [q]
 unitaryToCore (X q)     = MkCoreGate [] "x"    [] [q]
@@ -77,7 +77,7 @@ unitaryToCore (TDG q)   = MkCoreGate [] "tdg"  [] [q]
 unitaryToCore (SX q)    = MkCoreGate [] "sx"   [] [q]
 unitaryToCore (SXDG q)  = MkCoreGate [] "sxdg" [] [q]   -- user-defined gate in QASM3
 
--- Parametric 1-qubit rotations
+-- Parametric 1-qbit rotations
 
 unitaryToCore (RX th q) = MkCoreGate [] "rx" [th] [q]
 unitaryToCore (RY th q) = MkCoreGate [] "ry" [th] [q]
@@ -97,7 +97,7 @@ unitaryToCore (U2 ph la q) =
 unitaryToCore (U3 th ph la q) =
   MkCoreGate [] "u3" [th, ph, la] [q]
 
--- 2-qubit gates
+-- 2-qbit gates
 
 unitaryToCore (CNOT c t {neq}) =
   MkCoreGate [] "cx" [] [c, t]
@@ -149,7 +149,7 @@ unitaryToCore (CU2 ph la c t {neq}) =
 unitaryToCore (CU3 th ph la c t {neq}) =
   MkCoreGate [] "cu3" [th, ph, la] [c, t]
 
--- Two-qubit non-controlled interactions
+-- Two-qbit non-controlled interactions
 
 unitaryToCore (SWAP a b {neq}) =
   MkCoreGate [] "swap" [] [a, b]
@@ -166,7 +166,7 @@ unitaryToCore (RZZ th a b {neq}) =
 unitaryToCore (RZX th a b {neq}) =
   MkCoreGate [] "rzx" [th] [a, b]
 
--- 3-qubit gates
+-- 3-qbit gates
 
 unitaryToCore (CCX c1 c2 t {d12} {d1t} {d2t}) =
   MkCoreGate [] "ccx" [] [c1, c2, t]
@@ -177,9 +177,9 @@ unitaryToCore (CSWAP c a b {cab} {ca} {cb}) =
 -- Generic Controlled wrapper:
 -- We FLATTEN all nested controls into:
 --   - extra Bool flags at the FRONT of 'ctrls'
---   - extra control qubits at the FRONT of 'qubits'
+--   - extra control qbits at the FRONT of 'qbits'
 --
--- So the resulting CoreGate qubits list is: [all controls] ++ [inner’s qubits]
+-- So the resulting CoreGate qbits list is: [all controls] ++ [inner’s qbits]
 -- and ctrls: [polarity for each control] ++ inner.ctrls
 
 unitaryToCore (Controlled {k} cs bs inner) =
@@ -196,8 +196,8 @@ unitaryToCore (Controlled {k} cs bs inner) =
     params0 : List Radians
     params0 = params innerCore
 
-    qubits0 : List (Fin n)
-    qubits0 = qubits innerCore
+    qbits0 : List (Fin n)
+    qbits0 = qbits innerCore
 
     csList : List (Fin n)
     csList = vectToList cs
@@ -205,7 +205,7 @@ unitaryToCore (Controlled {k} cs bs inner) =
     bsList : List Bool
     bsList = vectToList bs
   in
-    MkCoreGate (List.(++) bsList ctrls0) name0 params0 (List.(++) csList qubits0)
+    MkCoreGate (List.(++) bsList ctrls0) name0 params0 (List.(++) csList qbits0)
 
 --------------------------------------------------------------------------------
 -- CoreGate -> OpenQASM 3 statement
@@ -214,7 +214,7 @@ unitaryToCore (Controlled {k} cs bs inner) =
 --   ctrl @ ... @ negctrl @ gname(theta, ...) q[...], q[...], ...;
 --
 -- Number of ctrl/negctrl = length ctrls
--- Number of leading qubits used as controls = SAME length
+-- Number of leading qbits used as controls = SAME length
 --------------------------------------------------------------------------------
 
 public export
@@ -223,9 +223,9 @@ coreGateToOpenQasm3 :
   (qregName : String) ->
   CoreGate n ->
   String
-coreGateToOpenQasm3 qregName (MkCoreGate ctrls name params qubits) =
+coreGateToOpenQasm3 qregName (MkCoreGate ctrls name params qbits) =
   let
-    -- One modifier per control qubit, in order.
+    -- One modifier per control qbit, in order.
     mods : List String
     mods = map (\b => if b then "ctrl @ " else "negctrl @ ") ctrls
 
@@ -238,11 +238,11 @@ coreGateToOpenQasm3 qregName (MkCoreGate ctrls name params qubits) =
         []    => ""
         ps    => "(" ++ joinWith ", " (map angleToStr ps) ++ ")"
 
-    qubitsStr : String
-    qubitsStr =
-      joinWith ", " (map (qasmQubit qregName) qubits)
+    qbitsStr : String
+    qbitsStr =
+      joinWith ", " (map (qasmQbit qregName) qbits)
   in
-    modsStr ++ name ++ paramsStr ++ " " ++ qubitsStr ++ ";"
+    modsStr ++ name ++ paramsStr ++ " " ++ qbitsStr ++ ";"
 
 --------------------------------------------------------------------------------
 -- Public entry: UnitaryGate n -> OpenQASM 3 line

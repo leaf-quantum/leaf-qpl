@@ -3,7 +3,7 @@
 
 Example gate applications:
 ```leaf
-let q: qubit = H(q);
+let q: qbit = H(q);
 
 // or:
 
@@ -13,7 +13,7 @@ let q = H(q);
 For a two qubit gate:
 
 ```leaf
-let (q0, q1) : (qubit, qubit) = CX(q0, q1);
+let (q0, q1) : (qbit, qbit) = CX(q0, q1);
 
 // or:
 
@@ -123,16 +123,16 @@ Parameterized gates rotation angle arguments can be of type: param, angle32, ang
 (i) angle32 and angle64 represent floating point numbers radians modulo 2π using 32 or 64 bits
 ```leaf
 let angle: angle64 = 3.141592653589793;
-let q: qubit = U1(angle, q);
+let q: qbit = U1(angle, q);
 ```
 
 (ii) use the turns() prelude function to convert integer to angles: turns(0.25) = π/2
 ```leaf
-let q: qubit = U1(turns(0.25), q);
+let q: qbit = U1(turns(0.25), q);
 ```
 
 // (iii) use of symbolic compile-time parameters for parameterized gates:
 ```leaf
 let theta = Param("theta");
-let q: qubit = U1(theta, q);
+let q: qbit = U1(theta, q);
 ```

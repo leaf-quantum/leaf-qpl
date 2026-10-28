@@ -49,7 +49,7 @@ data TypPrimName
   | TypPrimU32
   | TypPrimU64
   | TypPrimU128
-  | TypPrimQubit
+  | TypPrimQbit
   | TypPrimQState
 
 %runElab derive "TypPrimName" [Eq, Finite]
@@ -75,7 +75,7 @@ showTypPrimLeaf ty =
     TypPrimU32      => "u32"
     TypPrimU64      => "u64"
     TypPrimU128     => "u128"
-    TypPrimQubit    => "qubit"
+    TypPrimQbit    => "qbit"
     TypPrimQState   => "qstate"
 
 public export

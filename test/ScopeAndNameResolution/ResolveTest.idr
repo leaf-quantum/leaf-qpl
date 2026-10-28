@@ -367,7 +367,7 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
   test "adjoint blocks isolate declarations" $ blockIsolation "adjoint" `shouldBe` Right True
 
   test "controlled and adjoint callables resolve their controls and function names" $
-    checkSource "unitary fn g(q: &qubit) {} unitary fn f(q: &qubit) { ctrl(q).apply(g); adjoint(g); }" (\resolved => do
+    checkSource "unitary fn g(q: &qbit) {} unitary fn f(q: &qbit) { ctrl(q).apply(g); adjoint(g); }" (\resolved => do
       (_, g) <- functionNamed "g" resolved
       (_, f) <- functionNamed "f" resolved
       [MkAstNode _ _ (NormalParameter _ _ q _)] <- pure f.functionParameters | _ => Nothing
@@ -384,7 +384,7 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
             lookup adjointed.astInfo.nodeId resolved.tables.nodeScopes == Just bodyScope.id)) `shouldBe` Right True
 
   test "controlled blocks resolve every operand before entering the child scope" $
-    checkSource "fn f(q: qubit, r: qubit) { ctrl(&q, &r) { let q = 1; q; r; } q; r; }" (\resolved => do
+    checkSource "fn f(q: qbit, r: qbit) { ctrl(&q, &r) { let q = 1; q; r; } q; r; }" (\resolved => do
       (fnInfo, fn) <- functionNamed "f" resolved
       [qParameter, rParameter] <- pure fn.functionParameters | _ => Nothing
       [q, r] <- parameterNames fn | _ => Nothing
@@ -421,7 +421,7 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
                valueOccurrences))) `shouldBe` Right True
 
   test "controlled callables resolve every control and the callable in the enclosing scope" $
-    checkSource "unitary fn g(target: &qubit) {} unitary fn f(q: &qubit, r: &qubit) { ctrl(q, r).apply(g); }" (\resolved => do
+    checkSource "unitary fn g(target: &qbit) {} unitary fn f(q: &qbit, r: &qbit) { ctrl(q, r).apply(g); }" (\resolved => do
       (gInfo, g) <- functionNamed "g" resolved
       (fInfo, f) <- functionNamed "f" resolved
       [targetParameter] <- pure g.functionParameters | _ => Nothing
@@ -445,10 +445,10 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
                valueOccurrences))) `shouldBe` Right True
 
   test "controlled blocks reject an unresolved second control operand" $
-    unresolved "fn f(q: qubit) { ctrl(&q, &missing) {} }" "missing" `shouldBe` Right True
+    unresolved "fn f(q: qbit) { ctrl(&q, &missing) {} }" "missing" `shouldBe` Right True
 
   test "controlled callables reject an unresolved second control operand" $
-    unresolved "unitary fn g(target: &qubit) {} unitary fn f(q: &qubit) { ctrl(q, missing).apply(g); }" "missing" `shouldBe` Right True
+    unresolved "unitary fn g(target: &qbit) {} unitary fn f(q: &qbit) { ctrl(q, missing).apply(g); }" "missing" `shouldBe` Right True
 
   test "parameter and return annotations see module functions" $
     checkSource "const fn n() -> i32 { 2 } fn f(m: i32, values: [i32; n()]) -> [i32; n()] { values }" (\resolved => do
@@ -502,7 +502,7 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
   test "a local in a later function is unavailable in an earlier function" $
     unresolved "fn f() { x; } fn g() { let x = 1; }" "x" `shouldBe` Right True
   test "controlled block locals cannot escape" $
-    unresolved "fn f(q: qubit) { ctrl(&q) { let x = 1; } x; }" "x" `shouldBe` Right True
+    unresolved "fn f(q: qbit) { ctrl(&q) { let x = 1; } x; }" "x" `shouldBe` Right True
   test "adjoint block locals cannot escape" $
     unresolved "fn f() { adjoint { let x = 1; } x; }" "x" `shouldBe` Right True
 

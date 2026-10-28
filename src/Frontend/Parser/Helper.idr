@@ -397,7 +397,7 @@ addStorageQualifier qualifiers located =
 ||| valid on `let` bindings, never inside a type.
 public export
 scratchInTypeMessage : String
-scratchInTypeMessage = "The `scratch` qualifier is only allowed on `let` bindings, not in types: write `let scratch q: qubit = ...`."
+scratchInTypeMessage = "The `scratch` qualifier is only allowed on `let` bindings, not in types: write `let scratch q: qbit = ...`."
 
 ||| The multiplicity qualifier a storage keyword denotes inside a type, or the
 ||| diagnostic for `scratch`.
@@ -412,30 +412,30 @@ secondTypeQualifierMessage : QuantumMultiplicityQualifier -> QuantumStorageQuali
 secondTypeQualifierMessage first second =
   either id (secondQualifierMessage first) (typeMultiplicityQualifier second)
 
-||| Diagnostic for a token other than `qubit` following a multiplicity qualifier
-||| inside a type: a qualifier applies to a single qubit, so a qubit array or
-||| tuple qualifies each of its qubits instead. A slice is only ever borrowed,
+||| Diagnostic for a token other than `qbit` following a multiplicity qualifier
+||| inside a type: a qualifier applies to a single qbit, so a qbit array or
+||| tuple qualifies each of its qbits instead. A slice is only ever borrowed,
 ||| and nothing behind a reference is qualified, so no slice suggestion.
 public export
-qualifiedNonQubitMessage : QuantumMultiplicityQualifier -> Token -> String
-qualifiedNonQubitMessage qualifier token =
+qualifiedNonQbitMessage : QuantumMultiplicityQualifier -> Token -> String
+qualifiedNonQbitMessage qualifier token =
   case storageQualifierFromToken token of
     Just second => secondTypeQualifierMessage qualifier second
     Nothing =>
       case token of
         TokSym SymLBracket =>
-          written ++ " cannot qualify an array or slice: qualify the qubits of an array instead, e.g. `[" ++
-          qualifiedQubit ++ "; 2]`."
+          written ++ " cannot qualify an array or slice: qualify the qbits of an array instead, e.g. `[" ++
+          qualifiedQbit ++ "; 2]`."
         TokSym SymLParen =>
-          written ++ " cannot qualify a parenthesized type or tuple: qualify each qubit inside it instead, e.g. `" ++
-          qualifiedQubit ++ "` or `(" ++ qualifiedQubit ++ ", " ++ qualifiedQubit ++ ")`."
-        _ => written ++ " can only qualify `qubit`, not " ++ describeToken token ++ "."
+          written ++ " cannot qualify a parenthesized type or tuple: qualify each qbit inside it instead, e.g. `" ++
+          qualifiedQbit ++ "` or `(" ++ qualifiedQbit ++ ", " ++ qualifiedQbit ++ ")`."
+        _ => written ++ " can only qualify `qbit`, not " ++ describeToken token ++ "."
   where
     written : String
     written = "The `" ++ show qualifier ++ "` qualifier"
 
-    qualifiedQubit : String
-    qualifiedQubit = show qualifier ++ " qubit"
+    qualifiedQbit : String
+    qualifiedQbit = show qualifier ++ " qbit"
 
 ||| Diagnostic for a multiplicity qualifier written directly after `&` or `&mut`.
 public export

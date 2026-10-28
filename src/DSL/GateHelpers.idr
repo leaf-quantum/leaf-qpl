@@ -14,7 +14,7 @@ emptyCircuit : {n : Nat} -> Circuit n n
 emptyCircuit = Id
 
 
--- 1-qubit Clifford + T gates
+-- 1-qbit Clifford + T gates
 public export
 x : {n : Nat} -> (q : Fin n) -> Circuit n n -> Circuit n n
 x q circ = Seq circ (GateApplication (UGate (X q)))
@@ -102,7 +102,7 @@ reset : {n : Nat} -> (q : Fin n) -> Circuit n n -> Circuit n n
 reset q circ = Seq circ (GateApplication (Reset q))
 
 
--- Two-qubit gates
+-- Two-qbit gates
 public export
 cnot : {n : Nat} -> (c, t : Fin n) -> {auto 0 neq : Not (c = t)} -> Circuit n n -> Circuit n n
 cnot c t circ = Seq circ (GateApplication (UGate (CNOT c t)))
@@ -174,7 +174,7 @@ public export
 ctrlU3 : {n : Nat} -> Radians -> Radians -> Radians -> (c, t : Fin n) -> {auto 0 neq : Not (c = t)} -> Circuit n n -> Circuit n n
 ctrlU3 theta phi lambda c t circ = Seq circ (GateApplication (UGate (CU3 theta phi lambda c t)))
 
--- Two-qubit interaction gates
+-- Two-qbit interaction gates
 public export
 rxx : {n : Nat} -> Radians -> (a, b : Fin n) -> {auto 0 neq : Not (a = b)} -> Circuit n n -> Circuit n n
 rxx angle a b circ = Seq circ (GateApplication (UGate (RXX angle a b)))
@@ -191,7 +191,7 @@ public export
 rzx : {n : Nat} -> Radians -> (a, b : Fin n) -> {auto 0 neq : Not (a = b)} -> Circuit n n -> Circuit n n
 rzx angle a b circ = Seq circ (GateApplication (UGate (RZX angle a b)))
 
--- Three-qubit gates
+-- Three-qbit gates
 public export
 toffoli : {n : Nat} -> (c1, c2, t : Fin n) 
         -> {auto 0 d12 : Not (c1 = c2)}

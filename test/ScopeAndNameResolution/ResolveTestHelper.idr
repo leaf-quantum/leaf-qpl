@@ -167,7 +167,7 @@ bindingMatches scope name = case lookup name.value.resolvedNameNodeText scope.va
 export
 localMatches : ResolvedModule -> ResolvedName -> Bool -> Bool
 localMatches resolved name mutable = case lookup (symbolId name) resolved.tables.localVariables of
-  Just (MkLocalVariableInfo actual PendingQubitDefault) =>
+  Just (MkLocalVariableInfo actual PendingQbitDefault) =>
     case actual of
       MutableVariable => mutable
       ImmutableVariable => not mutable
@@ -227,7 +227,7 @@ blockBody (MkAstNode _ _ node) = case node of
 export
 blockIsolation : String -> Either String Bool
 blockIsolation wrapper = checkSource
-  ("fn f(q: qubit) { " ++ wrapper ++ " { let inner = 1; inner; } q; }") $ \resolved => do
+  ("fn f(q: qbit) { " ++ wrapper ++ " { let inner = 1; inner; } q; }") $ \resolved => do
     (_, fn) <- functionNamed "f" resolved
     [MkAstNode _ _ (NormalParameter _ _ q _)] <- pure fn.functionParameters
       | _ => Nothing

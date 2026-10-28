@@ -41,9 +41,9 @@ data Coercion
 
 public export
 data BuiltinForm                           -- which documented overload of a builtin was chosen
-  = SingleQubit                            -- measr(q), qalloc(), barrier()
-  | SelectedQubits Nat                     -- measr(q1, q2, q3), barrier(q1, q2, q3)
-  | QubitArray Nat                         -- measr(qs), qalloc(3)
+  = SingleQbit                            -- measr(q), qalloc(), barrier()
+  | SelectedQbits Nat                     -- measr(q1, q2, q3), barrier(q1, q2, q3)
+  | QbitArray Nat                         -- measr(qs), qalloc(3)
 
 public export
 data Callee
@@ -55,7 +55,7 @@ data Callee
 public export
 data ArgumentPassing
   = ByValue                                -- copied (classical) or moved (quantum)
-  | Threaded                               -- &q, &qs[1..], &mut x, or a qubit reference: the place is updated
+  | Threaded                               -- &q, &qs[1..], &mut x, or a qbit reference: the place is updated
 
 public export
 record CallResolution where
@@ -172,8 +172,8 @@ data TypeError
   | IntegerLiteralOutOfRange Integer LeafType SourceSpan       -- literal value, target type
   | InvalidCast LeafType LeafType SourceSpan                   -- source type, target type
   | InvalidQuantumQualifier String LeafType SourceSpan         -- qualifier, annotated type, ex: let scratch n: i32 = 5;
-  | InvalidQubitReference SourceSpan                           -- explicit 'mut' on a qubit reference, ex: &mut qubit or &mut [qubit]
-  | InvalidConditionType String LeafType SourceSpan            -- construct if/qif/sif/etc., actual type, ex: if q { ... } where q: qubit
+  | InvalidQbitReference SourceSpan                           -- explicit 'mut' on a qbit reference, ex: &mut qbit or &mut [qbit]
+  | InvalidConditionType String LeafType SourceSpan            -- construct if/qif/sif/etc., actual type, ex: if q { ... } where q: qbit
   | QuantumWidthMismatch String Nat Nat SourceSpan             -- context, expected width, actual width. ex: ctrl(&q0, &q1).on(bs"1").apply(H)(&target);
   | EffectViolation FunctionEffect FunctionEffect SourceSpan   -- enclosing effect restriction, offending operation's effect, ex: measr(&q) inside a unitary function,
   | MissingCapability String SourceSpan                        -- required capability (adjoint or ctrl), ex: adjoint(f) when f has no established adjoint support
@@ -204,8 +204,8 @@ showTypeError typeError =
       at sourceSpan $ "Cannot cast type '" ++ show sourceType ++ "' to '" ++ show targetType ++ "'."
     InvalidQuantumQualifier qualifier actual sourceSpan =>
       at sourceSpan $ "Quantum qualifier '" ++ qualifier ++ "' is not valid for type '" ++ show actual ++ "'."
-    InvalidQubitReference sourceSpan =>
-      at sourceSpan "Qubit references are mutable by default; omit 'mut' from the reference."
+    InvalidQbitReference sourceSpan =>
+      at sourceSpan "Qbit references are mutable by default; omit 'mut' from the reference."
     InvalidConditionType construct actual sourceSpan =>
       at sourceSpan $ "Type '" ++ show actual ++ "' is not a valid condition type for '" ++ construct ++ "'."
     QuantumWidthMismatch context expected actual sourceSpan =>

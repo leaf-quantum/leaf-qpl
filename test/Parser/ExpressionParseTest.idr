@@ -80,23 +80,23 @@ runExpressionParseTests = runTests $ Test.do
 
   test "quantum storage qualifiers on let bindings" $
     parseAndPrettyPrint
-      "fn allocate() {let linear q: qubit = qalloc(); let affine a: qubit = qalloc(); let scratch linear qs: [qubit; 2] = qalloc(2); let affine scratch t: qubit = qalloc();}" `shouldBe`
+      "fn allocate() {let linear q: qbit = qalloc(); let affine a: qbit = qalloc(); let scratch linear qs: [qbit; 2] = qalloc(2); let affine scratch t: qbit = qalloc();}" `shouldBe`
       Just
-        "fn allocate() { let linear q: qubit = qalloc(); let affine a: qubit = qalloc(); let scratch linear qs: [qubit; 2] = qalloc(2); let affine scratch t: qubit = qalloc(); }"
+        "fn allocate() { let linear q: qbit = qalloc(); let affine a: qbit = qalloc(); let scratch linear qs: [qbit; 2] = qalloc(2); let affine scratch t: qbit = qalloc(); }"
 
   test "conflicting multiplicity qualifiers on let bindings are rejected" $
     parseAndPrettyPrint
-      "fn bad() {let linear affine q: qubit = qalloc();}" `shouldBe` Nothing
+      "fn bad() {let linear affine q: qbit = qalloc();}" `shouldBe` Nothing
 
   test "duplicate scratch qualifiers on let bindings are rejected" $
     parseAndPrettyPrint
-      "fn bad() {let scratch scratch q: qubit = qalloc();}" `shouldBe` Nothing
+      "fn bad() {let scratch scratch q: qbit = qalloc();}" `shouldBe` Nothing
 
   test "auto-uncompute let initializer" $
     parseAndPrettyPrint
-      "fn compute() {let q: qubit := f(q); let result := compute_value();}" `shouldBe`
+      "fn compute() {let q: qbit := f(q); let result := compute_value();}" `shouldBe`
       Just
-        "fn compute() { let q: qubit := f(q); let result := compute_value(); }"
+        "fn compute() { let q: qbit := f(q); let result := compute_value(); }"
 
   test "let bindings report the markers accepted after a pattern" $
     parseErrorDetails "fn f() {let x + 1;}" `shouldBe`
@@ -462,7 +462,7 @@ runExpressionParseTests = runTests $ Test.do
       "fn f() {ctrl(q0, q1).apply(H)(q2)}" `shouldBe`
       Just "fn f() { ctrl(q0, q1).apply(H)(q2) }"
 
-  test "controlled callable expression with borrowed qubits and basis" $
+  test "controlled callable expression with borrowed qbits and basis" $
     parseAndPrettyPrint
       "fn f() {ctrl(&q0, &q1).on(bs\"10\").apply(H)(&q2)}" `shouldBe`
       Just "fn f() { ctrl((&q0), (&q1)).on(bs\"10\").apply(H)((&q2)) }"
@@ -488,10 +488,10 @@ runExpressionParseTests = runTests $ Test.do
       Just
         "fn f() { ctrl((&q0)) { H((&q1)); } adjoint { H((&q1)); } finish() }"
 
-  test "control expression requires a control qubit" $
+  test "control expression requires a control qbit" $
     parseErrorDetails "fn f() {ctrl().apply(H)(q)}" `shouldBe`
       Just
-        ( "Parse error at: test-fixture.rs:1:9, with message: `ctrl` requires at least one control qubit."
+        ( "Parse error at: test-fixture.rs:1:9, with message: `ctrl` requires at least one control qbit."
         , (1, 15)
         )
 
@@ -503,7 +503,7 @@ runExpressionParseTests = runTests $ Test.do
     parseAndPrettyPrint "fn f() {adjoint(f)(q1, q2, q3)}" `shouldBe`
       Just "fn f() { adjoint(f)(q1, q2, q3) }"
 
-  test "adjoint callable application with borrowed qubits" $
+  test "adjoint callable application with borrowed qbits" $
     parseAndPrettyPrint "fn f() {adjoint(f)(&q1, &q2, &q3)}" `shouldBe`
       Just "fn f() { adjoint(f)((&q1), (&q2), (&q3)) }"
 

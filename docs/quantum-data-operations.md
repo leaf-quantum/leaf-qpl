@@ -4,8 +4,8 @@ Qubit variables are by default linear, meaning that a qubit once declared must b
 
 - Allocating qubits (output type can be inferred):
 ```leaf
-let q: qubit = qalloc();
-let qs: [qubit; 2] = qalloc(2);
+let q: qbit = qalloc();
+let qs: [qbit; 2] = qalloc(2);
 ```
 
 - Measuring qubits (result type can be inferred), the qubit variable(s) is consumed and cannot be reused:

@@ -25,8 +25,8 @@ pi : Radians
 pi = MkRadians 3.141592653589793
 
 -- public export
--- Qubit : Type
--- Qubit = Nat     -- wire label/index
+-- Qbit : Type
+-- Qbit = Nat     -- wire label/index
 
 -- public export
 -- record Complex where
@@ -34,7 +34,7 @@ pi = MkRadians 3.141592653589793
 --   re, im : Double
 
 -- public export
--- data QubitState
+-- data QbitState
 --   = Zero
 --   | One
 --   | Superposition Complex Complex  -- amplitudes α, β

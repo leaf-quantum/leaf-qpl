@@ -228,15 +228,15 @@ mutual
       desugarOnBasis _ _ (Just onBasis) = Just $ desugarAstNode onBasis
 
       desugarControlExpressionNode : AstInfo -> ControlExpressionNode SurfaceAstPhase -> ControlExpressionNode CanonicalAstPhase
-      desugarControlExpressionNode expressionAstInfo (ControlledCallable controlQubits onBasisRaw controlledCallable) =
+      desugarControlExpressionNode expressionAstInfo (ControlledCallable controlQbits onBasisRaw controlledCallable) =
         ControlledCallable
-          (map desugarNestedExpression controlQubits)
-          (desugarOnBasis (length controlQubits) expressionAstInfo onBasisRaw)
+          (map desugarNestedExpression controlQbits)
+          (desugarOnBasis (length controlQbits) expressionAstInfo onBasisRaw)
           (desugarNestedExpression controlledCallable)
-      desugarControlExpressionNode expressionAstInfo (ControlledBlock controlQubits onBasisRaw controlledBlock) =
+      desugarControlExpressionNode expressionAstInfo (ControlledBlock controlQbits onBasisRaw controlledBlock) =
         ControlledBlock
-          (map desugarNestedExpression controlQubits)
-          (desugarOnBasis (length controlQubits) expressionAstInfo onBasisRaw)
+          (map desugarNestedExpression controlQbits)
+          (desugarOnBasis (length controlQbits) expressionAstInfo onBasisRaw)
           (desugarBlockExpression controlledBlock)
 
       desugarAdjointExpressionNode : AdjointExpressionNode SurfaceAstPhase -> AdjointExpressionNode CanonicalAstPhase
@@ -248,7 +248,7 @@ mutual
     canonicalAstNode expressionInfo WrittenCode (desugarExpressionNode expressionInfo expressionNode)
 
   desugarType : Ty SurfaceAstPhase (Expr SurfaceAstPhase) -> Ty CanonicalAstPhase (Expr CanonicalAstPhase)
-  desugarType writtenType = defaultQubitMultiplicity (desugarWrittenType writtenType)
+  desugarType writtenType = defaultQbitMultiplicity (desugarWrittenType writtenType)
 
   -- Perenthesized types will be removed. The parameters and result of a
   -- function type own their values, so they get the default `linear`; the
@@ -320,23 +320,23 @@ mutual
   desugarContractPredicate (MkAstNode predicateInfo metadata predicateNode) =
     canonicalAstNode predicateInfo WrittenCode $
       case predicateNode of
-        ContractClean qubitArgument =>
-          ContractClean (desugarExpression qubitArgument)
-        ContractBasis qubitArgument pauliString =>
+        ContractClean qbitArgument =>
+          ContractClean (desugarExpression qbitArgument)
+        ContractBasis qbitArgument pauliString =>
           ContractBasis
-            (desugarExpression qubitArgument)
+            (desugarExpression qbitArgument)
             (desugarAstNode pauliString)
-        ContractSeparable qubitArgument =>
-          ContractSeparable (desugarExpression qubitArgument)
-        ContractIsolated qubitArgument =>
-          ContractIsolated (desugarExpression qubitArgument)
-        ContractProduct firstQubitSet otherQubitSets =>
+        ContractSeparable qbitArgument =>
+          ContractSeparable (desugarExpression qbitArgument)
+        ContractIsolated qbitArgument =>
+          ContractIsolated (desugarExpression qbitArgument)
+        ContractProduct firstQbitSet otherQbitSets =>
           ContractProduct
-            (desugarExpression firstQubitSet)
-            (map desugarExpression otherQubitSets)
-        ContractStabilized qubitArgument stabilizerTerms =>
+            (desugarExpression firstQbitSet)
+            (map desugarExpression otherQbitSets)
+        ContractStabilized qbitArgument stabilizerTerms =>
           ContractStabilized
-            (desugarExpression qubitArgument)
+            (desugarExpression qbitArgument)
             (map desugarSignedPauliTerm stabilizerTerms)
 
   desugarContractClause : ContractClause SurfaceAstPhase (Expr SurfaceAstPhase) -> ContractClause CanonicalAstPhase (Expr CanonicalAstPhase) 

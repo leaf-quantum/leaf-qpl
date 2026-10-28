@@ -29,12 +29,12 @@ build = c13
   -- start empty
   c0  = emptyCircuit {n = 5}
 
-  -- 1-qubit gates
+  -- 1-qbit gates
   c1  = hadamard q0 c0
   c2  = s q1 c1
   c3  = rotY (MkRadians 1.234) q2 c2
 
-  -- 2-qubit, controlled rotations, and interactions
+  -- 2-qbit, controlled rotations, and interactions
   c4  = case mkNeq q0 q1 of
     Just neq => cnot q0 q1 {neq = neq} c3
     Nothing  => panic "CNOT requires distinct wires"

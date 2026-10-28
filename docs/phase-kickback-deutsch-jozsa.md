@@ -3,7 +3,7 @@
 Implementing of Deutsch-Jozsa as an application of phase kickback phenomenon:
 
 ```rust
-unitary fn prepare_minus(q: qubit) -> qubit {
+unitary fn prepare_minus(q: qbit) -> qbit {
     let q = X(q);
     let q = H(q);
     q
@@ -11,9 +11,9 @@ unitary fn prepare_minus(q: qubit) -> qubit {
 
 // U_f : |x⟩|y⟩ ↦ |x⟩|y ⊕ f(x)⟩
 uncompsafe fn balanced_reversible_oracle(
-    qs: [qubit; 4],
-    target: qubit
-) -> ([qubit; 4], qubit)
+    qs: [qbit; 4],
+    target: qbit
+) -> ([qbit; 4], qbit)
         requires basis(target, X)
         ensures  basis(target, X)
         ensures  product(target, qs) {
@@ -25,12 +25,12 @@ uncompsafe fn balanced_reversible_oracle(
 }
 
 general fn phase_kickback(
-    qs: [qubit; 4],
-    oracle: uncompsafe fn(qs: [qubit; 4], target: qubit) -> ([qubit; 4], qubit)
+    qs: [qbit; 4],
+    oracle: uncompsafe fn(qs: [qbit; 4], target: qbit) -> ([qbit; 4], qbit)
         requires basis(target, X)
         ensures basis(target, X)
         ensures product(target, qs)
-) -> [qubit; 4] {
+) -> [qbit; 4] {
     let ancilla = qalloc();
     let ancilla = prepare_minus(ancilla);
     let (qs, ancilla) = oracle(qs, ancilla);
@@ -40,7 +40,7 @@ general fn phase_kickback(
 
 general fn deutsch_jozsa(
     // contracts are inferred by the compiler
-    oracle: uncompsafe fn(qs: [qubit; 4], target: qubit) -> ([qubit; 4], qubit)
+    oracle: uncompsafe fn(qs: [qbit; 4], target: qbit) -> ([qbit; 4], qbit)
 ) -> [bit; 4] {
     let qs = qalloc(4);
 

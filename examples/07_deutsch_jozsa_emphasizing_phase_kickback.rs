@@ -5,16 +5,16 @@
 // We use `.rs` here for syntax highlighting purposes only.
 ///////////////////////////////////////////////////////////////
 
-unitary fn prepare_minus(q: qubit) -> qubit {
+unitary fn prepare_minus(q: qbit) -> qbit {
     let q = X(q);
     let q = H(q);
     q
 }
 
 uncompsafe fn balanced_reversible_oracle(
-    qs: [qubit; 4],
-    target: qubit
-) -> ([qubit; 4], qubit) {
+    qs: [qbit; 4],
+    target: qbit
+) -> ([qbit; 4], qbit) {
     ctrl(&qs[0]).on(bs"0").apply(X)(&target);
     ctrl(&qs[1]).on(bs"1").apply(X)(&target);
     ctrl(&qs[2]).on(bs"0").apply(X)(&target);
@@ -23,9 +23,9 @@ uncompsafe fn balanced_reversible_oracle(
 }
 
 general fn phase_kickback(
-    qs: [qubit; 4],
-    oracle: uncompsafe fn(qs: [qubit; 4], target: qubit) -> ([qubit; 4], qubit)
-) -> [qubit; 4] {
+    qs: [qbit; 4],
+    oracle: uncompsafe fn(qs: [qbit; 4], target: qbit) -> ([qbit; 4], qbit)
+) -> [qbit; 4] {
     let ancilla = qalloc();
     let ancilla = prepare_minus(ancilla);
     let (qs, ancilla) = oracle(qs, ancilla);
@@ -35,7 +35,7 @@ general fn phase_kickback(
 
 general fn deutsch_jozsa(
     // contracts are inferred by the compiler
-    oracle: uncompsafe fn(qs: [qubit; 4], target: qubit) -> ([qubit; 4], qubit)
+    oracle: uncompsafe fn(qs: [qbit; 4], target: qbit) -> ([qbit; 4], qbit)
 ) -> [bit; 4] {
     let qs = qalloc(4);
 

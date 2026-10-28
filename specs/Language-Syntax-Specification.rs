@@ -183,7 +183,7 @@ turns()
 ///////////////////////////////////////
 
 // quantum computing specific:
-bit, qubit, qstate
+bit, qbit, qstate
 
 // additional quantum types:
 // - angle type is similar to OpenQasm3's angle type,  represents values modulo 2π using 32 or 64 bits
@@ -225,9 +225,9 @@ let i : i128 = -1;
 let i = -7;
 
 // qubit declaration 
-let q: qubit = qalloc();
-let q: linear qubit = qalloc();
-let linear q: qubit = qalloc();
+let q: qbit = qalloc();
+let q: linear qbit = qalloc();
+let linear q: qbit = qalloc();
 
 // inferred type for qubit allocation
 let q = qalloc();
@@ -327,9 +327,9 @@ let is: [i32; 3] = [1, 2, 3];
 let us: [u64; 2] = [10, 20];
 let fs: [f64; 3] = [1.0, 2.0, 3.0];
 let bits: [bit; 3] = [1, 0, 1];
-let qubits: [qubit; 2] = qalloc(2);
-let linear qubits: [qubit; 2] = qalloc(2);
-let affine qubits: [qubit; 2] = qalloc(2);
+let qbits: [qbit; 2] = qalloc(2);
+let linear qbits: [qbit; 2] = qalloc(2);
+let affine qbits: [qbit; 2] = qalloc(2);
 let angles: [angle64; 2] = [3.14, 1.57];
 let units: [(); 5] = [(), (), (), (), ()];
 let params: [param; 2] = [Param("theta"), Param("phi")];
@@ -348,7 +348,7 @@ let bools = [true, false, true, false];
 let ints  = [1, 2, 3];
 let zeros = [0; 3];
 let fs = [1.0, 2.0, 3.0];
-let qubits = qalloc(2);
+let qbits = qalloc(2);
 let units = [(), (), (), (), ()];
 
 ////////////////////////////////////////
@@ -367,8 +367,8 @@ let n = a.len();
 // Its type is &[T] (shared) or &mut [T] (mutable), exactly as in Rust.
 //
 // QUBIT EXCEPTION: qubit references are mutable by default,
-// so a qubit slice is written &[qubit] and is already mutable. 'mut' is never
-// written on a qubit reference: there is no &mut [qubit] and no &mut qubit.
+// so a qubit slice is written &[qbit] and is already mutable. 'mut' is never
+// written on a qubit reference: there is no &mut [qbit] and no &mut qbit.
 // For every other element type slices behave exactly like Rust: &[T] is
 // read-only and &mut [T] is required to mutate.
 
@@ -405,14 +405,14 @@ let r: &[i32] = &m[..];
 
 // --- Qubit slices: mutable by default, never write 'mut' ---
 
-let qs: [qubit; 4] = qalloc(4);
+let qs: [qbit; 4] = qalloc(4);
 
-let qv: &[qubit] = &qs[..];  // borrowed view; the range forms above apply unchanged
+let qv: &[qbit] = &qs[..];  // borrowed view; the range forms above apply unchanged
 
 H(&qv[0]);                   // gates apply in place through the slice
 CX(&qv[1], &qv[2]);          // borrowed (in-place) two-qubit form
 
-// let bad: &mut [qubit] = &mut qs[..];   // ERROR: 'mut' not allowed on qubit refs
+// let bad: &mut [qbit] = &mut qs[..];   // ERROR: 'mut' not allowed on qubit refs
 //
 // Because qubit references are mutable by default, qubit slices follow the
 // EXCLUSIVE borrow rule (like &mut): two overlapping qubit slices cannot be
@@ -437,8 +437,8 @@ classical fn zero_out(xs: &mut [i32]) {
     }
 }
 
-// qubit slice: plain &[qubit] (mutable by default), recursing over the tail:
-unitary fn apply_hadamard_layer(qs: &[qubit]) {
+// qubit slice: plain &[qbit] (mutable by default), recursing over the tail:
+unitary fn apply_hadamard_layer(qs: &[qbit]) {
     if qs.len() == 0 {
         return;
     }
@@ -449,18 +449,18 @@ unitary fn apply_hadamard_layer(qs: &[qubit]) {
 // --- Array-to-slice coercion at call sites (like Rust) ---
 
 sum(&a);                     // &[i32; 5] coerces to &[i32]
-apply_hadamard_layer(&qs);   // &[qubit; 4] coerces to &[qubit]
+apply_hadamard_layer(&qs);   // &[qbit; 4] coerces to &[qbit]
 
 /////////////////////////////////////////////////////////////////
 // (10) Syntax for allocating qubits and working with bits/qubits
 /////////////////////////////////////////////////////////////////
 
 // explicit type annotations for qubits and bits
-let q: qubit = qalloc();
-let q: linear qubit = qalloc();
-let linear q: qubit = qalloc();
-let qs: [qubit; 1] = qalloc(1);
-let qs: [qubit; 3] = qalloc(3);
+let q: qbit = qalloc();
+let q: linear qbit = qalloc();
+let linear q: qbit = qalloc();
+let qs: [qbit; 1] = qalloc(1);
+let qs: [qbit; 3] = qalloc(3);
 let b : bit = measr(q);
 let b : bit = 0;
 let bs : [bit; 3] = measr(qs);
@@ -491,57 +491,57 @@ let state = bs"iiiiIIIII";
 
 // linear qubits: must be consumed exactly once, no copying or implicit discarding allowed (discarding must be explicit via the discard built-in function)
 // this is the default, so the 'linear' keyword is optional
-let linear q: qubit = qalloc();
-let linear qs: [qubit; 2] = qalloc(2);
+let linear q: qbit = qalloc();
+let linear qs: [qbit; 2] = qalloc(2);
 
 // the code above is equivalent to:
-let q: linear qubit = qalloc();
-let qs: [linear qubit; 2] = qalloc(2);
+let q: linear qbit = qalloc();
+let qs: [linear qbit; 2] = qalloc(2);
 
 // affine qubits: must be consumed at most once, no copying allowed, but implicit discarding is allowed
-let affine q: qubit = qalloc();
-let affine qs: [qubit; 2] = qalloc(2);
+let affine q: qbit = qalloc();
+let affine qs: [qbit; 2] = qalloc(2);
 
 // the code above is equivalent to:
-let q: affine qubit = qalloc();
-let qs: [affine qubit; 2] = qalloc(2);
+let q: affine qbit = qalloc();
+let qs: [affine qbit; 2] = qalloc(2);
 
 // in a type, a linear/affine qualifier applies to a single qubit only: arrays and tuples qualify each of their qubits
-let qs: [affine qubit; 2] = qalloc(2);                          // valid
-let p: (affine qubit, affine qubit) = (qalloc(), qalloc());     // valid
-let qs: affine [qubit; 2] = qalloc(2);                          // INVALID
-let p: affine (qubit, qubit) = (qalloc(), qalloc());            // INVALID
+let qs: [affine qbit; 2] = qalloc(2);                          // valid
+let p: (affine qbit, affine qbit) = (qalloc(), qalloc());     // valid
+let qs: affine [qbit; 2] = qalloc(2);                          // INVALID
+let p: affine (qbit, qbit) = (qalloc(), qalloc());            // INVALID
 
 // a reference borrows its referent without owning it, so no linear/affine qualifier is ever written behind a reference:
-// borrowing a linear qubit and borrowing an affine qubit both give a &qubit
-let r: &qubit = &q;                                             // valid, whether q is linear or affine
-let v: &[qubit] = &qs[..];                                      // valid, whether qs holds linear or affine qubits
-let r: &affine qubit = &q;                                      // INVALID
-let v: &[linear qubit] = &qs[..];                               // INVALID
+// borrowing a linear qubit and borrowing an affine qubit both give a &qbit
+let r: &qbit = &q;                                             // valid, whether q is linear or affine
+let v: &[qbit] = &qs[..];                                      // valid, whether qs holds linear or affine qubits
+let r: &affine qbit = &q;                                      // INVALID
+let v: &[linear qbit] = &qs[..];                               // INVALID
 
 // scratch qubits are automatically uncomputed when they go out of scope and reclaimed automatically (no explicit discard is needed)
 // the scratch qualifier belongs to let binding and CANNOT appear on qubit type specifications
-let scratch q: qubit = qalloc();
-let scratch qs: [qubit; 2] = qalloc(2);
+let scratch q: qbit = qalloc();
+let scratch qs: [qbit; 2] = qalloc(2);
 
 
 // linear/affine type qualifiers can be combined with scratch
 // both "scratch linear" and "linear scratch" are accepted syntax for linear scratch qubits, and the same applies for affine scratch qubits
-let scratch linear q: qubit = qalloc();
-let scratch q: linear qubit = qalloc();
-let scratch linear qs: [qubit; 2] = qalloc(2);
-let linear scratch qs: [qubit; 2] = qalloc(2);
-let scratch qs: [linear qubit; 2] = qalloc(2);
-let scratch affine q: qubit = qalloc();
-let linear scratch q: qubit = qalloc();
-let affine scratch q: qubit = qalloc();
-let scratch q: affine qubit = qalloc();
-let scratch affine qs: [qubit; 2] = qalloc(2);
-let affine scratch qs: [qubit; 2] = qalloc(2);
-let scratch qs: [affine qubit; 2] = qalloc(2);
+let scratch linear q: qbit = qalloc();
+let scratch q: linear qbit = qalloc();
+let scratch linear qs: [qbit; 2] = qalloc(2);
+let linear scratch qs: [qbit; 2] = qalloc(2);
+let scratch qs: [linear qbit; 2] = qalloc(2);
+let scratch affine q: qbit = qalloc();
+let linear scratch q: qbit = qalloc();
+let affine scratch q: qbit = qalloc();
+let scratch q: affine qbit = qalloc();
+let scratch affine qs: [qbit; 2] = qalloc(2);
+let affine scratch qs: [qbit; 2] = qalloc(2);
+let scratch qs: [affine qbit; 2] = qalloc(2);
 
 // linear/affine type annotations can be added to a function signature
-fn applyHadamard(q: linear qubit) -> linear qubit {
+fn applyHadamard(q: linear qbit) -> linear qbit {
   H(q)
 }
 
@@ -550,9 +550,9 @@ fn applyHadamard(q: linear qubit) -> linear qubit {
 /////////////////////////////////////////
 
 // canonical gate application syntax:
-let q: qubit = H(q);
-let linear q: qubit = H(q);
-let q: linear qubit = H(q);
+let q: qbit = H(q);
+let linear q: qbit = H(q);
+let q: linear qbit = H(q);
 // gate application syntax with inferred types:
 let q = H(q);
 // borrowing qubit syntax if the qubit will be needed later.
@@ -560,12 +560,12 @@ let q = H(q);
 H(&q);
 
 // parameterized gates:
-let q: qubit = U3(1.0, 2.0, 3.0, q);
+let q: qbit = U3(1.0, 2.0, 3.0, q);
 let q = U3(1.0, 2.0, 3.0, q);
 U3(1.0, 2.0, 3.0, &q);
 
 // two-qubit gates:
-let (q0, q1) : (qubit, qubit) = CX(q0, q1);
+let (q0, q1) : (qbit, qbit) = CX(q0, q1);
 let (q0, q1) = CX(q0, q1);
 CX(&q0, &q1);
 
@@ -578,45 +578,45 @@ I, X, Y, Z, H, S, SDG, T, TDG, SX, SXDG, RX, RY, RZ, U1, U2, U3, CNOT, CX, CY, C
 // Handling parameterized gates in general: the angle input arguments can be of type: param, angle32, angle64 or floating point numbers
 
 // (i) when the angle argument is a float32/ float64 number, it will be casted to an angle32/ angle64 value.
-let q: qubit = U1(0.25, q);
+let q: qbit = U1(0.25, q);
 
 // (ii) angle32 and angle64 represent floating point numbers radians modulo 2π using 32 or 64 bits
 let angle: angle64 = 3.141592653589793;
-let q: qubit = U1(angle, q);
+let q: qbit = U1(angle, q);
 
 // (iii) angle32 and angle64 can be specified using the turns() prelude function to convert integer to angles: turns(0.25) = π/2
 let angle: angle64 = turns(0.25);
-let q: qubit = U1(angle, q);
+let q: qbit = U1(angle, q);
 
 // (iv) use of symbolic compile-time parameters for parameterized gates:
 let theta = Param("theta");
-let q: qubit = U1(theta, q);
+let q: qbit = U1(theta, q);
 
 // Single-Qubit Gates
-let q: qubit = I(q);
-let q: qubit = X(q);
-let q: qubit = Y(q);
-let q: qubit = Z(q);
-let q: qubit = H(q);
-let q: qubit = S(q);
-let q: qubit = SDG(q);
-let q: qubit = T(q);
-let q: qubit = TDG(q);
-let q: qubit = SX(q);
-let q: qubit = SXDG(q);
+let q: qbit = I(q);
+let q: qbit = X(q);
+let q: qbit = Y(q);
+let q: qbit = Z(q);
+let q: qbit = H(q);
+let q: qbit = S(q);
+let q: qbit = SDG(q);
+let q: qbit = T(q);
+let q: qbit = TDG(q);
+let q: qbit = SX(q);
+let q: qbit = SXDG(q);
 
 // Parametric Single-Qubit Gates
 // the angle input arguments can be of type: param, angle32, angle64 or floating point numbers
-let q: qubit = RX(1.0, q);
-let q: qubit = RY(1.0, q);
-let q: qubit = RZ(1.0, q);
-let q: qubit = U1(1.0, q);
-let q: qubit = U2(1.0, 2.0, q);
-let q: qubit = U3(1.0, 2.0, 3.0, q);
+let q: qbit = RX(1.0, q);
+let q: qbit = RY(1.0, q);
+let q: qbit = RZ(1.0, q);
+let q: qbit = U1(1.0, q);
+let q: qbit = U2(1.0, 2.0, q);
+let q: qbit = U3(1.0, 2.0, 3.0, q);
 
 // Controlled Gates
 // the angle input arguments can be of type: param, angle32, angle64 or floating point numbers
-let (q0, q1): (qubit, qubit) = CNOT(q0, q1);
+let (q0, q1): (qbit, qbit) = CNOT(q0, q1);
 let (q0, q1) = CX(q0, q1);
 let (q0, q1) = CY(q0, q1);
 let (q0, q1) = CZ(q0, q1);
@@ -648,8 +648,8 @@ let (q0, q1, q2) = CCX(q0, q1, q2);
 let (q0, q1, q2) = CSWAP(q0, q1, q2);
 
 // Ion-Native Gates
-let q: qubit = GPI(1.0, q);
-let q: qubit = GPI2(1.0, q);
+let q: qbit = GPI(1.0, q);
+let q: qbit = GPI2(1.0, q);
 let (q0, q1) = MS(1.0, 2.0, q0, q1);
 let (q0, q1) = ZZ(1.0, q0, q1);
 
@@ -657,14 +657,14 @@ let (q0, q1) = ZZ(1.0, q0, q1);
 
 // angle32 and angle64 represent floating point numbers radians modulo 2π using 32 or 64 bits
 let angle: angle64 = 3.141592653589793;
-let q: qubit = U1(angle, q);
+let q: qbit = U1(angle, q);
 
 // use the turns() prelude function to convert integer to angles: turns(0.25) = π/2
-let q: qubit = U1(turns(0.25), q);
+let q: qbit = U1(turns(0.25), q);
 
 // use of symbolic compile-time parameters for parameterized gates:
 let theta = Param("theta");
-let q: qubit = U1(theta, q);
+let q: qbit = U1(theta, q);
 
 
 ////////////////////////////////////////////////////////
@@ -672,7 +672,7 @@ let q: qubit = U1(theta, q);
 ////////////////////////////////////////////////////////
 
 // canonical controlled gate
-let (q0, q1, q2): (qubit, qubit, qubit) = ctrl(q0, q1).apply(H)(q2);
+let (q0, q1, q2): (qbit, qbit, qbit) = ctrl(q0, q1).apply(H)(q2);
 // controlled gate with inferred types:
 let (q0, q1, q2) = ctrl(q0, q1).apply(H)(q2);
 // controlled gate with borrowed qubits:
@@ -717,7 +717,7 @@ ctrl(&q0, &q1).on(bs"++") {
 let f_adjoint = adjoint(f);
 
 // applying adjoint to generic function of qubits:
-let (q1, q2, q3): (qubit, qubit, qubit)  = adjoint(f)(q1, q2, q3);
+let (q1, q2, q3): (qbit, qbit, qbit)  = adjoint(f)(q1, q2, q3);
 // adjoint with inferred types
 let (q1, q2, q3)  = adjoint(f)(q1, q2, q3);
 // adjoint with borrowed qubits:
@@ -889,7 +889,7 @@ let sq: [qstate; 4] = bs"iI01";
     (plus - minus).tensor(plus + phase(turns(1.0/3.0)) * minus);
 
   // an implementation of X gate using sif/selse syntax, note that while the branches of sif/then/selse are both qstate expressions the type returned by the quantum conditional expression sif/then/selse is qubit.
-  unitary fn x(q: qubit) -> qubit {
+  unitary fn x(q: qbit) -> qbit {
     sif q then
         zero
     selse
@@ -897,25 +897,25 @@ let sq: [qstate; 4] = bs"iI01";
   }
 
   // an implementation of H gate using sif/selse syntax:
-  unitary fn had(q: qubit) -> qubit {
+  unitary fn had(q: qbit) -> qbit {
     sif q then
         (zero - one)
     selse
         (zero + one)
   }
   // another implementation of H gate using sif/selse syntax:
-  unitary fn had(q: qubit) -> qubit {
+  unitary fn had(q: qbit) -> qbit {
     sif q then minus selse plus
   }
   // another implementation of H gate using sif/selse syntax:
   let plusAlias : qstate = zero + one;
   let minusAlias : qstate = zero - one;
 
-  unitary fn had(q: qubit) -> qubit {
+  unitary fn had(q: qbit) -> qbit {
       sif q then minusAlias selse plusAlias
   }
   // an implementation of CNOT gate using sif/selse syntax:
-  unitary fn cnot(c: qubit, t: qubit) -> (qubit, qubit) {
+  unitary fn cnot(c: qbit, t: qbit) -> (qbit, qbit) {
     sif c then
         // c = |1>, so flip t
         sif t then
@@ -1146,10 +1146,10 @@ let x = t.0;
 let y = t.1;
 let z = t.2;
 
-// signature of CNOT is: fn CNOT(q0: qubit, q1: qubit) -> (qubit, qubit)
-let qubits = CNOT(q0, q1);
-let q0 = qubits.0;
-let q1 = qubits.1;
+// signature of CNOT is: fn CNOT(q0: qbit, q1: qbit) -> (qbit, qbit)
+let qbits = CNOT(q0, q1);
+let q0 = qbits.0;
+let q1 = qbits.1;
 
 //////////////////////////////////////////
 // (35) Extracting variables from tuples:
@@ -1177,18 +1177,18 @@ let x = b as i32;
 // (38) Reset qubits:
 //////////////////////
 
-let q: qubit = qalloc();
+let q: qbit = qalloc();
 let q = reset(q);
 reset(&q);
 
-let qs: [qubit; 3] = qalloc(3);
+let qs: [qbit; 3] = qalloc(3);
 // qubits are consumed and returned in reset state
 let qs = reset(qs);
 // qubits are borrowed and reset in place
 reset(&qs);
 
 // resetting multiple qubits:
-let (q1, q2, q3): (qubit, qubit, qubit) = reset(q1, q2, q3);
+let (q1, q2, q3): (qbit, qbit, qbit) = reset(q1, q2, q3);
 // resetting multiple qubits with inferred:
 let (q1, q2, q3) = reset(q1, q2, q3);
 
@@ -1196,14 +1196,14 @@ let (q1, q2, q3) = reset(q1, q2, q3);
 // (39) Discard qubits:
 //////////////////////
 
-let q: qubit = qalloc();
+let q: qbit = qalloc();
 discard(q);
 
-let q1: qubit = qalloc();
-let q2: qubit = qalloc();
+let q1: qbit = qalloc();
+let q2: qbit = qalloc();
 discard(q1, q2);
 
-let qs: [qubit; 3] = qalloc(3);
+let qs: [qbit; 3] = qalloc(3);
 discard(qs);
 
 /////////////////////////////////////////////////////////////////////////////////
@@ -1211,18 +1211,18 @@ discard(qs);
 // qubits, returning them to |0⟩ when the compiler can verify that this is valid.
 //////////////////////////////////////////////////////////////////////////////////
 
-let q: qubit = qalloc();
+let q: qbit = qalloc();
 // qubit is consumed and returned after valid uncomputation
 let q = uncompute(q);
 // qubit is borrowed and uncomputed in place
 uncompute(&q);
 
-let qs: [qubit; 3] = qalloc(3);
+let qs: [qbit; 3] = qalloc(3);
 let qs = uncompute(qs);
 uncompute(&qs);
 
 // uncomputing multiple qubits:
-let (q1, q2, q3): (qubit, qubit, qubit) = uncompute(q1, q2, q3);
+let (q1, q2, q3): (qbit, qbit, qbit) = uncompute(q1, q2, q3);
 // uncomputing multiple qubits with inferred types:
 let (q1, q2, q3) = uncompute(q1, q2, q3);
 
@@ -1230,13 +1230,13 @@ let (q1, q2, q3) = uncompute(q1, q2, q3);
 // (41) Weakening qubits: demote linear qubits to affine:
 //////////////////////////////////////////////////////////
 
-let linear q: qubit = qalloc();
+let linear q: qbit = qalloc();
 let affine q = weaken(q);
 
-let linear qs: [qubit; 3] = qalloc(3);
+let linear qs: [qbit; 3] = qalloc(3);
 let affine qs = weaken(qs);
 
-let affine (q1, q2, q3): (qubit, qubit, qubit) = weaken(q1, q2, q3);
+let affine (q1, q2, q3): (qbit, qbit, qbit) = weaken(q1, q2, q3);
 let (q1, q2, q3) = weaken(q1, q2, q3);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1245,14 +1245,14 @@ let (q1, q2, q3) = weaken(q1, q2, q3);
 
 // The := operator marks the resulting qubit binding as automatically uncomputed when the enclosing function returns. This is similar to Silq's automatic uncomputation feature.
 
-let q: qubit := f(q);
-let qs: [qubit; 3] := f(qs);
+let q: qbit := f(q);
+let qs: [qbit; 3] := f(qs);
 
 //////////////////////////
 // (43) Measuring qubits:
 //////////////////////////
 
-let q: qubit = qalloc();
+let q: qbit = qalloc();
 // qubit is consumed permanently
 let b : bit = measr(q);
 // qubit is borrowed
@@ -1263,7 +1263,7 @@ let (b1, b2, b3): (bit, bit, bit) = measr(q1, q2, q3);
 // measuring multiple qubits wiyh inferred types:
 let (b1, b2, b3) = measr(q1, q2, q3);
 
-let qs: [qubit; 3] = qalloc(3);
+let qs: [qbit; 3] = qalloc(3);
 // qubits are consumed permanently
 let bs : [bit; 3] = measr(qs);
 // qubits are borrowed
@@ -1287,7 +1287,7 @@ barrier(&qs);
 
 // like in Rust, the pub keyword is an access modifier that makes items accessible outside of the module where are defined
 mod my_module {
-    pub fn helper() -> qubit {
+    pub fn helper() -> qbit {
         let q = qalloc(); // some code
         q
     }
@@ -1391,20 +1391,20 @@ classical fn f(x: i32) -> i32 {
 }
 
 // only uncomputation-safe quantum operations allowed
-uncompsafe fn f(q: qubit) -> qubit {
+uncompsafe fn f(q: qbit) -> qbit {
   let q = X(q);
   q
 }
 
 // only unitary quantum operations allowed, nr. output qubits == nr. input qubits
-unitary fn f(q: qubit) -> qubit {
+unitary fn f(q: qbit) -> qbit {
   let q = X(q);
   let q = H(q);
   q
 }
 
 // only unitary quantum operations allowed, nr. output qubits > nr. input qubits
-isometry fn f(qs: [qubit; 2]) -> [qubit; 4] {
+isometry fn f(qs: [qbit; 2]) -> [qbit; 4] {
   let q1 = X(qs[0]);
   let q2 = H(qs[1]);
   let q3 = qalloc();
@@ -1416,8 +1416,8 @@ isometry fn f(qs: [qubit; 2]) -> [qubit; 4] {
 
 // only unitary quantum operations allowed, nr. output qubits < nr. input qubits
 coisometry fn remove_clean_ancilla(
-    qs: [qubit; 3]
-) -> [qubit; 2]
+    qs: [qbit; 3]
+) -> [qbit; 2]
 requires clean(qs[2])
 requires separable([qs[2], qs[0], qs[1]])
 {
@@ -1426,7 +1426,7 @@ requires separable([qs[2], qs[0], qs[1]])
 }
 
 // may include measurements, reset and discard quantum operations
-general fn sample(q: qubit) -> bit {
+general fn sample(q: qbit) -> bit {
   measr(q)
 }
 
@@ -1524,8 +1524,8 @@ let msg = Message::Move { x: 10, y: 20 };
 // Leaf qenum, only tuple-like qenums are supported for quantum data:
 qenum Data {
 
-    Left(qubit),
-    Right(qubit, qubit),
+    Left(qbit),
+    Right(qbit, qbit),
 }
 
 // usage of qenums:
@@ -1546,8 +1546,8 @@ let x = p.x;
 
 // destructuring a struct:
 struct Pair {
-    q0: qubit,
-    q1: qubit,
+    q0: qbit,
+    q1: qbit,
 }
 let mypair = Pair { q0, q1 };
 let Pair { q0: q3, q1: q4 } = mypair;
@@ -1618,13 +1618,13 @@ product(q1, q2, qs)
 // products can take multiple arrays of qubits as arguments:
 product([q1, q2], [q3, q4], qs)
 
-fn oracle(x: qubit, ancillas: [qubit; 3])
+fn oracle(x: qbit, ancillas: [qbit; 3])
   requires clean(ancillas)
   ensures clean(ancillas) {
     // some code here
 }
 
-fn oracle(q1: qubit, q2: qubit, qs: [qubit; 2])
+fn oracle(q1: qbit, q2: qbit, qs: [qbit; 2])
   requires clean(q1)
   requires isolated(qs)
   ensures product([q1, q2], qs){
@@ -1635,7 +1635,7 @@ fn oracle(q1: qubit, q2: qubit, qs: [qubit; 2])
 requires stabilized(q, [ -Z ])
 
 // more complex stabilizer example with multiple qubits and multi-term stabilizers:
-fn make_ghz(q0: &qubit, q1: &qubit, q2: &qubit)
+fn make_ghz(q0: &qbit, q1: &qbit, q2: &qbit)
   requires clean([q0, q1, q2])
   ensures stabilized([q0, q1, q2], [+XXX, +ZZI, +IZZ])
 {
@@ -1652,9 +1652,9 @@ The "requires" clauses specify the pre-conditions that must hold on the quantum 
 // (61) Using function as arguments to higher-order functions:
 ///////////////////////////////////////////////////////////////
 general fn phase_kickback(
-    qs: [qubit; 4],
-    oracle: unitary fn(qs: [qubit; 4], target: qubit) -> ([qubit; 4], qubit)
-) -> [qubit; 4] {
+    qs: [qbit; 4],
+    oracle: unitary fn(qs: [qbit; 4], target: qbit) -> ([qbit; 4], qbit)
+) -> [qbit; 4] {
     let scratch ancilla = qalloc();
     let ancilla = prepare_minus(ancilla);
     let (qs, ancilla) = oracle(qs, ancilla);
@@ -1667,15 +1667,15 @@ general fn phase_kickback(
 
 // Leaf has a special syntax for those functions where the compiler is able to infer that the function is invertible or controllable using the "supports" keyword combined with "adjoint" or "ctrl" keywords respectively.
 
-unitary fn f(q: &qubit) supports adjoint {
+unitary fn f(q: &qbit) supports adjoint {
     H(q);
 }
 
-unitary fn f(q: &qubit) supports ctrl {
+unitary fn f(q: &qbit) supports ctrl {
     H(q);
 }
 
-unitary fn f(q: &qubit) supports adjoint, ctrl {
+unitary fn f(q: &qbit) supports adjoint, ctrl {
     H(q);
 }
 
@@ -1683,7 +1683,7 @@ unitary fn f(q: &qubit) supports adjoint, ctrl {
 // (63) Combining function qualifiers, contracts and support clauses:
 //////////////////////////////////////////////////////////////////////
 
-unitary fn f(q1: qubit, q2: qubit, qs: [qubit; 2])
+unitary fn f(q1: qbit, q2: qbit, qs: [qbit; 2])
     supports adjoint, ctrl
     requires clean(q1)
     requires isolated(qs)
@@ -1697,8 +1697,8 @@ unitary fn f(q1: qubit, q2: qubit, qs: [qubit; 2])
 ///////////////////////////////////////////////
 
 qenum Data {
-    Left(qubit),
-    Right(qubit, qubit),
+    Left(qbit),
+    Right(qbit, qbit),
 }
 
 unitary fn transform(x: Data) -> Data {
@@ -1730,7 +1730,7 @@ phase(turns(0.25))
 // (66) Like in Rust function arguments can be references:
 ///////////////////////////////////////////////////////////
 
-fn apply_gate(q: &qubit)
+fn apply_gate(q: &qbit)
 {
   H(q);
 }
@@ -1786,7 +1786,7 @@ let p = Person { height: 10, age: 20 };
 
 // this function is compiled to a OpenQASM3 subroutine representing an unitary operation
 #[qasm_gate]
-unitary fn myfun(q: qubit) -> qubit {
+unitary fn myfun(q: qbit) -> qbit {
   let q = X(q);
   let q = H(q);
   q
@@ -1794,7 +1794,7 @@ unitary fn myfun(q: qubit) -> qubit {
 
 // annotating the function with a string argument
 #[qasm_gate("qasm_subroutine_name")]
-unitary fn myfun(q: qubit) -> qubit {
+unitary fn myfun(q: qbit) -> qbit {
   let q = X(q);
   let q = H(q);
   q
@@ -1802,7 +1802,7 @@ unitary fn myfun(q: qubit) -> qubit {
 
 // this function is compiled to a named QASM subroutine with same signature
 #[qasm_def]
-general fn myfun(q: qubit) -> bit {
+general fn myfun(q: qbit) -> bit {
   let q = X(q);
   let q = H(q);
   measr(q)
@@ -1810,7 +1810,7 @@ general fn myfun(q: qubit) -> bit {
 
 // annotating the function with a string argument
 #[qasm_def("qasm_subroutine_name")]
-general fn myfun(q: qubit) -> bit {
+general fn myfun(q: qbit) -> bit {
   let q = X(q);
   let q = H(q);
   measr(q)
@@ -1826,7 +1826,7 @@ classical fn fact(n: u32) -> u32 {
 }
 
 // Circuit-generating unitary recursion over a classical parameter, safe if total and structurally decreasing:
-unitary fn apply_hadamard_layer(qs: &[qubit]) {
+unitary fn apply_hadamard_layer(qs: &[qbit]) {
     if qs.len() == 0 {
         return;
     }
@@ -1837,7 +1837,7 @@ unitary fn apply_hadamard_layer(qs: &[qubit]) {
 }
 
 // Classically controlled recursion:
-general fn sample_until_zero() -> qubit {
+general fn sample_until_zero() -> qbit {
     let q = qalloc();
     H(&q);
     let b = measr(&q);

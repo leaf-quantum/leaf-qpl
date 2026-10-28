@@ -48,11 +48,11 @@ firstParameterReferentIsQualified inputProgram =
     qualified (LeafSliceType elementType) = qualified elementType
     qualified _ = False
 
--- The multiplicity of the qubit elements of a program's first parameter array.
+-- The multiplicity of the qbit elements of a program's first parameter array.
 firstParameterElementMultiplicity : String -> Maybe QuantumMultiplicityQualifier
 firstParameterElementMultiplicity inputProgram =
   case firstParameterType inputProgram of
-    Just (ResolvedType (LeafArrayType (LeafQualifiedType multiplicity (LeafPrimitiveType TypPrimQubit)) _)) =>
+    Just (ResolvedType (LeafArrayType (LeafQualifiedType multiplicity (LeafPrimitiveType TypPrimQbit)) _)) =>
       Just multiplicity
     _ => Nothing
 
@@ -61,36 +61,36 @@ runTypeTranslationTests : IO ()
 runTypeTranslationTests = runTests $ Test.do
 
   test "a decimal array length with digit separators is evaluated" $
-    firstParameterArrayLength "fn f(qs: [qubit; 1_0]) {}" `shouldBe` Just 10
+    firstParameterArrayLength "fn f(qs: [qbit; 1_0]) {}" `shouldBe` Just 10
 
   test "a lowercase hexadecimal array length is evaluated" $
-    firstParameterArrayLength "fn f(qs: [qubit; 0x1f]) {}" `shouldBe` Just 31
+    firstParameterArrayLength "fn f(qs: [qbit; 0x1f]) {}" `shouldBe` Just 31
 
   test "an uppercase hexadecimal prefix is accepted in an array length" $
-    firstParameterArrayLength "fn f(qs: [qubit; 0X1F]) {}" `shouldBe` Just 31
+    firstParameterArrayLength "fn f(qs: [qbit; 0X1F]) {}" `shouldBe` Just 31
 
   test "an uppercase octal prefix is accepted in an array length" $
-    firstParameterArrayLength "fn f(qs: [qubit; 0O17]) {}" `shouldBe` Just 15
+    firstParameterArrayLength "fn f(qs: [qbit; 0O17]) {}" `shouldBe` Just 15
 
   test "an uppercase binary prefix is accepted in an array length" $
-    firstParameterArrayLength "fn f(qs: [qubit; 0B101]) {}" `shouldBe` Just 5
+    firstParameterArrayLength "fn f(qs: [qbit; 0B101]) {}" `shouldBe` Just 5
 
   test "an unsigned suffix is accepted in an array length" $
-    firstParameterArrayLength "fn f(qs: [qubit; 0x1f_u8]) {}" `shouldBe` Just 31
+    firstParameterArrayLength "fn f(qs: [qbit; 0x1f_u8]) {}" `shouldBe` Just 31
 
   test "a parenthesized array length is evaluated" $
-    firstParameterArrayLength "fn f(qs: [qubit; ((3u8))]) {}" `shouldBe` Just 3
+    firstParameterArrayLength "fn f(qs: [qbit; ((3u8))]) {}" `shouldBe` Just 3
 
-  test "the qubit elements of an array are linear by default" $
-    firstParameterElementMultiplicity "fn f(qs: [qubit; 2]) {}" `shouldBe` Just QuantumMultiplicityLinear
+  test "the qbit elements of an array are linear by default" $
+    firstParameterElementMultiplicity "fn f(qs: [qbit; 2]) {}" `shouldBe` Just QuantumMultiplicityLinear
 
-  test "the qubit elements of an array keep a written qualifier" $
-    firstParameterElementMultiplicity "fn f(qs: [affine qubit; 2]) {}" `shouldBe` Just QuantumMultiplicityAffine
+  test "the qbit elements of an array keep a written qualifier" $
+    firstParameterElementMultiplicity "fn f(qs: [affine qbit; 2]) {}" `shouldBe` Just QuantumMultiplicityAffine
 
-  test "a reference to qubits holds no multiplicity qualifier" $
-    firstParameterReferentIsQualified "fn f(r: &(qubit, [qubit; 2])) {}" `shouldBe` Just False
+  test "a reference to qbits holds no multiplicity qualifier" $
+    firstParameterReferentIsQualified "fn f(r: &(qbit, [qbit; 2])) {}" `shouldBe` Just False
 
   -- Validation rejects this annotation; translating it anyway shows that a
   -- reference type holds no multiplicity qualifier by construction.
   test "a multiplicity qualifier written behind a reference is not translated" $
-    firstParameterReferentIsQualified "fn f(r: &(i32, [affine qubit; 2])) {}" `shouldBe` Just False
+    firstParameterReferentIsQualified "fn f(r: &(i32, [affine qbit; 2])) {}" `shouldBe` Just False

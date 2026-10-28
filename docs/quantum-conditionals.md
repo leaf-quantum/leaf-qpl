@@ -8,8 +8,8 @@ Quantum conditionals are the first step in an attempt to go beyond the *quantum 
 For a [resource-oriented](qubit-representations.md#resource-oriented-qubit-model) qubits model, a quantum conditional on qubit q means applying two quantum operations on a distinct set of qubits depending on the state of `q`, coherently, without measuring `q`. The precise semantics of this construction is discussed [here](defining-terms.md#what-are-quantum-conditionals).
 
 ```leaf
-fn f1(q1 : qubit, q2 : qubit) -> (qubit, qubit) { ... }
-fn f2(q1 : qubit, q2 : qubit) -> (qubit, qubit) { ... }
+fn f1(q1 : qbit, q2 : qbit) -> (qbit, qbit) { ... }
+fn f2(q1 : qbit, q2 : qbit) -> (qbit, qbit) { ... }
 
 let (q1, q2, q3) = qif q1 {
   f1(q2, q3)
@@ -21,8 +21,8 @@ let (q1, q2, q3) = qif q1 {
 Besides expressions, statements are also supported in the qif/qelse branches:
 
 ```leaf
-fn f3(q1 : qubit, q2 : qubit) { ... }
-fn f4(q1 : qubit, q2 : qubit) { ... }
+fn f3(q1 : qbit, q2 : qbit) { ... }
+fn f4(q1 : qbit, q2 : qbit) { ... }
 
 qif &q1 {
   f3(&q2, &q3);
@@ -80,7 +80,7 @@ Similar conditions that apply to quantum conditionals branches apply here as wel
 For the [state-oriented](qubit-representations.md#state-oriented-qubit-model) qubits model, the elementary quantum conditional example is the X gate represented as a coherent operation like this:
 
 ```leaf
-unitary fn x(q: qubit) -> qubit {
+unitary fn x(q: qbit) -> qbit {
     sif q then
         zero
     selse
@@ -91,7 +91,7 @@ unitary fn x(q: qubit) -> qubit {
 The whole function maps a qubit to a qubit and denotes a transformation on q. To grasp this more easily it is useful to realize that `zero` could have been named: `qfalse` and `one`: `qtrue`, following the notation from [Grattage (2008)](./bibliography.md#grattage-2008-overview-qml-haskell). The function returns a symbolic state expression which cannot contain quantum gates or non-unitary qubit operations like measure, reset or discard. In order for the operation to describe a unitary transformation the `sif`/`selse` branches must be provably orthogonal which in the example above is obvious. Unlike `qelse`, the `selse` branch is NOT optional. A slightly more involved example the following implementation of the CNOT gate:
 
 ```leaf
-unitary fn cnot(c: qubit, t: qubit) -> (qubit, qubit) {
+unitary fn cnot(c: qbit, t: qbit) -> (qbit, qbit) {
     sif c then
         // c = |1>, so flip t
         sif t then

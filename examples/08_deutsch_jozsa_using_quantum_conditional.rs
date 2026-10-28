@@ -5,16 +5,16 @@
 // We use `.rs` here for syntax highlighting purposes only.
 /////////////////////////////////////////////////////////////////////
 
-unitary fn prepare_minus(q: qubit) -> qubit {
+unitary fn prepare_minus(q: qbit) -> qbit {
     let q = X(q);
     let q = H(q);
     q
 }
 
 uncompsafe fn balanced_oracle(
-    qs: [qubit; 3],
-    ancilla: qubit
-) -> ([qubit; 3], qubit) {
+    qs: [qbit; 3],
+    ancilla: qbit
+) -> ([qbit; 3], qbit) {
     qmatch &qs {
         bs"000" => Id(&ancilla),   // 0 ones  → f = 0
         bs"001" => Id(&ancilla),   // 1 one   → f = 0

@@ -13,7 +13,7 @@ import Language.Reflection
 -- nodes. These are VOCABULARY, not located AST nodes: an operator by itself
 -- has no phase-dependent content, so there are no SurfaceAstPhase/CanonicalAstPhase/...
 -- wrappers here. If a diagnostic needs to point at the operator itself
--- ("cannot apply `+` to operands of type `qubit`"), the owning expression
+-- ("cannot apply `+` to operands of type `qbit`"), the owning expression
 -- node should carry the operator's SourceSpan alongside the operator value --
 -- that decision belongs to Expr.idr / Stmt.idr, not here.
 --
@@ -192,8 +192,8 @@ implementation Show AssignmentOperator where
 --------------------------------------------------------------------------------
 -- The operator between a let-binder and its initializer:
 --
---   let q: qubit = f(q);    -- ordinary binding
---   let q: qubit := f(q);   -- := marks the binding for AUTOMATIC UNCOMPUTATION
+--   let q: qbit = f(q);    -- ordinary binding
+--   let q: qbit := f(q);   -- := marks the binding for AUTOMATIC UNCOMPUTATION
 --                           -- when the enclosing function returns
 --
 -- `:=` is deliberately NOT an AssignmentOperator: it is legal only in `let`

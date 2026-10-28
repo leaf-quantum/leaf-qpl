@@ -160,14 +160,14 @@ mutual
 --              typecheckNode chainedIfInfo (MkProvenanceMetadata provenance) $
 --                typecheckIfNode (assert_smaller ifNode chainedIfNode)
 --      typecheckControlExpressionNode : ControlExpressionNode ResolvedAstPhase -> ControlExpressionNode TypedAstPhase
---      typecheckControlExpressionNode (ControlledCallable controlQubits onBasisRaw controlledCallable) =
+--      typecheckControlExpressionNode (ControlledCallable controlQbits onBasisRaw controlledCallable) =
 --        ControlledCallable
---          (map typecheckNestedExpression controlQubits)
+--          (map typecheckNestedExpression controlQbits)
 --          (map typecheckAstNode onBasisRaw)
 --          (typecheckNestedExpression controlledCallable)
---      typecheckControlExpressionNode (ControlledBlock controlQubits onBasisRaw controlledBlock) =
+--      typecheckControlExpressionNode (ControlledBlock controlQbits onBasisRaw controlledBlock) =
 --        ControlledBlock
---          (map typecheckNestedExpression controlQubits)
+--          (map typecheckNestedExpression controlQbits)
 --          (map typecheckAstNode onBasisRaw)
 --          (typecheckBlockExpression controlledBlock)
 --      typecheckAdjointExpressionNode : AdjointExpressionNode ResolvedAstPhase -> AdjointExpressionNode TypedAstPhase
@@ -248,23 +248,23 @@ mutual
     ?xxx22
     --typecheckNode predicateInfo (MkProvenanceMetadata provenance) $
     --  case predicateNode of
-    --    ContractClean qubitArgument =>
-    --      ContractClean (typecheckExpression qubitArgument)
-    --    ContractBasis qubitArgument pauliString =>
+    --    ContractClean qbitArgument =>
+    --      ContractClean (typecheckExpression qbitArgument)
+    --    ContractBasis qbitArgument pauliString =>
     --      ContractBasis
-    --        (typecheckExpression qubitArgument)
+    --        (typecheckExpression qbitArgument)
     --        (typecheckAstNode pauliString)
-    --    ContractSeparable qubitArgument =>
-    --      ContractSeparable (typecheckExpression qubitArgument)
-    --    ContractIsolated qubitArgument =>
-    --      ContractIsolated (typecheckExpression qubitArgument)
-    --    ContractProduct firstQubitSet otherQubitSets =>
+    --    ContractSeparable qbitArgument =>
+    --      ContractSeparable (typecheckExpression qbitArgument)
+    --    ContractIsolated qbitArgument =>
+    --      ContractIsolated (typecheckExpression qbitArgument)
+    --    ContractProduct firstQbitSet otherQbitSets =>
     --      ContractProduct
-    --        (typecheckExpression firstQubitSet)
-    --        (map typecheckExpression otherQubitSets)
-    --    ContractStabilized qubitArgument stabilizerTerms =>
+    --        (typecheckExpression firstQbitSet)
+    --        (map typecheckExpression otherQbitSets)
+    --    ContractStabilized qbitArgument stabilizerTerms =>
     --      ContractStabilized
-    --        (typecheckExpression qubitArgument)
+    --        (typecheckExpression qbitArgument)
     --        (map typecheckSignedPauliTerm stabilizerTerms)
 
   typecheckContractClause : ContractClause ResolvedAstPhase (Expr ResolvedAstPhase) -> ContractClause TypedAstPhase (Expr TypedAstPhase)  

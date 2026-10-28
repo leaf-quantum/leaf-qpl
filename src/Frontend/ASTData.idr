@@ -85,8 +85,8 @@ data NodeProvenance
   | DesugaredDefaultAttributeArgument
   | DesugaredDefaultFunctionEffect
   | DesugaredDefaultFunctionReturnType
-  | DesugaredDefaultQubitQualifier
-  | DesugaredMovedQubitQualifier
+  | DesugaredDefaultQbitQualifier
+  | DesugaredMovedQbitQualifier
 
 
 public export
@@ -101,8 +101,8 @@ Show NodeProvenance where
   show DesugaredDefaultAttributeArgument = "inferred attribute argument"
   show DesugaredDefaultFunctionEffect = "inferred default function effect"
   show DesugaredDefaultFunctionReturnType = "inferred default function return type"
-  show DesugaredDefaultQubitQualifier = "inferred default qubit qualifier"
-  show DesugaredMovedQubitQualifier = "quantum multiplicity qualifier moved from a let binding into its type"
+  show DesugaredDefaultQbitQualifier = "inferred default qbit qualifier"
+  show DesugaredMovedQbitQualifier = "quantum multiplicity qualifier moved from a let binding into its type"
   show WrittenCode = "user written code"
 
 --------------------------------------------------------------------------------
@@ -125,7 +125,7 @@ record AstInfo where
 -- The declaration or binding category denoted by a SymbolId.
 -- Reserved builtins are represented directly by ExprBuiltin and therefore do
 -- not need a SymbolKind. Shadowable prelude functions are ordinary functions.
--- A function TYPE's own parameter names (`fn(qs: [qubit; 4]) -> ...` used as
+-- A function TYPE's own parameter names (`fn(qs: [qbit; 4]) -> ...` used as
 -- a type, not a declaration) also have no SymbolKind here: they never
 -- resolve to a symbol at all and stay plain written text at every AST phase
 public export

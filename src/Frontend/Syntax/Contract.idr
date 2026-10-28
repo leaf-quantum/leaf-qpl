@@ -21,11 +21,11 @@ import Frontend.ASTPhases
 --   ensures product([q1, q2], [q3, q4], qs)
 --   ensures stabilized([q0, q1, q2], [+XXX, +ZZI, +IZZ])
 --
--- Qubit arguments are ordinary EXPRESSIONS (a name `q1`, an array literal
+-- Qbit arguments are ordinary EXPRESSIONS (a name `q1`, an array literal
 -- `[q1, q2]`, an index `qs[2]`), so this module is parameterized over the
 -- expression type exactly like TyNode's arraySizeExpr -- Decl.idr ties the
 -- knot with the concrete Expr phase. Which expressions are ACCEPTABLE
--- contract arguments (lvalue-ish qubit designators, not arbitrary
+-- contract arguments (lvalue-ish qbit designators, not arbitrary
 -- computation) is a validation pass's check against the preserved spans.
 --
 -- Pauli strings: BY LANGUAGE RULING, contract Pauli strings use only the
@@ -42,7 +42,7 @@ import Frontend.ASTPhases
 -- contract position.
 --
 -- Deliberately representable, rejected later:
---   * Pauli string length vs. qubit count      (basis([q1, q2], XXX))
+--   * Pauli string length vs. qbit count      (basis([q1, q2], XXX))
 --   * ensures preceding requires               (spec: requires come first)
 --   * non-designator argument expressions      (clean(1 + 2))
 --------------------------------------------------------------------------------
@@ -51,7 +51,7 @@ import Frontend.ASTPhases
 -- Pauli operators, strings, and signed stabilizer terms
 --------------------------------------------------------------------------------
 
--- One single-qubit Pauli operator, as ruled: I, X, Y, Z only.
+-- One single-qbit Pauli operator, as ruled: I, X, Y, Z only.
 public export
 data PauliOperator
   = PauliI
@@ -142,36 +142,36 @@ SurfaceSignedPauliTerm = SignedPauliTerm SurfaceAstPhase
 public export
 data ContractPredicateNode : (phase : AstPhase) -> (expr : Type) -> Type where
 
-  -- clean(q) / clean([q1, q2]) -- qubits in |0>, separated from the rest.
+  -- clean(q) / clean([q1, q2]) -- qbits in |0>, separated from the rest.
   ContractClean :
-       (qubitArgument : expr)
+       (qbitArgument : expr)
     -> ContractPredicateNode phase expr
 
   -- basis(q1, X) / basis([q1, q2], XX) -- separable eigenstate of the
   -- given Pauli string, separated from the rest.
   ContractBasis :
-       (qubitArgument : expr)
+       (qbitArgument : expr)
     -> (pauliString   : PauliString phase)
     -> ContractPredicateNode phase expr
 
   -- separable(qs) -- not entangled among themselves, separated from rest.
   ContractSeparable :
-       (qubitArgument : expr)
+       (qbitArgument : expr)
     -> ContractPredicateNode phase expr
 
   -- isolated(qs) -- not entangled with the REST of the program, though
   -- possibly entangled among themselves.
   ContractIsolated :
-       (qubitArgument : expr)
+       (qbitArgument : expr)
     -> ContractPredicateNode phase expr
 
   -- product(q1, q2, qs) / product([q1, q2], [q3, q4], qs) -- the given
-  -- qubit sets are mutually unentangled. Product is a relation between AT
+  -- qbit sets are mutually unentangled. Product is a relation between AT
   -- LEAST TWO sets, and the first + List1 shape encodes exactly that:
   -- a one-argument product(x) is unrepresentable.
   ContractProduct :
-       (firstQubitSet  : expr)
-    -> (otherQubitSets : List1 expr)
+       (firstQbitSet  : expr)
+    -> (otherQbitSets : List1 expr)
     -> ContractPredicateNode phase expr
 
   -- stabilized(qs, [ +ZI, -ZZ ]) -- exact stabilizer state. At least one
@@ -180,7 +180,7 @@ data ContractPredicateNode : (phase : AstPhase) -> (expr : Type) -> Type where
   -- production, NOT an ordinary array-literal expression: +ZI is not an
   -- expression.
   ContractStabilized :
-       (qubitArgument   : expr)
+       (qbitArgument   : expr)
     -> (stabilizerTerms : List1 (SignedPauliTerm phase))
     -> ContractPredicateNode phase expr
 

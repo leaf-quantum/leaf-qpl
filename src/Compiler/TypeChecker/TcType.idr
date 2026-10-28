@@ -16,7 +16,7 @@ import Frontend.Syntax.Operator
 -- TcType mirrors LeafType constructor for constructor, but may still contain
 -- unknowns while a function body or const initializer is being checked: the
 -- type of an unsuffixed literal (TcVariable) and the multiplicity of a
--- `qalloc` qubit (MultiplicityVariable). Writeback replaces every unknown,
+-- `qalloc` qbit (MultiplicityVariable). Writeback replaces every unknown,
 -- by what unification fixed it to or by its default, and turns the TcType
 -- into a LeafType. TypeTables hold only LeafType, so no unknown reaches
 -- lowering.

@@ -26,15 +26,15 @@ runPostParseValidationTests = runTests $ Test.do
           "(supported: qasm_gate, qasm_def)"
         ]
 
-  test "mutable qubit references are rejected after parsing" $
-    validationMessages "fn f(q: &mut qubit) {}" `shouldBe`
+  test "mutable qbit references are rejected after parsing" $
+    validationMessages "fn f(q: &mut qbit) {}" `shouldBe`
       Just
-        [ "test-fixture.rs:1:9: `mut` should never be written on a qubit reference; " ++
-          "qubit references are mutable by default"
+        [ "test-fixture.rs:1:9: `mut` should never be written on a qbit reference; " ++
+          "qbit references are mutable by default"
         ]
 
   test "a multiplicity qualifier repeated in a let type annotation is rejected" $
-    validationMessages "fn f() {let linear q: linear qubit = qalloc();}" `shouldBe`
+    validationMessages "fn f() {let linear q: linear qbit = qalloc();}" `shouldBe`
       Just
         [ "test-fixture.rs:1:23: `linear` cannot be written in the type " ++
           "annotation because the `let` already has the `linear` qualifier; " ++
@@ -42,7 +42,7 @@ runPostParseValidationTests = runTests $ Test.do
         ]
 
   test "a conflicting multiplicity qualifier nested in a let type annotation is rejected" $
-    validationMessages "fn f() {let linear (a, b): (affine qubit, qubit) = (qalloc(), qalloc());}" `shouldBe`
+    validationMessages "fn f() {let linear (a, b): (affine qbit, qbit) = (qalloc(), qalloc());}" `shouldBe`
       Just
         [ "test-fixture.rs:1:29: `affine` cannot be written in the type " ++
           "annotation because the `let` already has the `linear` qualifier; " ++
@@ -51,58 +51,58 @@ runPostParseValidationTests = runTests $ Test.do
 
   test "a multiplicity qualifier written in one place only is accepted" $
     validationMessages
-      "fn f() {let linear a: qubit = qalloc(); let b: affine qubit = qalloc(); let scratch c: affine qubit = qalloc();}"
+      "fn f() {let linear a: qbit = qalloc(); let b: affine qbit = qalloc(); let scratch c: affine qbit = qalloc();}"
       `shouldBe` Just []
 
   test "multiplicity qualifiers inside a function type in a let annotation are not repeats" $
-    validationMessages "fn f(g: fn(q: affine qubit) -> qubit) {let linear h: fn(q: affine qubit) -> linear qubit = g;}"
+    validationMessages "fn f(g: fn(q: affine qbit) -> qbit) {let linear h: fn(q: affine qbit) -> linear qbit = g;}"
       `shouldBe` Just []
 
   test "a multiplicity qualifier behind a reference in a let annotation is not reported as a repeat" $
     validationMessages
-      "fn f(q: qubit) {let affine x: (qubit, &[linear qubit; 1]) = (qalloc(), &q);}"
+      "fn f(q: qbit) {let affine x: (qbit, &[linear qbit; 1]) = (qalloc(), &q);}"
       `shouldBe`
       Just
-        [ "test-fixture.rs:1:41: `linear` cannot be written behind a reference; " ++
+        [ "test-fixture.rs:1:39: `linear` cannot be written behind a reference; " ++
           "a reference borrows its referent without owning it"
         ]
 
   test "a multiplicity qualifier in a referenced slice is rejected" $
-    validationMessages "fn f(qs: &[linear qubit]) {}" `shouldBe`
+    validationMessages "fn f(qs: &[linear qbit]) {}" `shouldBe`
       Just
         [ "test-fixture.rs:1:12: `linear` cannot be written behind a reference; " ++
           "a reference borrows its referent without owning it"
         ]
 
   test "a multiplicity qualifier deep in a referenced tuple is rejected" $
-    validationMessages "fn f(p: &(i32, [affine qubit; 2])) {}" `shouldBe`
+    validationMessages "fn f(p: &(i32, [affine qbit; 2])) {}" `shouldBe`
       Just
         [ "test-fixture.rs:1:17: `affine` cannot be written behind a reference; " ++
           "a reference borrows its referent without owning it"
         ]
 
   test "a multiplicity qualifier behind nested references is rejected once" $
-    validationMessages "fn f(v: &[&[affine qubit]]) {}" `shouldBe`
+    validationMessages "fn f(v: &[&[affine qbit]]) {}" `shouldBe`
       Just
         [ "test-fixture.rs:1:13: `affine` cannot be written behind a reference; " ++
           "a reference borrows its referent without owning it"
         ]
 
-  test "a multiplicity qualifier behind a mutable qubit reference is rejected with the mut" $
-    validationMessages "fn f(qs: &mut [affine qubit]) {}" `shouldBe`
+  test "a multiplicity qualifier behind a mutable qbit reference is rejected with the mut" $
+    validationMessages "fn f(qs: &mut [affine qbit]) {}" `shouldBe`
       Just
-        [ "test-fixture.rs:1:10: `mut` should never be written on a qubit reference; " ++
-          "qubit references are mutable by default"
+        [ "test-fixture.rs:1:10: `mut` should never be written on a qbit reference; " ++
+          "qbit references are mutable by default"
         , "test-fixture.rs:1:16: `affine` cannot be written behind a reference; " ++
           "a reference borrows its referent without owning it"
         ]
 
   test "multiplicity qualifiers in a referenced function type are allowed" $
-    validationMessages "fn f(g: &fn(q: affine qubit) -> linear qubit) {}"
+    validationMessages "fn f(g: &fn(q: affine qbit) -> linear qbit) {}"
       `shouldBe` Just []
 
-  test "a multiplicity qualifier on a qubit array element repeated in a let is rejected" $
-    validationMessages "fn f() {let affine qs: [linear qubit; 2] = qalloc(2);}" `shouldBe`
+  test "a multiplicity qualifier on a qbit array element repeated in a let is rejected" $
+    validationMessages "fn f() {let affine qs: [linear qbit; 2] = qalloc(2);}" `shouldBe`
       Just
         [ "test-fixture.rs:1:25: `linear` cannot be written in the type " ++
           "annotation because the `let` already has the `affine` qualifier; " ++
@@ -110,9 +110,9 @@ runPostParseValidationTests = runTests $ Test.do
         ]
 
   test "a signed suffix on an array type length is rejected" $
-    validationMessages "fn f(qs: [qubit; 3i8]) {}" `shouldBe`
+    validationMessages "fn f(qs: [qbit; 3i8]) {}" `shouldBe`
       Just
-        [ "test-fixture.rs:1:18: an array length cannot have the signed type " ++
+        [ "test-fixture.rs:1:17: an array length cannot have the signed type " ++
           "suffix `i8`; write an unsigned suffix such as `u32`, or none"
         ]
 
@@ -124,9 +124,9 @@ runPostParseValidationTests = runTests $ Test.do
         ]
 
   test "a signed suffix on a parenthesized array type length is rejected" $
-    validationMessages "fn f(qs: [qubit; (3i8)]) {}" `shouldBe`
+    validationMessages "fn f(qs: [qbit; (3i8)]) {}" `shouldBe`
       Just
-        [ "test-fixture.rs:1:19: an array length cannot have the signed type " ++
+        [ "test-fixture.rs:1:18: an array length cannot have the signed type " ++
           "suffix `i8`; write an unsigned suffix such as `u32`, or none"
         ]
 
@@ -138,9 +138,9 @@ runPostParseValidationTests = runTests $ Test.do
         ]
 
   test "an array type length too large for its suffix type is rejected" $
-    validationMessages "fn f(qs: [qubit; 256u8]) {}" `shouldBe`
+    validationMessages "fn f(qs: [qbit; 256u8]) {}" `shouldBe`
       Just
-        [ "test-fixture.rs:1:18: the array length `256u8` does not fit in " ++
+        [ "test-fixture.rs:1:17: the array length `256u8` does not fit in " ++
           "`u8`, whose largest value is 255"
         ]
 
@@ -153,12 +153,12 @@ runPostParseValidationTests = runTests $ Test.do
 
   test "unsigned and missing array length suffixes are accepted" $
     validationMessages
-      "fn f(qs: [qubit; 3u8], rs: [qubit; 0x2_u64], ss: [qubit; 4]) {let xs = [0; 4u32];}"
+      "fn f(qs: [qbit; 3u8], rs: [qbit; 0x2_u64], ss: [qbit; 4]) {let xs = [0; 4u32];}"
       `shouldBe` Just []
 
   test "array lengths at the largest value of their suffix type are accepted" $
     validationMessages
-      "fn f(qs: [qubit; 255u8], rs: [qubit; (0xff_u8)]) {let xs = [0; 65535u16];}"
+      "fn f(qs: [qbit; 255u8], rs: [qbit; (0xff_u8)]) {let xs = [0; 65535u16];}"
       `shouldBe` Just []
 
   test "break outside a loop is rejected after parsing" $
@@ -215,7 +215,7 @@ runPostParseValidationTests = runTests $ Test.do
       Just []
 
   test "repeated parameter names do not skip type validation" $
-    map length (validationMessages "fn f(x: &mut qubit, x: &mut qubit) {}") `shouldBe`
+    map length (validationMessages "fn f(x: &mut qbit, x: &mut qbit) {}") `shouldBe`
       Just 2
 
   test "a control basis matching the number of controls is accepted" $
@@ -233,14 +233,14 @@ runPostParseValidationTests = runTests $ Test.do
       "fn f() {ctrl(q0, q1).on(bs\"1\").apply(H)(q2);}" `shouldBe`
       Just
         [ "test-fixture.rs:1:25: control basis contains 1 states, but " ++
-          "the control expression has 2 control qubits"
+          "the control expression has 2 control qbits"
         ]
 
   test "a control basis longer than the block controls is rejected" $
     validationMessages "fn f() {ctrl(q0).on(bs\"10\") {H(q1);}}" `shouldBe`
       Just
         [ "test-fixture.rs:1:21: control basis contains 2 states, but " ++
-          "the control expression has 1 control qubits"
+          "the control expression has 1 control qbits"
         ]
 
   test "valid contextual forms pass post-parse validation" $

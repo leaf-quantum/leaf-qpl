@@ -1,14 +1,14 @@
 
 // Encode the hidden string 01100:
 // f(x) = x[1] XOR x[2], with bits ordered as q0, q1, q2, q3, q4.
-unitary fn oracle(inputs: &[qubit], target: &qubit) {
+unitary fn oracle(inputs: &[qbit], target: &qbit) {
     CX(&inputs[1], target);
     CX(&inputs[2], target);
 }
 
 fn main() -> [bit; 5] {
-    let inputs: [qubit; 5] = qalloc(5);
-    let ancilla: qubit = qalloc();
+    let inputs: [qbit; 5] = qalloc(5);
+    let ancilla: qbit = qalloc();
 
     // Prepare the ancilla in |−⟩ so that a controlled X
     // kicks back a phase of −1 onto the corresponding input branch.

@@ -2,12 +2,12 @@
 
 (1) Quantum computing specific types:
 ```leaf
-bit, qubit, qstate
+bit, qbit, qstate
 ```
 
-where the `qubit` type is used for ordinary qubits to which gates can be applied:
+where the `qbit` type is used for ordinary qubits to which gates can be applied:
 ```leaf
-let q: qubit = H(q); 
+let q: qbit = H(q);
 ```
 
 while the `qstate` is used for expression that declare quantum states like this:

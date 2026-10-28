@@ -370,11 +370,11 @@ runLexerTests = runTests $ Test.do
       Right [TokIdent "Fn", TokKw KwFn, TokIdent "FN", TokEOF]
 
   test "literal, type, state, and builtin classification is case-sensitive" $
-    lexTokenValues "True False Zero One Qubit QState Qalloc Measr" `shouldBe`
+    lexTokenValues "True False Zero One Qbit QState Qalloc Measr" `shouldBe`
       Right
         [ TokIdent "True", TokIdent "False"
         , TokIdent "Zero", TokIdent "One"
-        , TokIdent "Qubit", TokIdent "QState"
+        , TokIdent "Qbit", TokIdent "QState"
         , TokIdent "Qalloc", TokIdent "Measr"
         , TokEOF
         ]
@@ -387,7 +387,7 @@ runLexerTests = runTests $ Test.do
         ]
 
   test "primitive types are primitive type tokens" $
-    lexTokenValues "angle32 angle64 bit bool f32 f64 i8 i16 i32 i64 i128 param u8 u16 u32 u64 u128 qubit qstate" `shouldBe`
+    lexTokenValues "angle32 angle64 bit bool f32 f64 i8 i16 i32 i64 i128 param u8 u16 u32 u64 u128 qbit qstate" `shouldBe`
       Right
         [ TokTypPrim TypPrimAngle32, TokTypPrim TypPrimAngle64
         , TokTypPrim TypPrimBit, TokTypPrim TypPrimBool
@@ -397,7 +397,7 @@ runLexerTests = runTests $ Test.do
         , TokTypPrim TypPrimI128, TokTypPrim TypPrimParam
         , TokTypPrim TypPrimU8, TokTypPrim TypPrimU16
         , TokTypPrim TypPrimU32, TokTypPrim TypPrimU64
-        , TokTypPrim TypPrimU128, TokTypPrim TypPrimQubit
+        , TokTypPrim TypPrimU128, TokTypPrim TypPrimQbit
         , TokTypPrim TypPrimQState, TokEOF
         ]
 
@@ -557,11 +557,11 @@ runLexerTests = runTests $ Test.do
         ]
 
   test "supports adjoint ctrl clause tokenizes keyword and builtin forms" $
-    lexTokenValues "unitary fn f(q: &qubit) supports adjoint, ctrl {}" `shouldBe`
+    lexTokenValues "unitary fn f(q: &qbit) supports adjoint, ctrl {}" `shouldBe`
       Right
         [ TokKw KwUnitary, TokKw KwFn, TokIdent "f"
         , TokSym SymLParen
-        , TokIdent "q", TokSym SymColon, TokSym SymAmp, TokTypPrim TypPrimQubit
+        , TokIdent "q", TokSym SymColon, TokSym SymAmp, TokTypPrim TypPrimQbit
         , TokSym SymRParen
         , TokKw KwSupports, TokKw KwAdjoint, TokSym SymComma, TokBuiltin BuiltinCtrl
         , TokSym SymLBrace, TokSym SymRBrace
@@ -708,16 +708,16 @@ runLexerTests = runTests $ Test.do
         , TokEOF
         ]
 
-  test "qubit slice borrow forms with ranges tokenize structurally" $
-    lexTokenValues "let qv: &[qubit] = &qs[..]; let qv2: &[qubit] = &qs[..=3];" `shouldBe`
+  test "qbit slice borrow forms with ranges tokenize structurally" $
+    lexTokenValues "let qv: &[qbit] = &qs[..]; let qv2: &[qbit] = &qs[..=3];" `shouldBe`
       Right
         [ TokKw KwLet, TokIdent "qv", TokSym SymColon
-        , TokSym SymAmp, TokSym SymLBracket, TokTypPrim TypPrimQubit, TokSym SymRBracket
+        , TokSym SymAmp, TokSym SymLBracket, TokTypPrim TypPrimQbit, TokSym SymRBracket
         , TokSym SymEq
         , TokSym SymAmp, TokIdent "qs", TokSym SymLBracket, TokSym SymDotDot, TokSym SymRBracket
         , TokSym SymSemi
         , TokKw KwLet, TokIdent "qv2", TokSym SymColon
-        , TokSym SymAmp, TokSym SymLBracket, TokTypPrim TypPrimQubit, TokSym SymRBracket
+        , TokSym SymAmp, TokSym SymLBracket, TokTypPrim TypPrimQbit, TokSym SymRBracket
         , TokSym SymEq
         , TokSym SymAmp, TokIdent "qs", TokSym SymLBracket, TokSym SymDotDotEq, TokIntLitRaw "3", TokSym SymRBracket
         , TokSym SymSemi
@@ -1175,14 +1175,14 @@ runLexerTests = runTests $ Test.do
         ]
 
   test "annotated unitary signature tokenizes attributes qualifiers and arrows" $
-    lexTokenValues "#[qasm_gate(\"my_gate\")] unitary fn myfun(q: qubit) -> qubit { q }" `shouldBe`
+    lexTokenValues "#[qasm_gate(\"my_gate\")] unitary fn myfun(q: qbit) -> qbit { q }" `shouldBe`
       Right
         [ TokSym SymHash, TokSym SymLBracket, TokIdent "qasm_gate"
         , TokSym SymLParen, TokStringLitRaw "\"my_gate\"", TokSym SymRParen
         , TokSym SymRBracket
         , TokKw KwUnitary, TokKw KwFn, TokIdent "myfun"
-        , TokSym SymLParen, TokIdent "q", TokSym SymColon, TokTypPrim TypPrimQubit, TokSym SymRParen
-        , TokSym SymArrow, TokTypPrim TypPrimQubit
+        , TokSym SymLParen, TokIdent "q", TokSym SymColon, TokTypPrim TypPrimQbit, TokSym SymRParen
+        , TokSym SymArrow, TokTypPrim TypPrimQbit
         , TokSym SymLBrace, TokIdent "q", TokSym SymRBrace
         , TokEOF
         ]

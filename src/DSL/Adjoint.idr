@@ -8,7 +8,7 @@ import DSL.Gates
 public export
 adjointUnitary : UnitaryGate n -> UnitaryGate n
 
--- 1-qubit Clifford + T
+-- 1-qbit Clifford + T
 adjointUnitary (Id q)    = Id q
 adjointUnitary (X q)     = X q
 adjointUnitary (Y q)     = Y q
@@ -41,7 +41,7 @@ adjointUnitary (U2 phi lambda q) =
 adjointUnitary (U3 theta phi lambda q) =
   U3 (-theta) (-lambda) (-phi) q
 
--- 2-qubit + 3-qubit: many of these are self-adjoint
+-- 2-qbit + 3-qbit: many of these are self-adjoint
 adjointUnitary (CNOT c t {neq})     = CNOT c t {neq = neq}
 adjointUnitary (CY c t {neq})       = CY c t {neq = neq}
 adjointUnitary (CZ c t {neq})       = CZ c t {neq = neq}
@@ -99,7 +99,7 @@ adjointGate (Reset   _) = Nothing   -- not unitary
   -- let g2 : Gate n = mkControlled [c] [False] (H t)
   -- -- 2 controls, mixed polarities
   -- let g3 : Gate n = mkControlled [c1, c2] [True, False] (RZ theta t)
-  -- -- Add a control to a 2-qubit gate (e.g., controlled-SWAP)
+  -- -- Add a control to a 2-qbit gate (e.g., controlled-SWAP)
   -- let g4 : Gate n = mkControlled [c] [True] (SWAP a b)
   -- -- Nesting: add another control later (e.g., build CCCX)
   -- let g5 : Gate n = mkControlled [d] [True] (mkControlled [c] [True] (X t))

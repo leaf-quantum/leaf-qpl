@@ -37,33 +37,33 @@ import Frontend.Syntax.Operator
 --
 -- Representable examples:
 --
---   qubit                          TyPrimitive
+--   qbit                          TyPrimitive
 --   Person                         TyPath
 --   my_module::Config              TyPath
 --   ()                             TyUnit
 --   (i32, f64)                     TyTuple
---   (qubit,)                       TyTuple (one element; trailing comma)
+--   (qbit,)                       TyTuple (one element; trailing comma)
 --   [i32; 2 + 2]                   TyArray
 --   &[i32]  &mut [i32]             TyReference around TySlice
---   &qubit                         TyReference
---   affine qubit                   TyQualified
---   unitary fn(qs: [qubit; 4], target: qubit) -> ([qubit; 4], qubit)
+--   &qbit                         TyReference
+--   affine qbit                   TyQualified
+--   unitary fn(qs: [qbit; 4], target: qbit) -> ([qbit; 4], qbit)
 --                                  TyFunction
 --
 -- Semantic rules that are deliberately REPRESENTABLE here and rejected later,
 -- with the relevant spans available for diagnostics:
 --
---   * `&mut qubit` / `&mut [qubit]`   -- mut is never written on qubit refs
+--   * `&mut qbit` / `&mut [qbit]`   -- mut is never written on qbit refs
 --   * `[T; N]` with non-const N       -- const-ness of the size expression
 --   * `[T; 3i8]`  `[T; 256u8]`        -- a literal array length with a signed
 --                                        suffix, or too large for its suffix
 --
--- `linear [qubit; 2]` and `affine (qubit, qubit)` are representable too, but
+-- `linear [qbit; 2]` and `affine (qbit, qbit)` are representable too, but
 -- the parser never produces them: a multiplicity qualifier applies to a single
--- `qubit`, so collections qualify their elements (`[linear qubit; 2]`).
+-- `qbit`, so collections qualify their elements (`[linear qbit; 2]`).
 --------------------------------------------------------------------------------
 
--- A function-type parameter's name (`qs` in `fn(qs: [qubit; 4]) -> ...`),
+-- A function-type parameter's name (`qs` in `fn(qs: [qbit; 4]) -> ...`),
 -- used by FunctionTypeParameterNode below. Deliberately AstNode-wrapped for
 -- a source span (diagnostics still point at the exact written name) but with
 -- the SurfaceAstPhase/CanonicalAstPhase payload (NameNode, i.e. spelling
@@ -80,7 +80,7 @@ mutual
   public export
   data TyNode : (phase : AstPhase) -> (arraySizeExpr : Type) -> Type where
 
-    -- Built-in primitive type name: qubit, qstate, bit, i32, f64, angle64,
+    -- Built-in primitive type name: qbit, qstate, bit, i32, f64, angle64,
     -- param, bool, ... Reuses the lexer's authoritative enumeration.
     TyPrimitive :
          (primitiveName : TypPrimName)
@@ -113,7 +113,7 @@ mutual
          (innerType : AstNode phase (TyNode phase arraySizeExpr))
       -> TyNode phase arraySizeExpr
 
-    -- Tuple type with AT LEAST one element: (i32, f64), (qubit,).
+    -- Tuple type with AT LEAST one element: (i32, f64), (qbit,).
     -- The List1 shape makes a zero-element tuple type unrepresentable --
     -- that source form is TyUnit. Whether the user wrote a trailing comma
     -- is only semantically visible in the one-element case, where it is
@@ -140,24 +140,24 @@ mutual
 
     -- Reference type: &T or &mut T, reusing BorrowKind so shared-vs-mutable
     -- is spelled once for both expressions and types. The borrow kind is
-    -- located so "`mut` is never written on a qubit reference" can point at
+    -- located so "`mut` is never written on a qbit reference" can point at
     -- the `&mut` itself rather than the whole type. A reference borrows its
     -- referent without owning it, so the referent never holds a multiplicity
     -- qualifier at an owned position: the parser rejects one written directly
-    -- after `&` (`&affine qubit`), post-parse validation one nested deeper
-    -- (`&[linear qubit]`), and desugaring inserts none.
+    -- after `&` (`&affine qbit`), post-parse validation one nested deeper
+    -- (`&[linear qbit]`), and desugaring inserts none.
     TyReference :
          (borrowKind     : AstNode phase BorrowKind)
       -> (referencedType : AstNode phase (TyNode phase arraySizeExpr))
       -> TyNode phase arraySizeExpr
 
-    -- Multiplicity-qualified type: linear qubit, affine qubit. Exactly one
+    -- Multiplicity-qualified type: linear qbit, affine qbit. Exactly one
     -- qualifier, located so diagnostics can point at the keyword. `scratch`
     -- is unrepresentable here: it describes cleanup at the end of a binding's
     -- scope and is only valid on `let` bindings. The parser accepts only
-    -- `qubit` after the qualifier, so it rejects a second qualifier
-    -- (`linear affine qubit`) and a qualified collection (`linear [qubit; 2]`,
-    -- `affine (qubit, qubit)`) at the span of the token following it.
+    -- `qbit` after the qualifier, so it rejects a second qualifier
+    -- (`linear affine qbit`) and a qualified collection (`linear [qbit; 2]`,
+    -- `affine (qbit, qbit)`) at the span of the token following it.
     TyQualified :
          (multiplicityQualifier : AstNode phase QuantumMultiplicityQualifier)
       -> (qualifiedType      : AstNode phase (TyNode phase arraySizeExpr))
@@ -165,7 +165,7 @@ mutual
 
     -- Function type, as used for higher-order parameters:
     --
-    --   unitary fn(qs: [qubit; 4], target: qubit) -> ([qubit; 4], qubit)
+    --   unitary fn(qs: [qbit; 4], target: qbit) -> ([qbit; 4], qbit)
     --
     -- The effect is optional exactly as on declarations: `Nothing` means no
     -- qualifier written, `Just` a located EffectGeneral means the user
@@ -177,7 +177,7 @@ mutual
       -> (returnType         : Maybe (AstNode phase (TyNode phase arraySizeExpr)))
       -> TyNode phase arraySizeExpr
 
-  -- One parameter inside a FUNCTION TYPE: `qs: [qubit; 4]`. The name is
+  -- One parameter inside a FUNCTION TYPE: `qs: [qbit; 4]`. The name is
   -- required because every function-type parameter in the spec is written
   -- name-first; if Leaf ever admits Rust-style anonymous fn-type parameters
   -- (fn(i32) -> i32), this becomes `Maybe (FunctionTypeParameterName phase)`
@@ -234,8 +234,8 @@ Ty phase arraySizeExpr = AstNode phase (TyNode phase arraySizeExpr)
 -- applies to. Post-parse validation and desugaring both use this, so they
 -- agree on where a qualifier may be written and where one is inserted.
 --
--- A type's OWNED POSITIONS are its qubits, each either unqualified (`qubit`)
--- or with its multiplicity qualifier (`affine qubit`, a TyQualified), found by
+-- A type's OWNED POSITIONS are its qbits, each either unqualified (`qbit`)
+-- or with its multiplicity qualifier (`affine qbit`, a TyQualified), found by
 -- entering parentheses, tuples, arrays and slices. Nothing else is entered:
 --
 --   * a reference borrows its referent, so the referent is not owned and
@@ -243,8 +243,8 @@ Ty phase arraySizeExpr = AstNode phase (TyNode phase arraySizeExpr)
 --   * a function type's parameters and result belong to the function's
 --     calls, not to the value the type describes
 --
---   (qubit, i32, [affine qubit; 2], &qubit, fn(q: qubit))
---     owned positions: `qubit`, `affine qubit`
+--   (qbit, i32, [affine qbit; 2], &qbit, fn(q: qbit))
+--     owned positions: `qbit`, `affine qbit`
 --------------------------------------------------------------------------------
 
 -- Applies `onOwned` to every owned position, rebuilding the type around the results.
@@ -257,7 +257,7 @@ traverseOwnedPositions :
   -> f (Ty phase arraySizeExpr)
 traverseOwnedPositions onOwned typeAstNode@(MkAstNode typeInfo metadata typeNode) =
   case typeNode of
-    TyPrimitive TypPrimQubit => onOwned typeAstNode
+    TyPrimitive TypPrimQbit => onOwned typeAstNode
     TyQualified _ _ => onOwned typeAstNode
     TyParenthesized innerType => rebuild . TyParenthesized <$> recur innerType
     TyTuple elementTypes => rebuild . TyTuple <$> traverse recur elementTypes

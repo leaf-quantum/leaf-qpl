@@ -23,7 +23,7 @@ data Circuit : Nat -> Nat -> Type where
   -- Parallel composition
   Par : Circuit n1 m1 -> Circuit n2 m2 -> Circuit (n1 + n2) (m1 + m2)
 
-  -- Add a new qubit initialized in |0⟩ or |1⟩
+  -- Add a new qbit initialized in |0⟩ or |1⟩
   Init : InitVal -> Circuit n (S n)
 
 -- Inverse of a circuit, if it exists

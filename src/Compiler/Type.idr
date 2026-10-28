@@ -72,10 +72,10 @@ implementation Show LeafType where
 --------------------------------------------------------------------------------
 -- A reference borrows its referent without owning it, so the referent of a
 -- LeafReferenceType holds no LeafQualifiedType at an owned position: its
--- qubits, found through tuples, arrays and slices but not inside function
+-- qbits, found through tuples, arrays and slices but not inside function
 -- types or nested references (as in "Owned positions" in
--- Frontend.Syntax.Type). A borrow of a linear qubit and a borrow of an affine
--- qubit then both have type `&qubit`, and compare equal structurally.
+-- Frontend.Syntax.Type). A borrow of a linear qbit and a borrow of an affine
+-- qbit then both have type `&qbit`, and compare equal structurally.
 --------------------------------------------------------------------------------
 
 export

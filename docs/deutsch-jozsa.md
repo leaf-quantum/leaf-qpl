@@ -5,12 +5,12 @@ This is an elementary implementation of Deutsch-Jozsa:
 ```rust
 // U_f : |x⟩|y⟩ ↦ |x⟩|y ⊕ f(x)⟩
 unitary fn balanced_oracle(
-    q0: qubit,
-    q1: qubit,
-    q2: qubit,
-    q3: qubit,
-    q4: qubit,
-) -> (qubit, qubit, qubit, qubit, qubit) {
+    q0: qbit,
+    q1: qbit,
+    q2: qbit,
+    q3: qbit,
+    q4: qbit,
+) -> (qbit, qbit, qbit, qbit, qbit) {
 
     // Negative controls on q0 and q2 by X-conjugation.
     let q0 = X(q0);

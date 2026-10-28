@@ -85,10 +85,10 @@ runFunctionParseTests = runTests $ Test.do
 
   test "reference and slice types" $
     parseAndPrettyPrint
-      "fn borrow(q: &qubit, person: &Person, mutable: &mut Person, values: &[i32], output: &mut [i32]) {}"
+      "fn borrow(q: &qbit, person: &Person, mutable: &mut Person, values: &[i32], output: &mut [i32]) {}"
       `shouldBe`
       Just
-        "fn borrow(q: &qubit, person: &Person, mutable: &mut Person, values: &[i32], output: &mut [i32]) { }"
+        "fn borrow(q: &qbit, person: &Person, mutable: &mut Person, values: &[i32], output: &mut [i32]) { }"
 
   test "reference types require an inner type" $
     parseErrorDetails "fn f(x: &) {}" `shouldBe`
@@ -114,130 +114,130 @@ runFunctionParseTests = runTests $ Test.do
 
   test "qualified types" $
     parseAndPrettyPrint
-      "fn qualified(q: affine qubit, pair: (linear qubit, affine qubit)) {}"
+      "fn qualified(q: affine qbit, pair: (linear qbit, affine qbit)) {}"
       `shouldBe`
       Just
-        "fn qualified(q: affine qubit, pair: (linear qubit, affine qubit)) { }"
+        "fn qualified(q: affine qbit, pair: (linear qbit, affine qbit)) { }"
 
   test "conflicting multiplicity qualifiers in a type are rejected" $
-    parseErrorDetails "fn bad(q: linear affine qubit) {}" `shouldBe`
+    parseErrorDetails "fn bad(q: linear affine qbit) {}" `shouldBe`
       Just
         ( "Parse error at: test-fixture.rs:1:18, with message: Cannot combine `linear` and `affine` storage qualifiers."
         , (1, 24)
         )
 
   test "duplicate multiplicity qualifiers in a type are rejected" $
-    parseErrorDetails "fn bad(q: affine affine qubit) {}" `shouldBe`
+    parseErrorDetails "fn bad(q: affine affine qbit) {}" `shouldBe`
       Just
         ( "Parse error at: test-fixture.rs:1:18, with message: Duplicate `affine` storage qualifier."
         , (1, 24)
         )
 
   test "scratch qualifier in a type is rejected" $
-    parseErrorDetails "fn bad(q: scratch qubit) {}" `shouldBe`
+    parseErrorDetails "fn bad(q: scratch qbit) {}" `shouldBe`
       Just
-        ( "Parse error at: test-fixture.rs:1:11, with message: The `scratch` qualifier is only allowed on `let` bindings, not in types: write `let scratch q: qubit = ...`."
+        ( "Parse error at: test-fixture.rs:1:11, with message: The `scratch` qualifier is only allowed on `let` bindings, not in types: write `let scratch q: qbit = ...`."
         , (1, 18)
         )
 
   test "scratch qualifier after a multiplicity qualifier in a type is rejected" $
-    parseAndPrettyPrint "fn bad(q: linear scratch qubit) {}" `shouldBe` Nothing
+    parseAndPrettyPrint "fn bad(q: linear scratch qbit) {}" `shouldBe` Nothing
 
   test "scratch qualifier in a nested type is rejected" $
-    parseAndPrettyPrint "fn bad(f: fn(value: qubit) -> (scratch qubit, qubit)) {}" `shouldBe` Nothing
+    parseAndPrettyPrint "fn bad(f: fn(value: qbit) -> (scratch qbit, qbit)) {}" `shouldBe` Nothing
 
   test "a qualifier followed by a non-type keyword is rejected" $
     parseErrorDetails "fn bad(q: linear if) {}" `shouldBe`
       Just
-        ( "Parse error at: test-fixture.rs:1:18, with message: The `linear` qualifier can only qualify `qubit`, not keyword if."
+        ( "Parse error at: test-fixture.rs:1:18, with message: The `linear` qualifier can only qualify `qbit`, not keyword if."
         , (1, 20)
         )
 
-  test "qualified qubits inside nested type forms" $
+  test "qualified qbits inside nested type forms" $
     parseAndPrettyPrint
-      "fn nested(q: fn(value: affine qubit) -> (linear qubit, [affine qubit])) {}"
+      "fn nested(q: fn(value: affine qbit) -> (linear qbit, [affine qbit])) {}"
       `shouldBe`
       Just
-        "fn nested(q: fn(value: affine qubit) -> (linear qubit, [affine qubit])) { }"
+        "fn nested(q: fn(value: affine qbit) -> (linear qbit, [affine qbit])) { }"
 
   test "qualified array elements" $
-    parseAndPrettyPrint "fn f(qs: [affine qubit; 2], rs: [[linear qubit; 2]; 3]) {}"
+    parseAndPrettyPrint "fn f(qs: [affine qbit; 2], rs: [[linear qbit; 2]; 3]) {}"
       `shouldBe`
-      Just "fn f(qs: [affine qubit; 2], rs: [[linear qubit; 2]; 3]) { }"
+      Just "fn f(qs: [affine qbit; 2], rs: [[linear qbit; 2]; 3]) { }"
 
   test "a qualified array type is rejected" $
-    parseErrorDetails "fn bad(qs: linear [qubit; 2]) {}" `shouldBe`
+    parseErrorDetails "fn bad(qs: linear [qbit; 2]) {}" `shouldBe`
       Just
-        ( "Parse error at: test-fixture.rs:1:19, with message: The `linear` qualifier cannot qualify an array or slice: qualify the qubits of an array instead, e.g. `[linear qubit; 2]`."
+        ( "Parse error at: test-fixture.rs:1:19, with message: The `linear` qualifier cannot qualify an array or slice: qualify the qbits of an array instead, e.g. `[linear qbit; 2]`."
         , (1, 20)
         )
 
   test "a qualified array type in a let annotation is rejected" $
-    parseErrorDetails "fn f() { let qs: affine [qubit; 2] = qalloc(2); }" `shouldBe`
+    parseErrorDetails "fn f() { let qs: affine [qbit; 2] = qalloc(2); }" `shouldBe`
       Just
-        ( "Parse error at: test-fixture.rs:1:25, with message: The `affine` qualifier cannot qualify an array or slice: qualify the qubits of an array instead, e.g. `[affine qubit; 2]`."
+        ( "Parse error at: test-fixture.rs:1:25, with message: The `affine` qualifier cannot qualify an array or slice: qualify the qbits of an array instead, e.g. `[affine qbit; 2]`."
         , (1, 26)
         )
 
   test "a qualifier directly behind a reference is rejected" $
-    parseErrorDetails "fn bad(q: &affine qubit) {}" `shouldBe`
+    parseErrorDetails "fn bad(q: &affine qbit) {}" `shouldBe`
       Just
         ( "Parse error at: test-fixture.rs:1:12, with message: The `affine` qualifier cannot be written behind a reference: a reference borrows its referent without owning it, so remove the qualifier."
         , (1, 18)
         )
 
   test "a qualifier directly behind a mutable reference is rejected" $
-    parseErrorDetails "fn bad(q: &mut linear qubit) {}" `shouldBe`
+    parseErrorDetails "fn bad(q: &mut linear qbit) {}" `shouldBe`
       Just
         ( "Parse error at: test-fixture.rs:1:16, with message: The `linear` qualifier cannot be written behind a reference: a reference borrows its referent without owning it, so remove the qualifier."
         , (1, 22)
         )
 
   test "a qualified slice behind a reference is rejected as behind a reference" $
-    parseErrorDetails "fn bad(qs: &linear [qubit]) {}" `shouldBe`
+    parseErrorDetails "fn bad(qs: &linear [qbit]) {}" `shouldBe`
       Just
         ( "Parse error at: test-fixture.rs:1:13, with message: The `linear` qualifier cannot be written behind a reference: a reference borrows its referent without owning it, so remove the qualifier."
         , (1, 19)
         )
 
   test "scratch directly behind a reference is rejected as scratch in a type" $
-    parseErrorDetails "fn bad(q: &scratch qubit) {}" `shouldBe`
+    parseErrorDetails "fn bad(q: &scratch qbit) {}" `shouldBe`
       Just
-        ( "Parse error at: test-fixture.rs:1:12, with message: The `scratch` qualifier is only allowed on `let` bindings, not in types: write `let scratch q: qubit = ...`."
+        ( "Parse error at: test-fixture.rs:1:12, with message: The `scratch` qualifier is only allowed on `let` bindings, not in types: write `let scratch q: qbit = ...`."
         , (1, 19)
         )
 
   test "a qualifier nested behind a reference is left to post-parse validation" $
-    parseAndPrettyPrint "fn f(qs: &[linear qubit]) {}"
-      `shouldBe` Just "fn f(qs: &[linear qubit]) { }"
+    parseAndPrettyPrint "fn f(qs: &[linear qbit]) {}"
+      `shouldBe` Just "fn f(qs: &[linear qbit]) { }"
 
   test "a qualified tuple type is rejected" $
-    parseErrorDetails "fn bad(p: affine (qubit, qubit)) {}" `shouldBe`
+    parseErrorDetails "fn bad(p: affine (qbit, qbit)) {}" `shouldBe`
       Just
-        ( "Parse error at: test-fixture.rs:1:18, with message: The `affine` qualifier cannot qualify a parenthesized type or tuple: qualify each qubit inside it instead, e.g. `affine qubit` or `(affine qubit, affine qubit)`."
+        ( "Parse error at: test-fixture.rs:1:18, with message: The `affine` qualifier cannot qualify a parenthesized type or tuple: qualify each qbit inside it instead, e.g. `affine qbit` or `(affine qbit, affine qbit)`."
         , (1, 19)
         )
 
-  test "a qualified parenthesized qubit is rejected" $
-    parseErrorDetails "fn bad(q: linear (qubit)) {}" `shouldBe`
+  test "a qualified parenthesized qbit is rejected" $
+    parseErrorDetails "fn bad(q: linear (qbit)) {}" `shouldBe`
       Just
-        ( "Parse error at: test-fixture.rs:1:18, with message: The `linear` qualifier cannot qualify a parenthesized type or tuple: qualify each qubit inside it instead, e.g. `linear qubit` or `(linear qubit, linear qubit)`."
+        ( "Parse error at: test-fixture.rs:1:18, with message: The `linear` qualifier cannot qualify a parenthesized type or tuple: qualify each qbit inside it instead, e.g. `linear qbit` or `(linear qbit, linear qbit)`."
         , (1, 19)
         )
 
   test "a qualified function type is rejected" $
-    parseErrorDetails "fn bad(f: linear fn(q: qubit)) {}" `shouldBe`
+    parseErrorDetails "fn bad(f: linear fn(q: qbit)) {}" `shouldBe`
       Just
-        ( "Parse error at: test-fixture.rs:1:18, with message: The `linear` qualifier can only qualify `qubit`, not keyword fn."
+        ( "Parse error at: test-fixture.rs:1:18, with message: The `linear` qualifier can only qualify `qbit`, not keyword fn."
         , (1, 20)
         )
 
   test "higher-order function types" $
     parseAndPrettyPrint
-      "general fn phase_kickback(oracle: unitary fn(qs: [qubit; 4], target: qubit) -> ([qubit; 4], qubit)) {}"
+      "general fn phase_kickback(oracle: unitary fn(qs: [qbit; 4], target: qbit) -> ([qbit; 4], qbit)) {}"
       `shouldBe`
       Just
-        "general fn phase_kickback(oracle: unitary fn(qs: [qubit; 4], target: qubit) -> ([qubit; 4], qubit)) { }"
+        "general fn phase_kickback(oracle: unitary fn(qs: [qbit; 4], target: qbit) -> ([qbit; 4], qbit)) { }"
 
   test "function type without an effect or return type" $
     parseAndPrettyPrint "fn callback(f: fn(value: i32)) {}"

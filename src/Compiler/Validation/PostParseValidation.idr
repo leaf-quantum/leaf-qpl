@@ -31,25 +31,25 @@ import Frontend.Syntax.Type
 --       second occurrence
 --   * conflicting attributes on one item: `qasm_gate` and `qasm_def` are
 --       mutually exclusive and are rejected when applied together
---   * `&mut` on a SYNTACTICALLY-qubit type (`&mut qubit`, `&mut [qubit]`,
---       `&mut [qubit; 2]`, through parens/qualifiers), wherever a type occurs;
+--   * `&mut` on a SYNTACTICALLY-qbit type (`&mut qbit`, `&mut [qbit]`,
+--       `&mut [qbit; 2]`, through parens/qualifiers), wherever a type occurs;
 --   * `break` outside a loop, while still walking and validating its optional
 --       value expression
 --   * `continue` outside a loop
 --   * `return` outside a function body (for example in a const initializer),
 --       while still walking and validating its optional value expression
 --   * a multiplicity qualifier written both on a `let` and inside its type
---       annotation (`let linear q: affine qubit = ...`); reported at every
+--       annotation (`let linear q: affine qbit = ...`); reported at every
 --       qualifier at an owned position of the annotation (see "Owned
 --       positions" in Frontend.Syntax.Type), so qualifiers inside function
 --       types are not repeats
 --   * a multiplicity qualifier behind a reference, nested in its referent
---       (`&[linear qubit]`, `&(i32, affine qubit)`): a reference borrows its
+--       (`&[linear qbit]`, `&(i32, affine qbit)`): a reference borrows its
 --       referent without owning it; the parser already rejects one directly
---       after `&` (`&affine qubit`)
+--       after `&` (`&affine qbit`)
 --   * an array length written as a (possibly parenthesized) integer literal
---       with a signed type suffix (`[qubit; 3i8]`, `[0; (3i8)]`) or a value
---       that does not fit its unsigned suffix type (`[qubit; 256u8]`): an
+--       with a signed type suffix (`[qbit; 3i8]`, `[0; (3i8)]`) or a value
+--       that does not fit its unsigned suffix type (`[qbit; 256u8]`): an
 --       array length is unsigned, so only an unsigned suffix or none is
 --       accepted
 --
@@ -102,7 +102,7 @@ data ValidationError : Type where
     -> (attributeNameText : String)
     -> ValidationError
 
-  MutableBorrowOfQubit :
+  MutableBorrowOfQbit :
        (errorSpan : SourceSpan)
     -> ValidationError
 
@@ -125,7 +125,7 @@ data ValidationError : Type where
     -> ValidationError
 
   -- A multiplicity qualifier written both on a `let` and inside its type
-  -- annotation, e.g. `let linear q: affine qubit = qalloc();`. `errorSpan`
+  -- annotation, e.g. `let linear q: affine qbit = qalloc();`. `errorSpan`
   -- points at the qualifier inside the annotation.
   MultiplicityQualifierInLetAndType :
        (errorSpan : SourceSpan)
@@ -134,21 +134,21 @@ data ValidationError : Type where
     -> ValidationError
 
   -- A multiplicity qualifier at an owned position of a reference's referent,
-  -- e.g. `&[linear qubit]`. `errorSpan` points at the qualifier.
+  -- e.g. `&[linear qbit]`. `errorSpan` points at the qualifier.
   MultiplicityQualifierBehindReference :
        (errorSpan : SourceSpan)
     -> (qualifier : QuantumMultiplicityQualifier)
     -> ValidationError
 
   -- An array length written as an integer literal with a signed type
-  -- suffix, e.g. `[qubit; 3i8]`. `errorSpan` points at the literal.
+  -- suffix, e.g. `[qbit; 3i8]`. `errorSpan` points at the literal.
   SignedArrayLength :
        (errorSpan : SourceSpan)
     -> (suffixType : TypPrimName)
     -> ValidationError
 
   -- An array length written as an integer literal whose value does not fit
-  -- its suffix type, e.g. `[qubit; 256u8]`. `errorSpan` points at the literal.
+  -- its suffix type, e.g. `[qbit; 256u8]`. `errorSpan` points at the literal.
   ArrayLengthOutOfRange :
        (errorSpan : SourceSpan)
     -> (literalText : String)
@@ -164,7 +164,7 @@ validationErrorSpan err =
     UnknownAttribute s _        => s
     DuplicateAttribute s _      => s
     ConflictingAttributes s _   => s
-    MutableBorrowOfQubit s      => s
+    MutableBorrowOfQbit s      => s
     BreakOutsideLoop s          => s
     ContinueOutsideLoop s       => s
     ReturnOutsideFunction s     => s
@@ -189,8 +189,8 @@ Interpolation ValidationError where
           "attribute `" ++ nm ++
           "` conflicts with another attribute already applied to this item " ++
           "(qasm_gate and qasm_def are mutually exclusive)"
-        MutableBorrowOfQubit _ =>
-          "`mut` should never be written on a qubit reference; qubit references are mutable by default"
+        MutableBorrowOfQbit _ =>
+          "`mut` should never be written on a qbit reference; qbit references are mutable by default"
         BreakOutsideLoop _ =>
           "`break` found outside of a loop"
         ContinueOutsideLoop _ =>
@@ -200,7 +200,7 @@ Interpolation ValidationError where
         ControlBasisLengthMismatch _ controlCount basisLength =>
           "control basis contains " ++ show basisLength ++
           " states, but the control expression has " ++ show controlCount ++
-          " control qubits"
+          " control qbits"
         MultiplicityQualifierInLetAndType _ letQualifier typeQualifier =>
           "`" ++ show typeQualifier ++ "` cannot be written in the type " ++
           "annotation because the `let` already has the `" ++ show letQualifier ++
@@ -289,17 +289,17 @@ validateAttributeListFrom seen (MkAstNode attrInfo _ (MkAttributeNode nameNode _
 validateAttributeList : List SurfaceAttribute -> List ValidationError
 validateAttributeList = validateAttributeListFrom []
 
--- Is this type SYNTACTICALLY a qubit-carrying type? Only the cases visible
--- without resolution: qubit itself, arrays/slices of it, through parens and
--- qualifiers. Path types that CONTAIN qubits are typing's problem.
-isSyntacticallyQubitTy : TyNode SurfaceAstPhase SurfaceExpr -> Bool
-isSyntacticallyQubitTy ty =
+-- Is this type SYNTACTICALLY a qbit-carrying type? Only the cases visible
+-- without resolution: qbit itself, arrays/slices of it, through parens and
+-- qualifiers. Path types that CONTAIN qbits are typing's problem.
+isSyntacticallyQbitTy : TyNode SurfaceAstPhase SurfaceExpr -> Bool
+isSyntacticallyQbitTy ty =
   case ty of
-    TyPrimitive TypPrimQubit                   => True
-    TyParenthesized (MkAstNode _ _ inner)      => isSyntacticallyQubitTy inner
-    TyQualified _ (MkAstNode _ _ inner)        => isSyntacticallyQubitTy inner
-    TySlice (MkAstNode _ _ element)            => isSyntacticallyQubitTy element
-    TyArray (MkAstNode _ _ element) _          => isSyntacticallyQubitTy element
+    TyPrimitive TypPrimQbit                   => True
+    TyParenthesized (MkAstNode _ _ inner)      => isSyntacticallyQbitTy inner
+    TyQualified _ (MkAstNode _ _ inner)        => isSyntacticallyQbitTy inner
+    TySlice (MkAstNode _ _ element)            => isSyntacticallyQbitTy element
+    TyArray (MkAstNode _ _ element) _          => isSyntacticallyQbitTy element
     _                                          => False
 
 -- Multiplicity qualifiers written at the owned positions of a type.
@@ -703,7 +703,7 @@ mutual
       AdjointBlock body          => validateBlock ctx body
 
   ------------------------------------------------------------------
-  -- Types: the &mut-qubit check, the qualifier-behind-reference check, the
+  -- Types: the &mut-qbit check, the qualifier-behind-reference check, the
   -- array-length literal check, and recursion into array-size expressions
   -- (which are full surface expressions).
   ------------------------------------------------------------------
@@ -739,8 +739,8 @@ mutual
                   innerNode@(MkAstNode _ _ innerTy) =>
         (case borrow of
            MutableBorrow =>
-             if isSyntacticallyQubitTy innerTy
-               then [MutableBorrowOfQubit borrowInfo.span]
+             if isSyntacticallyQbitTy innerTy
+               then [MutableBorrowOfQbit borrowInfo.span]
                else []
            SharedBorrow  => [])
           ++ qualifiersBehindReference innerNode

@@ -6,9 +6,9 @@
 //////////////////////////////////////////////////////////////
 
 unitary fn balanced_oracle(
-    q0: qubit,
-    q1: qubit,
-) -> (qubit, qubit) {
+    q0: qbit,
+    q1: qbit,
+) -> (qbit, qbit) {
     // This implements a balanced oracle using a negative control.
     //
     // The oracle maps:

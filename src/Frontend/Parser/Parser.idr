@@ -307,35 +307,35 @@ parsePathType typeNodeId firstName firstBounds nodeId tokens acc =
                 (TyPath path)
            in Succ0 (ty, finalNodeId) finalTokens
 
-||| Parses the `qubit` following a multiplicity qualifier. A qualifier applies to
-||| a single qubit, so anything else is rejected at the token following it: a
-||| second qualifier, and qubit collections, which qualify their elements.
-||| Tested by: `fn qualified(q: affine qubit, pair: (linear qubit, affine qubit)) {}`.
-parseQualifiedQubit :
+||| Parses the `qbit` following a multiplicity qualifier. A qualifier applies to
+||| a single qbit, so anything else is rejected at the token following it: a
+||| second qualifier, and qbit collections, which qualify their elements.
+||| Tested by: `fn qualified(q: affine qbit, pair: (linear qbit, affine qbit)) {}`.
+parseQualifiedQbit :
      SourceFileName
   => NodeId
   -> SurfaceAstNode QuantumMultiplicityQualifier
   -> (nextNodeId : Nat)
   -> (tokens : List (Bounded Token))
   -> Res True Token tokens CustomParseError (SurfaceTy, Nat)
-parseQualifiedQubit typeNodeId qualifier nodeId
-    ((B (TokTypPrim TypPrimQubit) qubitBounds) :: remaining) =
-  let (qubitNodeId, nextNodeId) = reserveNodeId nodeId
-      qubitType = surfaceAstNode
-        (MkAstInfo qubitNodeId (sourceSpan qubitBounds))
-        (TyPrimitive TypPrimQubit)
+parseQualifiedQbit typeNodeId qualifier nodeId
+    ((B (TokTypPrim TypPrimQbit) qbitBounds) :: remaining) =
+  let (qbitNodeId, nextNodeId) = reserveNodeId nodeId
+      qbitType = surfaceAstNode
+        (MkAstInfo qbitNodeId (sourceSpan qbitBounds))
+        (TyPrimitive TypPrimQbit)
    in Succ0
         (surfaceAstNode
           (MkAstInfo typeNodeId
-            (mergeSpans qualifier.astInfo.span qubitType.astInfo.span))
-          (TyQualified qualifier qubitType),
+            (mergeSpans qualifier.astInfo.span qbitType.astInfo.span))
+          (TyQualified qualifier qbitType),
          nextNodeId)
         remaining
-parseQualifiedQubit _ qualifier _ ((B token bounds) :: _) =
+parseQualifiedQbit _ qualifier _ ((B token bounds) :: _) =
   failWithCustomError
-    (ParseErrorWithMessage (qualifiedNonQubitMessage qualifier.value token))
+    (ParseErrorWithMessage (qualifiedNonQbitMessage qualifier.value token))
     bounds
-parseQualifiedQubit _ _ _ [] = Fail0 (B EOI NoBounds)
+parseQualifiedQbit _ _ _ [] = Fail0 (B EOI NoBounds)
 
 ||| Wraps a parsed inner type as a reference type with the given borrow node.
 wrapReferenceType :
@@ -408,7 +408,7 @@ mutual
                     located = surfaceAstNode
                       (MkAstInfo qualifierNodeId (sourceSpan bounds)) multiplicity
                  in succT $
-                      parseQualifiedQubit typeNodeId located
+                      parseQualifiedQbit typeNodeId located
                         afterQualifierNodeId remaining
           Nothing =>
             case functionEffectFromKeyword keyword of
@@ -459,8 +459,8 @@ mutual
   ||| Parses the type a reference refers to. A reference borrows its referent
   ||| without owning it, so a multiplicity qualifier written directly after `&`
   ||| or `&mut` is rejected here; post-parse validation rejects one nested
-  ||| deeper (`&[linear qubit]`).
-  ||| Tested by: `fn bad(q: &affine qubit) {}`.
+  ||| deeper (`&[linear qbit]`).
+  ||| Tested by: `fn bad(q: &affine qbit) {}`.
   parseReferentType : TypeRule True SurfaceTy
   parseReferentType nodeId ((B token bounds) :: remaining) smaller acc =
     case multiplicityQualifierFromToken token of
@@ -473,7 +473,7 @@ mutual
 
   ||| Parses an effect-qualified function type, requiring `fn` after the effect.
   ||| Tested by:
-  ||| `general fn phase_kickback(oracle: unitary fn(qs: [qubit; 4], target: qubit) -> ([qubit; 4], qubit)) {}`.
+  ||| `general fn phase_kickback(oracle: unitary fn(qs: [qbit; 4], target: qbit) -> ([qbit; 4], qbit)) {}`.
   parseEffectFunctionType :
        NodeId -> FunctionEffect -> Bounds -> TypeRule True SurfaceTy
   parseEffectFunctionType typeNodeId effect effectBounds nodeId
@@ -683,7 +683,7 @@ mutual
   ||| trailing-comma case. It consumes the closing delimiter and returns its bounds
   ||| separately, allowing `parseParenType` to distinguish grouping from tuple
   ||| syntax and to span the complete tuple.
-  ||| Tested by: `fn qualified(pair: (linear qubit, affine qubit)) {}`.
+  ||| Tested by: `fn qualified(pair: (linear qbit, affine qbit)) {}`.
   parseTupleTail :
        SnocList SurfaceTy
     -> TypeRule True (CommaList SurfaceTy)
@@ -866,7 +866,7 @@ parseContractClauses nodeId tokens _ =
   Succ0 ([], nodeId) tokens
 
 ||| Collects quantum-storage qualifiers preceding a `let` pattern.
-||| Tested by: `fn allocate() {let scratch linear qs: [qubit; 2] = qalloc(2);}`.
+||| Tested by: `fn allocate() {let scratch linear qs: [qbit; 2] = qalloc(2);}`.
 parseLetQualifiers :
      StorageQualifiers
   -> Rule False (List (SurfaceAstNode QuantumStorageQualifier))
@@ -1636,7 +1636,7 @@ parseControlExpression ctrlBounds smaller nodeId
         Succ0 (MkCommaList [] closeBounds, _) _ =>
           failWithCustomError
             (ParseErrorWithMessage
-              "`ctrl` requires at least one control qubit.")
+              "`ctrl` requires at least one control qbit.")
             (ctrlBounds <+> closeBounds)
         Succ0 (MkCommaList (first :: rest) closeBounds, afterControlsNodeId)
               afterControls @{controlsSuffix} =>
@@ -2178,7 +2178,7 @@ parseLetInitializerValue markerValue markerBounds smaller nodeId tokens suffix _
           Succ0 (MkLetInitializerNode marker value, finalNodeId) finalTokens
 
 ||| Parses either an ordinary `=` or auto-uncompute `:=` let initializer.
-||| Tested by: `fn compute() {let q: qubit := f(q);}`.
+||| Tested by: `fn compute() {let q: qbit := f(q);}`.
 parseLetInitializer :
      {0 root : List (Bounded Token)}
   -> NestedRule True (LetInitializerNode SurfaceAstPhase) root

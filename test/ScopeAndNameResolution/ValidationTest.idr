@@ -62,7 +62,7 @@ validModule = MkResolvedModule
     Nothing
     (fromList [(MkNodeId 0 0, MkScopeId 0), (MkNodeId 10 0, MkScopeId 1), (MkNodeId 11 0, MkScopeId 1)])
     (fromList [(MkSymbolId 0, rootSymbol), (MkSymbolId 1, localSymbol)])
-    (fromList [(MkSymbolId 1, MkLocalVariableInfo ImmutableVariable NotQubitLocal)])
+    (fromList [(MkSymbolId 1, MkLocalVariableInfo ImmutableVariable NotQbitLocal)])
     (fromList [(MkSymbolId 1, [< reference])])
     (fromList [(MkScopeId 0, rootScope), (MkScopeId 1, blockScope)])
     (fromList [(MkSymbolId 0, MkScopeId 0)]))
@@ -137,7 +137,7 @@ shadowedModule =
                      declaredSymbolsInOrder := [< MkSymbolId 1, MkSymbolId 2] } blockScope
   -- The earlier reference to symbol 1 remains valid after symbol 2 shadows it.
   in withSymbol 2 laterSymbol $ withScope 1 laterScope $
-       { tables.localVariables := insert (MkSymbolId 2) (MkLocalVariableInfo ImmutableVariable NotQubitLocal)
+       { tables.localVariables := insert (MkSymbolId 2) (MkLocalVariableInfo ImmutableVariable NotQbitLocal)
                                          validModule.tables.localVariables } validModule
 
 memberModule : ResolvedModule
@@ -343,12 +343,12 @@ runResolutionValidationTests = runTests $ Test.do
       [show (MissingNodeScope (MkNodeId 10 0) (MkScopeId 99))]
 
   test "local-variable metadata must target existing symbols" $
-    diagnostics ({ tables.localVariables := insert (MkSymbolId 99) (MkLocalVariableInfo ImmutableVariable NotQubitLocal) validModule.tables.localVariables }
+    diagnostics ({ tables.localVariables := insert (MkSymbolId 99) (MkLocalVariableInfo ImmutableVariable NotQbitLocal) validModule.tables.localVariables }
                  validModule) `shouldBe`
       [show (MissingLocalSymbol (MkSymbolId 99))]
 
   test "local-variable metadata cannot describe modules" $
-    diagnostics ({ tables.localVariables := insert (MkSymbolId 0) (MkLocalVariableInfo ImmutableVariable NotQubitLocal) validModule.tables.localVariables }
+    diagnostics ({ tables.localVariables := insert (MkSymbolId 0) (MkLocalVariableInfo ImmutableVariable NotQbitLocal) validModule.tables.localVariables }
                  validModule) `shouldBe`
       [show (InvalidLocalSymbolKind (MkSymbolId 0))]
 
@@ -476,7 +476,7 @@ runResolutionValidationTests = runTests $ Test.do
 
   test "historical shadowed symbols still require local-variable metadata" $
     diagnostics ({ tables.localVariables := fromList
-                    [(MkSymbolId 2, MkLocalVariableInfo ImmutableVariable NotQubitLocal)] } shadowedModule) `shouldBe`
+                    [(MkSymbolId 2, MkLocalVariableInfo ImmutableVariable NotQbitLocal)] } shadowedModule) `shouldBe`
       [show (MissingLocalVariableInfo (MkSymbolId 1))]
 
   test "historical shadowed symbols must remain in declaration order" $

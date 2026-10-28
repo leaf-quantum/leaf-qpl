@@ -53,7 +53,7 @@ implementation Interpolation SourceSpan where
 -- Combining spans
 --------------------------------------------------------------------------------
 -- The span of a composite AST node is the merge of its first and last
--- constituent spans: `let q: qubit := f(q);` spans from the `let` token's
+-- constituent spans: `let q: qbit := f(q);` spans from the `let` token's
 -- start to the `;` token's end.
 -- Merging spans from different files and merging spans where the first span
 -- starts after the second span ends is a logic error but will be detected at

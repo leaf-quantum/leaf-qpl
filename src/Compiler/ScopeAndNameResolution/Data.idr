@@ -22,16 +22,16 @@ data VariableMutability
   | MutableVariable
 
 public export
-data QubitStorageStatus
-  = NotQubitLocal
-  | PendingQubitDefault -- Storage classification and defaults await typechecking.
-  | AssignedQubitStorage QuantumStorageProperties
+data QbitStorageStatus
+  = NotQbitLocal
+  | PendingQbitDefault -- Storage classification and defaults await typechecking.
+  | AssignedQbitStorage QuantumStorageProperties
 
 public export
 record LocalVariableInfo where
   constructor MkLocalVariableInfo
   mutability     : VariableMutability
-  quantumStorage : QubitStorageStatus
+  quantumStorage : QbitStorageStatus
 
 public export
 record ScopeTables where

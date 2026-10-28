@@ -5,7 +5,7 @@
 // We use `.rs` here for syntax highlighting purposes only.
 //////////////////////////////////////////////////////////////
 
-unitary fn balanced_oracle(qs: [qubit; 5]) -> [qubit; 5] {
+unitary fn balanced_oracle(qs: [qbit; 5]) -> [qbit; 5] {
     // Negative controls on qs[0] and qs[2] by X-conjugation.
     X(&qs[0]);
     X(&qs[2]);

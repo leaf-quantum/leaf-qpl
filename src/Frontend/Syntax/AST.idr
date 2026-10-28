@@ -764,14 +764,14 @@ mutual
     -- ctrl(c0, c1)[.on(bs"10")].apply(f) -- at least one control; the
     -- optional basis string is preserved raw (bs"10" as written).
     ControlledCallable :
-         (controlQubits  : List1 (Expr phase))
+         (controlQbits  : List1 (Expr phase))
       -> (onBasisRaw     : Maybe (AstNode phase String))
       -> (controlledCallable : Expr phase)
       -> ControlExpressionNode phase
 
     -- ctrl(c0, c1)[.on(bs"10")] { ...body... }
     ControlledBlock :
-         (controlQubits   : List1 (Expr phase))
+         (controlQbits   : List1 (Expr phase))
       -> (onBasisRaw      : Maybe (AstNode phase String))
       -> (controlledBlock : Block phase)
       -> ControlExpressionNode phase

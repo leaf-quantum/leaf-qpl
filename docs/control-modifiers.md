@@ -58,7 +58,7 @@ The control block expression applies the control operation to all unitary gates 
 Leaf has a special syntax for those functions where the compiler is able to infer that the function is controllable using the `supports` keyword combined with `ctrl`:
 
 ```leaf
-unitary fn f(q: &qubit) supports ctrl {
+unitary fn f(q: &qbit) supports ctrl {
     H(q);
 }
 ```
@@ -66,7 +66,7 @@ unitary fn f(q: &qubit) supports ctrl {
 Control and adjoint supports clauses can be combined:
 
 ```leaf
-unitary fn f(q: &qubit) supports adjoint, ctrl {
+unitary fn f(q: &qbit) supports adjoint, ctrl {
     H(q);
 }
 ```

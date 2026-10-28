@@ -130,7 +130,7 @@ declareLocalName symbolKind contextNode bindingMutability
   let variableMutability = case bindingMutability of
         Nothing => ImmutableVariable
         Just Mutable => MutableVariable
-  let localVariableInfo = MkLocalVariableInfo variableMutability PendingQubitDefault
+  let localVariableInfo = MkLocalVariableInfo variableMutability PendingQbitDefault
   let scopeBinding = MkScopeBinding
         nameText
         (Just nameInfo.span)
@@ -477,18 +477,18 @@ mutual
               resolveNode chainedIfInfo metadata resolvedIfNode
 
       resolveControlExpressionNode : ControlExpressionNode CanonicalAstPhase -> StateT ScopeTables (Either ResolutionError) (ControlExpressionNode ResolvedAstPhase)
-      resolveControlExpressionNode (ControlledCallable controlQubits onBasisRaw controlledCallable) = do
-        resolvedControlQubits <- traverse resolveNestedExpression controlQubits
+      resolveControlExpressionNode (ControlledCallable controlQbits onBasisRaw controlledCallable) = do
+        resolvedControlQbits <- traverse resolveNestedExpression controlQbits
         resolvedCallable <- resolveNestedExpression controlledCallable
         pure $ ControlledCallable
-          resolvedControlQubits
+          resolvedControlQbits
           (map resolveAstNode onBasisRaw)
           resolvedCallable
-      resolveControlExpressionNode (ControlledBlock controlQubits onBasisRaw controlledBlock) = do
-        resolvedControlQubits <- traverse resolveNestedExpression controlQubits
+      resolveControlExpressionNode (ControlledBlock controlQbits onBasisRaw controlledBlock) = do
+        resolvedControlQbits <- traverse resolveNestedExpression controlQbits
         resolvedBlock <- resolveBlockExpression controlledBlock
         pure $ ControlledBlock
-          resolvedControlQubits
+          resolvedControlQbits
           (map resolveAstNode onBasisRaw)
           resolvedBlock
 
@@ -655,31 +655,31 @@ resolveContractPredicate : CanonicalContractPredicate -> StateT ScopeTables (Eit
 resolveContractPredicate (MkAstNode predicateInfo metadata predicateNode) = do
   recordNodeScope predicateInfo.nodeId
   resolvedContract <- case predicateNode of
-    ContractClean qubitArgument => do
-      resolvedQubitArgument <- resolveExpression qubitArgument
-      pure $ ContractClean resolvedQubitArgument
-    ContractBasis qubitArgument pauliString => do
-      resolvedQubitArgument <- resolveExpression qubitArgument
+    ContractClean qbitArgument => do
+      resolvedQbitArgument <- resolveExpression qbitArgument
+      pure $ ContractClean resolvedQbitArgument
+    ContractBasis qbitArgument pauliString => do
+      resolvedQbitArgument <- resolveExpression qbitArgument
       pure $ ContractBasis
-        resolvedQubitArgument
+        resolvedQbitArgument
         (resolveAstNode pauliString)
-    ContractSeparable qubitArgument => do
-      resolvedQubitArgument <- resolveExpression qubitArgument
-      pure $ ContractSeparable resolvedQubitArgument
-    ContractIsolated qubitArgument => do
-      resolvedQubitArgument <- resolveExpression qubitArgument
-      pure $ ContractIsolated resolvedQubitArgument
-    ContractProduct firstQubitSet otherQubitSets => do
-      resolvedFirstQubitSet <- resolveExpression firstQubitSet
-      resolvedOtherQubitSets <- traverse resolveExpression otherQubitSets
+    ContractSeparable qbitArgument => do
+      resolvedQbitArgument <- resolveExpression qbitArgument
+      pure $ ContractSeparable resolvedQbitArgument
+    ContractIsolated qbitArgument => do
+      resolvedQbitArgument <- resolveExpression qbitArgument
+      pure $ ContractIsolated resolvedQbitArgument
+    ContractProduct firstQbitSet otherQbitSets => do
+      resolvedFirstQbitSet <- resolveExpression firstQbitSet
+      resolvedOtherQbitSets <- traverse resolveExpression otherQbitSets
       pure $ ContractProduct
-        resolvedFirstQubitSet
-        resolvedOtherQubitSets
-    ContractStabilized qubitArgument stabilizerTerms => do
-      resolvedQubitArgument <- resolveExpression qubitArgument
+        resolvedFirstQbitSet
+        resolvedOtherQbitSets
+    ContractStabilized qbitArgument stabilizerTerms => do
+      resolvedQbitArgument <- resolveExpression qbitArgument
       resolvedStabilizerTerms <- traverse resolveSignedPauliTerm stabilizerTerms
       pure $ ContractStabilized
-        resolvedQubitArgument
+        resolvedQbitArgument
         resolvedStabilizerTerms
   pure $ resolveNode predicateInfo metadata resolvedContract
 

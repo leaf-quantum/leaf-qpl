@@ -1,7 +1,7 @@
 // For an output register initially in |000⟩, compute
 // f(x0, x1, x2) = (x0, 0, x1 XOR x2).
 // Thus f(x) = f(x XOR 011): the hidden period is 011.
-unitary fn two_to_one_oracle(inputs: &[qubit], outputs: &[qubit]) {
+unitary fn two_to_one_oracle(inputs: &[qbit], outputs: &[qbit]) {
     CX(&inputs[0], &outputs[0]);
     CX(&inputs[1], &outputs[1]);
     CX(&inputs[2], &outputs[2]);
@@ -14,7 +14,7 @@ unitary fn two_to_one_oracle(inputs: &[qubit], outputs: &[qubit]) {
 
 // Compute f(x) = x in the initially zero output register.
 // This function is one-to-one, with no nonzero hidden period.
-unitary fn one_to_one_oracle(inputs: &[qubit], outputs: &[qubit]) {
+unitary fn one_to_one_oracle(inputs: &[qbit], outputs: &[qbit]) {
     CX(&inputs[0], &outputs[0]);
     CX(&inputs[1], &outputs[1]);
     CX(&inputs[2], &outputs[2]);
@@ -22,10 +22,10 @@ unitary fn one_to_one_oracle(inputs: &[qubit], outputs: &[qubit]) {
 
 // Perform one quantum sampling round using the supplied oracle.
 fn simon(
-    oracle: unitary fn(inputs: &[qubit], outputs: &[qubit]) -> ()
+    oracle: unitary fn(inputs: &[qbit], outputs: &[qbit]) -> ()
 ) -> [bit; 3] {
-    let inputs: [qubit; 3] = qalloc(3);
-    let outputs: [qubit; 3] = qalloc(3);
+    let inputs: [qbit; 3] = qalloc(3);
+    let outputs: [qbit; 3] = qalloc(3);
 
     // Prepare an equal superposition of all eight inputs.
     for i in 0..3 {

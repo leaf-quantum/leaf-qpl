@@ -61,7 +61,7 @@ implementation Show FunctionConstness where
 --
 -- Note mutability (&T vs. &mut T) is NOT this type: that is BorrowKind in
 -- Operator.idr, kept separate because the two occupy different grammatical
--- positions and Leaf's qubit rules treat them differently.
+-- positions and Leaf's qbit rules treat them differently.
 --------------------------------------------------------------------------------
 
 public export
@@ -83,7 +83,7 @@ implementation Show Mutability where
 -- The optional effect qualifier written before `fn`:
 --
 --   classical fn f(x: i32) -> i32 { ... }
---   unitary fn had(q: qubit) -> qubit { ... }
+--   unitary fn had(q: qbit) -> qbit { ... }
 --------------------------------------------------------------------------------
 
 public export
@@ -117,7 +117,7 @@ implementation Show FunctionEffect where
 --------------------------------------------------------------------------------
 -- The kinds that may appear after `supports` in a function signature:
 --
---   unitary fn f(q: &qubit) supports adjoint, ctrl { ... }
+--   unitary fn f(q: &qbit) supports adjoint, ctrl { ... }
 --
 -- A declaration stores the written clause as a list of these, in source
 -- order. (Lexically, `adjoint` arrives as a keyword token and `ctrl` as a
@@ -147,11 +147,11 @@ implementation Show SupportKind where
 --------------------------------------------------------------------------------
 -- The qualifiers that may appear between `let` and the binder:
 --
---   let linear q: qubit = qalloc();
---   let affine q: qubit = qalloc();
---   let scratch q: qubit = qalloc();
---   let scratch linear qs: [qubit; 2] = qalloc(2);
---   let linear scratch q: qubit = qalloc();
+--   let linear q: qbit = qalloc();
+--   let affine q: qbit = qalloc();
+--   let scratch q: qbit = qalloc();
+--   let scratch linear qs: [qbit; 2] = qalloc(2);
+--   let linear scratch q: qbit = qalloc();
 --
 -- Binders store `List QuantumStorageQualifier` IN SOURCE ORDER, so
 -- `scratch linear` and `linear scratch` round-trip differently even though
@@ -183,8 +183,8 @@ implementation Show QuantumStorageQualifier where
 --------------------------------------------------------------------------------
 -- The single qualifier that may be written inside a TYPE:
 --
---   fn maybe_drop(q: affine qubit) { ... }
---   oracle: unitary fn(q: linear qubit) -> qubit
+--   fn maybe_drop(q: affine qbit) { ... }
+--   oracle: unitary fn(q: linear qbit) -> qbit
 --
 -- `scratch` is deliberately absent: it describes cleanup at the end of a
 -- binding's scope, so it is only valid on `let` bindings (see
@@ -222,8 +222,8 @@ storageMultiplicity QualifierScratch = Nothing
 --------------------------------------------------------------------------------
 -- The operator between a let-binder and its initializer:
 --
---   let q: qubit = f(q);    -- ordinary binding
---   let q: qubit := f(q);   -- := marks the binding for AUTOMATIC
+--   let q: qbit = f(q);    -- ordinary binding
+--   let q: qbit := f(q);   -- := marks the binding for AUTOMATIC
 --                           -- UNCOMPUTATION when the enclosing fn returns
 --
 -- `:=` is deliberately NOT an AssignmentOperator (Operator.idr): it is legal
