@@ -15,6 +15,7 @@ Higher priority:
 - Quantum conditionals.
   - `qif`+`qelse` & `qmatch`.
   - `sif`+`selse` & `smatch`.
+- Rust style built-in methods.
 
 Other:
 
