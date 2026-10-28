@@ -174,38 +174,10 @@ validationErrorSpan err =
     SignedArrayLength s _ => s
     ArrayLengthOutOfRange s _ _ _ => s
 
-withValidationErrorFile : String -> ValidationError -> ValidationError
-withValidationErrorFile fileName err =
-  let withFile : SourceSpan =
-        { file := fileName } (validationErrorSpan err)
-  in case err of
-       UnknownAttribute _ nameText        => UnknownAttribute withFile nameText
-       DuplicateAttribute _ nameText      => DuplicateAttribute withFile nameText
-       ConflictingAttributes _ nameText   => ConflictingAttributes withFile nameText
-       MutableBorrowOfQubit _             => MutableBorrowOfQubit withFile
-       BreakOutsideLoop _                 => BreakOutsideLoop withFile
-       ContinueOutsideLoop _              => ContinueOutsideLoop withFile
-       ReturnOutsideFunction _            => ReturnOutsideFunction withFile
-       ControlBasisLengthMismatch _ controlCount basisLength =>
-         ControlBasisLengthMismatch withFile controlCount basisLength
-       MultiplicityQualifierInLetAndType _ letQualifier typeQualifier =>
-         MultiplicityQualifierInLetAndType withFile letQualifier typeQualifier
-       MultiplicityQualifierBehindReference _ qualifier =>
-         MultiplicityQualifierBehindReference withFile qualifier
-       SignedArrayLength _ suffixType =>
-         SignedArrayLength withFile suffixType
-       ArrayLengthOutOfRange _ literalText suffixType suffixMaximum =>
-         ArrayLengthOutOfRange withFile literalText suffixType suffixMaximum
-
--- "file:line:col" prefix, matching the lexer-error rendering style.
-renderSpanPrefix : SourceSpan -> String
-renderSpanPrefix s =
-  s.file ++ ":" ++ show s.start.line ++ ":" ++ show s.start.column
-
 public export
 Interpolation ValidationError where
   interpolate err =
-    renderSpanPrefix (validationErrorSpan err) ++ ": " ++
+    "\{validationErrorSpan err}: " ++
       case err of
         UnknownAttribute _ nm =>
           "unknown attribute `" ++ nm ++
@@ -388,8 +360,8 @@ mutual
   -- Entry point: validate one parsed source file.
   public export
   validateSourceFile : SurfaceSourceFile -> List ValidationError
-  validateSourceFile (MkAstNode fileInfo _ (MkSourceFileNode _ items)) =
-    map (withValidationErrorFile fileInfo.span.file) (validateItemList items)
+  validateSourceFile (MkAstNode _ _ (MkSourceFileNode _ items)) =
+    validateItemList items
 
   ------------------------------------------------------------------
   -- Items and declarations

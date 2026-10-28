@@ -50,12 +50,12 @@ sourceEndPos (P line column) =
   MkSourcePos (S line) (S (S column))
 
 public export
-sourceSpan : Bounds -> SourceSpan
+sourceSpan : {auto sourceFileName : SourceFileName} -> Bounds -> SourceSpan
 sourceSpan NoBounds =
   let start = MkSourcePos 1 1
-  in MkSourceSpan "" start start
+  in MkSourceSpan sourceFileName.fileName start start
 sourceSpan (BS start end) =
-  MkSourceSpan "" (sourceStartPos start) (sourceEndPos end)
+  MkSourceSpan sourceFileName.fileName (sourceStartPos start) (sourceEndPos end)
 
 lastItemSpan : SurfaceItem -> List SurfaceItem -> SourceSpan
 lastItemSpan item [] =
@@ -64,16 +64,12 @@ lastItemSpan _ (item :: rest) =
     lastItemSpan item rest
 
 public export
-sourceFileInfo : String -> NodeId -> List SurfaceItem -> AstInfo
-sourceFileInfo sourceFileName nodeId [] =
+sourceFileInfo : {auto sourceFileName : SourceFileName} -> NodeId -> List SurfaceItem -> AstInfo
+sourceFileInfo nodeId [] =
     let start = MkSourcePos 1 1 in
-        MkAstInfo nodeId (MkSourceSpan sourceFileName start start)
-sourceFileInfo sourceFileName nodeId (first :: rest) =
-    let firstSpan = first.astInfo.span
-        lastSpan = lastItemSpan first rest
-        fileSpan : SourceSpan =
-          { file := sourceFileName } (mergeSpans firstSpan lastSpan)
-     in MkAstInfo nodeId fileSpan
+        MkAstInfo nodeId (MkSourceSpan sourceFileName.fileName start start)
+sourceFileInfo nodeId (first :: rest) =
+    MkAstInfo nodeId (mergeSpans first.astInfo.span (lastItemSpan first rest))
 
 ||| Legal states reached while collecting a top-level item's declaration prefix.
 ||| Each constructor represents one accepted modifier sequence and retains the
@@ -252,7 +248,7 @@ startsWithUppercase text =
     [] => False
 
 public export
-makeLiteralExpression : LiteralNode -> Bounds -> Nat -> (SurfaceExpr, Nat)
+makeLiteralExpression : SourceFileName => LiteralNode -> Bounds -> Nat -> (SurfaceExpr, Nat)
 makeLiteralExpression literalValue bounds nodeId =
   let (expressionNodeId, afterExpressionNodeId) = reserveNodeId nodeId
       (literalNodeId, nextNodeId) = reserveNodeId afterExpressionNodeId
@@ -263,14 +259,14 @@ makeLiteralExpression literalValue bounds nodeId =
    in (expression, nextNodeId)
 
 public export
-makeName : String -> Bounds -> Nat -> (SurfaceName, Nat)
+makeName : SourceFileName => String -> Bounds -> Nat -> (SurfaceName, Nat)
 makeName nameText bounds nodeId =
   let (nameNodeId, nextNodeId) = reserveNodeId nodeId
       name = surfaceAstNode (MkAstInfo nameNodeId (sourceSpan bounds)) (MkNameNode nameText)
    in (name, nextNodeId)
 
 public export
-makeNameExpression : String -> Bounds -> Nat -> (SurfaceExpr, Nat)
+makeNameExpression : SourceFileName => String -> Bounds -> Nat -> (SurfaceExpr, Nat)
 makeNameExpression nameText bounds nodeId =
   let (expressionNodeId, afterExpressionNodeId) = reserveNodeId nodeId
       (name, nextNodeId) = makeName nameText bounds afterExpressionNodeId
@@ -279,7 +275,7 @@ makeNameExpression nameText bounds nodeId =
    in (expression, nextNodeId)
 
 public export
-makeBuiltinExpression : Builtin -> Bounds -> Nat -> (SurfaceExpr, Nat)
+makeBuiltinExpression : SourceFileName => Builtin -> Bounds -> Nat -> (SurfaceExpr, Nat)
 makeBuiltinExpression builtin bounds nodeId =
   let (expressionNodeId, nextNodeId) = reserveNodeId nodeId
       expression = surfaceAstNode (MkAstInfo expressionNodeId (sourceSpan bounds))

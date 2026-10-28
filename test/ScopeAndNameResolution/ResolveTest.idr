@@ -33,9 +33,9 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       , "const N: i32 = 1;\nfn f() { let mut N = 2; }"
       , "fn f(n: i32) {\n  [0; n];\n}"
       ] `shouldBe`
-      [ "Resolution: duplicate f at 2:4; previous declaration at 1:4"
-      , "Resolution: binding N at 2:18 shadows the constant at 1:7"
-      , "Resolution: non-constant n at 2:7 declared at 1:6"
+      [ "Resolution: A duplicate declaration for name: 'f' declared in 'resolution-test.lf:2:4' was found; the previous declaration is in 'resolution-test.lf:1:4'."
+      , "Resolution: The mutable binding for name: 'N' in 'resolution-test.lf:2:18' cannot shadow the constant declared in 'resolution-test.lf:1:7'."
+      , "Resolution: The local: 'n' used in 'resolution-test.lf:2:7' is not a constant and cannot be used in an array length or repeat count; it is declared in 'resolution-test.lf:1:6'."
       ]
 
   test "declarations, reads and writes agree between AST and reference tables" $
@@ -520,7 +520,7 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
          Right (name, spanKey span, spanKey previousSpan)
        Left err => Left (show err)
        Right _ => Left "Expected DuplicateDeclaration")
-      `shouldBe` Right ("f", ("", 2, 4, 2, 5), ("", 1, 4, 1, 5))
+      `shouldBe` Right ("f", ("resolution-test.lf", 2, 4, 2, 5), ("resolution-test.lf", 1, 4, 1, 5))
 
   test "constants and functions conflict in the same value namespace" $
     (case resolveSource "const f: i32 = 1;\nfn f() {}" of
@@ -528,7 +528,7 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
          Right (name, spanKey span, spanKey previousSpan)
        Left err => Left (show err)
        Right _ => Left "Expected DuplicateDeclaration")
-      `shouldBe` Right ("f", ("", 2, 4, 2, 5), ("", 1, 7, 1, 8))
+      `shouldBe` Right ("f", ("resolution-test.lf", 2, 4, 2, 5), ("resolution-test.lf", 1, 7, 1, 8))
 
   test "call callee and every argument have value references in the body scope" $
     expressionUses "g(x, n)" ["g", "x", "n"] (\expression => case expression.value of

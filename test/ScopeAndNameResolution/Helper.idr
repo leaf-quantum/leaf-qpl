@@ -35,19 +35,7 @@ Show FixtureError where
   show (LexingFailure message) = "Lexing: " ++ message
   show (ParsingFailure message) = "Parsing: " ++ message
   show (ValidationFailure messages) = "Validation: " ++ show messages
-  show (ResolutionFailure (UnresolvedName name span)) =
-    "Resolution: unresolved " ++ name ++ " at " ++ show span.start.line ++ ":" ++ show span.start.column
-  show (ResolutionFailure (DuplicateDeclaration name _ span previousSpan)) =
-    "Resolution: duplicate " ++ name ++ " at " ++ show span.start.line ++ ":" ++ show span.start.column ++
-    "; previous declaration at " ++ show previousSpan.start.line ++ ":" ++ show previousSpan.start.column
-  show (ResolutionFailure (InaccessibleSymbol name _ span)) =
-    "Resolution: inaccessible symbol " ++ name ++ " at " ++ show span.start.line ++ ":" ++ show span.start.column
-  show (ResolutionFailure (BindingShadowsConstant name _ span constantSpan)) =
-    "Resolution: binding " ++ name ++ " at " ++ show span.start.line ++ ":" ++ show span.start.column ++
-    " shadows the constant at " ++ show constantSpan.start.line ++ ":" ++ show constantSpan.start.column
-  show (ResolutionFailure (LocalValueUsedAsConstant name _ span localSpan)) =
-    "Resolution: non-constant " ++ name ++ " at " ++ show span.start.line ++ ":" ++ show span.start.column ++
-    " declared at " ++ show localSpan.start.line ++ ":" ++ show localSpan.start.column
+  show (ResolutionFailure resolutionError) = "Resolution: " ++ show resolutionError
   show (InvariantFailure messages) = "Resolution invariants: " ++ show messages
 
 export
@@ -57,7 +45,7 @@ canonicalSource source = do
     Left err => Left (LexingFailure (renderLexerError err))
     Right tokens => Right tokens
   surface <- case parseFile "resolution-test.lf" tokens of
-    Left err => Left (ParsingFailure (renderParseError err.value))
+    Left err => Left (ParsingFailure (showParseError err))
     Right surface => Right surface
   case validateSourceFile surface of
     [] => Right ()

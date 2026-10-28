@@ -218,8 +218,7 @@ showTypeError typeError =
       at sourceSpan $ "Invalid quantum pattern: " ++ explanation
   where
     at : SourceSpan -> String -> String
-    at sourceSpan message =
-      "Type error at " ++ sourceSpan.file ++ ":" ++ show sourceSpan.start.line ++ ":" ++ show sourceSpan.start.column ++ ": " ++ message
+    at sourceSpan message = "Type error at \{sourceSpan}: \{message}"
 
 public export
 implementation Show TypeError where

@@ -84,21 +84,18 @@ parseAndListNodeIds inputProgram =
     Just sourceFile =>
       Just (scanNodeIds (unpack (showAstDebug sourceFile)) Nothing)
 
+||| The message the user is shown, which carries the file and the error's start,
+||| paired with the span's end, which no message shows.
 export
-parseErrorDetails : String -> Maybe (String, String, (Nat, Nat), (Nat, Nat))
+parseErrorDetails : String -> Maybe (String, (Nat, Nat))
 parseErrorDetails inputProgram =
   case lexFile inputProgram of
     Left _ => Nothing
     Right tokens =>
       case parseFile "test-fixture.rs" tokens of
         Left located =>
-          let errorSpan = located.span
-              errorStart = errorSpan.start
-              errorEnd = errorSpan.end
-          in Just (renderParseError located.value,
-                                    errorSpan.file,
-                                    (errorStart.line, errorStart.column),
-                                    (errorEnd.line, errorEnd.column))
+          let errorEnd = located.span.end
+          in Just (showParseError located, (errorEnd.line, errorEnd.column))
         Right _ => Nothing
 
 export

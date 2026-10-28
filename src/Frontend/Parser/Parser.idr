@@ -26,7 +26,8 @@ import Frontend.Parser.Helper
 
 0 Rule : Bool -> Type -> Type
 Rule strict result =
-     (nextNodeId : Nat)
+     SourceFileName
+  => (nextNodeId : Nat)
   -> (tokens : List (Bounded Token))
   -> (0 acc : SuffixAcc tokens)
   -> Res strict Token tokens CustomParseError (result, Nat)
@@ -80,7 +81,8 @@ rebaseSmaller smaller within mode nextNodeId remaining suffix =
 ||| suffixes of the type parser's current input.
 0 TypeRule : Bool -> Type -> Type
 TypeRule strict result =
-     (nextNodeId : Nat)
+     SourceFileName
+  => (nextNodeId : Nat)
   -> (tokens : List (Bounded Token))
   -> (smaller : SmallerExpression tokens)
   -> (0 acc : SuffixAcc tokens)
@@ -89,7 +91,8 @@ TypeRule strict result =
 ||| A parser phase whose current input may be the root itself or any suffix of it.
 0 RootedRule : Bool -> Type -> List (Bounded Token) -> Type
 RootedRule strict result root =
-     (smaller : SmallerExpression root)
+     SourceFileName
+  => (smaller : SmallerExpression root)
   -> (nextNodeId : Nat)
   -> (tokens : List (Bounded Token))
   -> (0 suffix : Suffix False tokens root)
@@ -104,7 +107,8 @@ ExpressionRule strict root = RootedRule strict SurfaceExpr root
 ||| A parser phase whose current input is known to be a strict suffix of its root.
 0 NestedRule : Bool -> Type -> List (Bounded Token) -> Type
 NestedRule strict result root =
-     (smaller : SmallerExpression root)
+     SourceFileName
+  => (smaller : SmallerExpression root)
   -> (nextNodeId : Nat)
   -> (tokens : List (Bounded Token))
   -> (0 suffix : Suffix True tokens root)
@@ -132,7 +136,8 @@ parseStatementExpression : Rule True SurfaceExpr
 ||| and statement-leading expressions through `parseStatementExpression`.
 %inline
 expressionSmaller :
-     {0 tokens : List (Bounded Token)}
+     SourceFileName
+  => {0 tokens : List (Bounded Token)}
   -> (0 acc : SuffixAcc tokens)
   -> SmallerExpression tokens
 expressionSmaller (SA recur) CompleteExpression nextNodeId remaining suffix =
@@ -307,7 +312,8 @@ parsePathType typeNodeId firstName firstBounds nodeId tokens acc =
 ||| second qualifier, and qubit collections, which qualify their elements.
 ||| Tested by: `fn qualified(q: affine qubit, pair: (linear qubit, affine qubit)) {}`.
 parseQualifiedQubit :
-     NodeId
+     SourceFileName
+  => NodeId
   -> SurfaceAstNode QuantumMultiplicityQualifier
   -> (nextNodeId : Nat)
   -> (tokens : List (Bounded Token))
@@ -333,7 +339,8 @@ parseQualifiedQubit _ _ _ [] = Fail0 (B EOI NoBounds)
 
 ||| Wraps a parsed inner type as a reference type with the given borrow node.
 wrapReferenceType :
-     {0 tokens : List (Bounded Token)}
+     SourceFileName
+  => {0 tokens : List (Bounded Token)}
   -> NodeId
   -> SurfaceAstNode BorrowKind
   -> Bounds
@@ -355,7 +362,8 @@ mutual
   ||| Indexing the result by that head makes the strict decrease visible to
   ||| the continuations parsing the rest of the type.
   parseTypeAfterHead :
-       (typeNodeId : NodeId)
+       SourceFileName
+    => (typeNodeId : NodeId)
     -> (nextNodeId : Nat)
     -> (token : Token)
     -> (bounds : Bounds)
@@ -2784,9 +2792,9 @@ parseItems items nextNodeId tokens acc@(SA recur) =
         Succ0 (item, followingNodeId) remaining =>
             succT $ parseItems (items :< item) followingNodeId remaining recur
 
-||| Parses all items into a source-file AST associated with the supplied filename.
-parseModule : String -> Rule True SurfaceSourceFile
-parseModule fileName firstItemNodeId tokens acc =
+||| Parses all items into a source-file AST spanning the file being parsed.
+parseModule : Rule True SurfaceSourceFile
+parseModule firstItemNodeId tokens acc =
     case parseItems [<] firstItemNodeId tokens acc of
         Fail0 err =>
             Fail0 err
@@ -2794,7 +2802,7 @@ parseModule fileName firstItemNodeId tokens acc =
         Succ0 (items, nextNodeId) remaining =>
             Succ0
                 ( surfaceAstNode
-                    (sourceFileInfo fileName (MkNodeId 0 0) items)  -- source file node id is always 0, 0
+                    (sourceFileInfo (MkNodeId 0 0) items)           -- source file node id is always 0, 0
                     (MkSourceFileNode [] items)                     -- inner doc comments are not yet supported
                 , nextNodeId
                 )
@@ -2804,11 +2812,11 @@ parseModule fileName firstItemNodeId tokens acc =
 -- Main entry point: parse file using the idris2-parser library's machinery from Text.Parse.Manual
 ---------------------------------------------------------------------------------------------------
 
-||| Attaches a filename and converted source span to a parser error.
+||| Attaches a converted source span, which carries the filename, to a parser error.
 ||| Tested by the malformed input `fn empty(); }`.
-locatedParseError : String -> Bounds -> ParseError -> Located ParseError
-locatedParseError fileName bounds parseError =
-    MkLocated ({ file := fileName } (sourceSpan bounds)) parseError
+locatedParseError : SourceFileName => Bounds -> ParseError -> Located ParseError
+locatedParseError bounds parseError =
+    MkLocated (sourceSpan bounds) parseError
 
 public export
 ||| Runs the module parser over a token stream and returns either a located error or source file.
@@ -2818,9 +2826,10 @@ public export
 ||| with leftover tokens indicates an internal parser invariant violation.
 parseFile : String -> List (Bounded Token) -> Either (Located ParseError) SurfaceSourceFile
 parseFile fileName tokens =
-    case parseModule fileName 1 tokens suffixAcc of   -- first item node id is 1 (0 is source file node id)
+    let sourceFileName = MkSourceFileName fileName in
+    case parseModule @{sourceFileName} 1 tokens suffixAcc of   -- first item node id is 1 (0 is source file node id)
         Fail0 (B err bounds) =>
-            Left (locatedParseError fileName bounds err)
+            Left (locatedParseError @{sourceFileName} bounds err)
 
         Succ0 (sourceFile, _) [] =>
             Right sourceFile

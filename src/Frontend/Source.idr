@@ -31,6 +31,24 @@ record Located a where
   span  : SourceSpan
   value : a
 
+public export
+record SourceFileName where
+  constructor MkSourceFileName
+  fileName : String
+
+--------------------------------------------------------------------------------
+-- Rendering
+--------------------------------------------------------------------------------
+
+public export
+showSourceSpan : SourceSpan -> String
+showSourceSpan sourceSpan =
+  "\{sourceSpan.file}:\{show sourceSpan.start.line}:\{show sourceSpan.start.column}"
+
+public export
+implementation Interpolation SourceSpan where
+  interpolate = showSourceSpan
+
 --------------------------------------------------------------------------------
 -- Combining spans
 --------------------------------------------------------------------------------

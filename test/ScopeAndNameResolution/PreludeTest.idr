@@ -51,8 +51,8 @@ runPreludeFunctionsResolutionTests = runTests $ Test.do
   test "prelude registration does not suppress duplicate source declarations" $
     (case resolveSource "fn sin() {} fn sin() {}" of
        Left (ResolutionFailure (DuplicateDeclaration "sin" [_] current previous)) =>
-         spanKey current == ("", 1, 16, 1, 19) &&
-         spanKey previous == ("", 1, 4, 1, 7)
+         spanKey current == ("resolution-test.lf", 1, 16, 1, 19) &&
+         spanKey previous == ("resolution-test.lf", 1, 4, 1, 7)
        _ => False) `shouldBe` True
 
   test "prelude registration creates no source occurrences or locals" $

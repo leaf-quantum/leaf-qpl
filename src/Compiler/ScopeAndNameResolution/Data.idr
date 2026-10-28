@@ -80,9 +80,6 @@ data ResolutionError
                                                                         -- Immutable bare names instead resolve to constant patterns.
   | LocalValueUsedAsConstant String SymbolId SourceSpan SourceSpan      -- Use span, then the local's declaration name span. As in Rust (E0435),
                                                                         -- array lengths and repeat counts cannot use enclosing locals,
-                                                                        -- example: `fn f(n: usize) { let a = [0; n]; }`.
-
-
 
 -- Guide for future extensions:
 -- IllegalCapture String SourceSpan                         -- Nested functions are forbidden from capturing enclosing locals,
@@ -96,3 +93,20 @@ data ResolutionError
 -- UseBeforeDeclaration, optionally when a local variable is referenced before its declaration, example: `let y = x; let x = 1;` with no earlier `x` in scope.
 -- ModuleNotFound, during module loading when an external module cannot be located, example: `mod my_library;` with no corresponding module source.
 -- CyclicImport, when an import cycle prevents resolution or violates Leaf’s rules, example: `a::helper` re-exports `b::helper`, which re-exports `a::helper`, with no actual definition.
+
+export
+showResolutionError : ResolutionError -> String
+showResolutionError (UnresolvedName name sourceSpan) =
+  "Could not find a matching declaration for this name: '\{name}' in '\{sourceSpan}'."
+showResolutionError (DuplicateDeclaration name symbolIds sourceSpan previousSpan) =
+  "A duplicate declaration for name: '\{name}' declared in '\{sourceSpan}' was found; the previous declaration is in '\{previousSpan}'."
+showResolutionError (InaccessibleSymbol name _ sourceSpan) =
+  "At current location '\{sourceSpan}' the name: '\{name}' is not publicly accessible."
+showResolutionError (BindingShadowsConstant name _ sourceSpan constantSpan) =
+  "The mutable binding for name: '\{name}' in '\{sourceSpan}' cannot shadow the constant declared in '\{constantSpan}'."
+showResolutionError (LocalValueUsedAsConstant name _ sourceSpan localSpan) =
+  "The local: '\{name}' used in '\{sourceSpan}' is not a constant and cannot be used in an array length or repeat count; it is declared in '\{localSpan}'."
+
+export
+implementation Show ResolutionError where
+  show = showResolutionError

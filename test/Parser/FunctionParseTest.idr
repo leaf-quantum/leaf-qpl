@@ -16,9 +16,7 @@ runFunctionParseTests = runTests $ Test.do
   test "a raw integer literal in place of a function name is described by kind" $
     parseErrorDetails "fn 5() {}" `shouldBe`
       Just
-        ( "Parse error: expected ['function name'], but got raw integer literal `5`"
-        , "test-fixture.rs"
-        , (1, 4)
+        ( "Parse error at: test-fixture.rs:1:4, with message: expected 'function name', but got raw integer literal `5`"
         , (1, 5)
         )
 
@@ -95,18 +93,14 @@ runFunctionParseTests = runTests $ Test.do
   test "reference types require an inner type" $
     parseErrorDetails "fn f(x: &) {}" `shouldBe`
       Just
-        ( "Parse error: expected ['a type declaration'], but got symbol )"
-        , "test-fixture.rs"
-        , (1, 10)
+        ( "Parse error at: test-fixture.rs:1:10, with message: expected 'a type declaration', but got symbol )"
         , (1, 11)
         )
 
   test "a builtin in place of a type is described by kind" $
     parseErrorDetails "fn f(x: measr) {}" `shouldBe`
       Just
-        ( "Parse error: expected ['a type declaration'], but got builtin measr"
-        , "test-fixture.rs"
-        , (1, 9)
+        ( "Parse error at: test-fixture.rs:1:9, with message: expected 'a type declaration', but got builtin measr"
         , (1, 14)
         )
 
@@ -128,27 +122,21 @@ runFunctionParseTests = runTests $ Test.do
   test "conflicting multiplicity qualifiers in a type are rejected" $
     parseErrorDetails "fn bad(q: linear affine qubit) {}" `shouldBe`
       Just
-        ( "Cannot combine `linear` and `affine` storage qualifiers."
-        , "test-fixture.rs"
-        , (1, 18)
+        ( "Parse error at: test-fixture.rs:1:18, with message: Cannot combine `linear` and `affine` storage qualifiers."
         , (1, 24)
         )
 
   test "duplicate multiplicity qualifiers in a type are rejected" $
     parseErrorDetails "fn bad(q: affine affine qubit) {}" `shouldBe`
       Just
-        ( "Duplicate `affine` storage qualifier."
-        , "test-fixture.rs"
-        , (1, 18)
+        ( "Parse error at: test-fixture.rs:1:18, with message: Duplicate `affine` storage qualifier."
         , (1, 24)
         )
 
   test "scratch qualifier in a type is rejected" $
     parseErrorDetails "fn bad(q: scratch qubit) {}" `shouldBe`
       Just
-        ( "The `scratch` qualifier is only allowed on `let` bindings, not in types: write `let scratch q: qubit = ...`."
-        , "test-fixture.rs"
-        , (1, 11)
+        ( "Parse error at: test-fixture.rs:1:11, with message: The `scratch` qualifier is only allowed on `let` bindings, not in types: write `let scratch q: qubit = ...`."
         , (1, 18)
         )
 
@@ -161,9 +149,7 @@ runFunctionParseTests = runTests $ Test.do
   test "a qualifier followed by a non-type keyword is rejected" $
     parseErrorDetails "fn bad(q: linear if) {}" `shouldBe`
       Just
-        ( "The `linear` qualifier can only qualify `qubit`, not keyword if."
-        , "test-fixture.rs"
-        , (1, 18)
+        ( "Parse error at: test-fixture.rs:1:18, with message: The `linear` qualifier can only qualify `qubit`, not keyword if."
         , (1, 20)
         )
 
@@ -182,54 +168,42 @@ runFunctionParseTests = runTests $ Test.do
   test "a qualified array type is rejected" $
     parseErrorDetails "fn bad(qs: linear [qubit; 2]) {}" `shouldBe`
       Just
-        ( "The `linear` qualifier cannot qualify an array or slice: qualify the qubits of an array instead, e.g. `[linear qubit; 2]`."
-        , "test-fixture.rs"
-        , (1, 19)
+        ( "Parse error at: test-fixture.rs:1:19, with message: The `linear` qualifier cannot qualify an array or slice: qualify the qubits of an array instead, e.g. `[linear qubit; 2]`."
         , (1, 20)
         )
 
   test "a qualified array type in a let annotation is rejected" $
     parseErrorDetails "fn f() { let qs: affine [qubit; 2] = qalloc(2); }" `shouldBe`
       Just
-        ( "The `affine` qualifier cannot qualify an array or slice: qualify the qubits of an array instead, e.g. `[affine qubit; 2]`."
-        , "test-fixture.rs"
-        , (1, 25)
+        ( "Parse error at: test-fixture.rs:1:25, with message: The `affine` qualifier cannot qualify an array or slice: qualify the qubits of an array instead, e.g. `[affine qubit; 2]`."
         , (1, 26)
         )
 
   test "a qualifier directly behind a reference is rejected" $
     parseErrorDetails "fn bad(q: &affine qubit) {}" `shouldBe`
       Just
-        ( "The `affine` qualifier cannot be written behind a reference: a reference borrows its referent without owning it, so remove the qualifier."
-        , "test-fixture.rs"
-        , (1, 12)
+        ( "Parse error at: test-fixture.rs:1:12, with message: The `affine` qualifier cannot be written behind a reference: a reference borrows its referent without owning it, so remove the qualifier."
         , (1, 18)
         )
 
   test "a qualifier directly behind a mutable reference is rejected" $
     parseErrorDetails "fn bad(q: &mut linear qubit) {}" `shouldBe`
       Just
-        ( "The `linear` qualifier cannot be written behind a reference: a reference borrows its referent without owning it, so remove the qualifier."
-        , "test-fixture.rs"
-        , (1, 16)
+        ( "Parse error at: test-fixture.rs:1:16, with message: The `linear` qualifier cannot be written behind a reference: a reference borrows its referent without owning it, so remove the qualifier."
         , (1, 22)
         )
 
   test "a qualified slice behind a reference is rejected as behind a reference" $
     parseErrorDetails "fn bad(qs: &linear [qubit]) {}" `shouldBe`
       Just
-        ( "The `linear` qualifier cannot be written behind a reference: a reference borrows its referent without owning it, so remove the qualifier."
-        , "test-fixture.rs"
-        , (1, 13)
+        ( "Parse error at: test-fixture.rs:1:13, with message: The `linear` qualifier cannot be written behind a reference: a reference borrows its referent without owning it, so remove the qualifier."
         , (1, 19)
         )
 
   test "scratch directly behind a reference is rejected as scratch in a type" $
     parseErrorDetails "fn bad(q: &scratch qubit) {}" `shouldBe`
       Just
-        ( "The `scratch` qualifier is only allowed on `let` bindings, not in types: write `let scratch q: qubit = ...`."
-        , "test-fixture.rs"
-        , (1, 12)
+        ( "Parse error at: test-fixture.rs:1:12, with message: The `scratch` qualifier is only allowed on `let` bindings, not in types: write `let scratch q: qubit = ...`."
         , (1, 19)
         )
 
@@ -240,27 +214,21 @@ runFunctionParseTests = runTests $ Test.do
   test "a qualified tuple type is rejected" $
     parseErrorDetails "fn bad(p: affine (qubit, qubit)) {}" `shouldBe`
       Just
-        ( "The `affine` qualifier cannot qualify a parenthesized type or tuple: qualify each qubit inside it instead, e.g. `affine qubit` or `(affine qubit, affine qubit)`."
-        , "test-fixture.rs"
-        , (1, 18)
+        ( "Parse error at: test-fixture.rs:1:18, with message: The `affine` qualifier cannot qualify a parenthesized type or tuple: qualify each qubit inside it instead, e.g. `affine qubit` or `(affine qubit, affine qubit)`."
         , (1, 19)
         )
 
   test "a qualified parenthesized qubit is rejected" $
     parseErrorDetails "fn bad(q: linear (qubit)) {}" `shouldBe`
       Just
-        ( "The `linear` qualifier cannot qualify a parenthesized type or tuple: qualify each qubit inside it instead, e.g. `linear qubit` or `(linear qubit, linear qubit)`."
-        , "test-fixture.rs"
-        , (1, 18)
+        ( "Parse error at: test-fixture.rs:1:18, with message: The `linear` qualifier cannot qualify a parenthesized type or tuple: qualify each qubit inside it instead, e.g. `linear qubit` or `(linear qubit, linear qubit)`."
         , (1, 19)
         )
 
   test "a qualified function type is rejected" $
     parseErrorDetails "fn bad(f: linear fn(q: qubit)) {}" `shouldBe`
       Just
-        ( "The `linear` qualifier can only qualify `qubit`, not keyword fn."
-        , "test-fixture.rs"
-        , (1, 18)
+        ( "Parse error at: test-fixture.rs:1:18, with message: The `linear` qualifier can only qualify `qubit`, not keyword fn."
         , (1, 20)
         )
 
@@ -278,36 +246,28 @@ runFunctionParseTests = runTests $ Test.do
   test "function parameter outer doc comments are not yet supported" $
     parseErrorDetails "fn f(\n/// docs\nx: i32) {}" `shouldBe`
       Just
-        ( "Documentation comments on function parameters are not yet supported."
-        , "test-fixture.rs"
-        , (2, 1)
+        ( "Parse error at: test-fixture.rs:2:1, with message: Documentation comments on function parameters are not yet supported."
         , (2, 9)
         )
 
   test "function supports clauses are not yet supported" $
     parseErrorDetails "fn f() supports adjoint {}" `shouldBe`
       Just
-        ( "Function `supports` clauses are not yet supported."
-        , "test-fixture.rs"
-        , (1, 8)
+        ( "Parse error at: test-fixture.rs:1:8, with message: Function `supports` clauses are not yet supported."
         , (1, 16)
         )
 
   test "requires contract clauses are not yet supported" $
     parseErrorDetails "fn f() requires clean(q) {}" `shouldBe`
       Just
-        ( "Quantum contracts `requires` and/or `ensures` are not yet supported."
-        , "test-fixture.rs"
-        , (1, 8)
+        ( "Parse error at: test-fixture.rs:1:8, with message: Quantum contracts `requires` and/or `ensures` are not yet supported."
         , (1, 16)
         )
 
   test "ensures contract clauses are not yet supported" $
     parseErrorDetails "fn f() ensures basis(q, X) {}" `shouldBe`
       Just
-        ( "Quantum contracts `requires` and/or `ensures` are not yet supported."
-        , "test-fixture.rs"
-        , (1, 8)
+        ( "Parse error at: test-fixture.rs:1:8, with message: Quantum contracts `requires` and/or `ensures` are not yet supported."
         , (1, 15)
         )
 
@@ -319,55 +279,86 @@ runFunctionParseTests = runTests $ Test.do
 
   test "annotation applied to a statement instead to a function declaration" $
     parseErrorDetails "#[qasm_gate]\nlet i = 1;" `shouldBe`
-      Just ("Expected function declaration after attribute, found instead: `let`.", "test-fixture.rs", (2, 1), (2, 4))
+      Just
+        ( "Parse error at: test-fixture.rs:2:1, with message: Expected function declaration after attribute, found instead: `let`."
+        , (2, 4)
+        )
 
   test "attributes on const declarations are not yet supported" $
     parseErrorDetails "#[qasm_gate]\nconst N: i64 = 4;" `shouldBe`
       Just
-        ( "Attributes on const declarations are not yet supported."
-        , "test-fixture.rs"
-        , (2, 7)
+        ( "Parse error at: test-fixture.rs:2:7, with message: Attributes on const declarations are not yet supported."
         , (2, 8)
         )
 
   test "function or constant expected after pub visibility modifier" $
     parseErrorDetails "pub let i = 1;" `shouldBe`
-      Just ("Expected function or constant declaration after `pub` visibility modifier, found instead: `let`.", "test-fixture.rs", (1, 5), (1, 8))
+      Just
+        ( "Parse error at: test-fixture.rs:1:5, with message: Expected function or constant declaration after `pub` visibility modifier, found instead: `let`."
+        , (1, 8)
+        )
 
   test "function keyword expected after function effect" $
     parseErrorDetails "pub general let i = 1;" `shouldBe`
-      Just ("Expected `fn` after `general` effect modifier, found instead: `let`.", "test-fixture.rs", (1, 13), (1, 16))
+      Just
+        ( "Parse error at: test-fixture.rs:1:13, with message: Expected `fn` after `general` effect modifier, found instead: `let`."
+        , (1, 16)
+        )
 
   test "function keyword expected before a non-keyword after function effect" $
     parseErrorDetails "general foo" `shouldBe`
-      Just ("Expected `fn` after `general` effect modifier, found instead: `foo`.", "test-fixture.rs", (1, 9), (1, 12))
+      Just
+        ( "Parse error at: test-fixture.rs:1:9, with message: Expected `fn` after `general` effect modifier, found instead: `foo`."
+        , (1, 12)
+        )
 
   test "function keyword expected after const and function effect" $
     parseErrorDetails "const general let i = 1;" `shouldBe`
-      Just ("Expected `fn` after `general` effect modifier, found instead: `let`.", "test-fixture.rs", (1, 15), (1, 18))
+      Just
+        ( "Parse error at: test-fixture.rs:1:15, with message: Expected `fn` after `general` effect modifier, found instead: `let`."
+        , (1, 18)
+        )
 
   test "malformed attribute, missing closing bracket" $
     parseErrorDetails "#[qasm_gate \nfn empty() -> () {}" `shouldBe`
-      Just ("Malformed attribute.", "test-fixture.rs", (1, 1), (1, 2))
+      Just
+        ( "Parse error at: test-fixture.rs:1:1, with message: Malformed attribute."
+        , (1, 2)
+        )
 
   test "malformed attribute, extra content" $
     parseErrorDetails "#[qasm_gate bogus_name] \nfn empty() -> () {}" `shouldBe`
-      Just ("Malformed attribute.", "test-fixture.rs", (1, 1), (1, 2))
+      Just
+        ( "Parse error at: test-fixture.rs:1:1, with message: Malformed attribute."
+        , (1, 2)
+        )
 
   test "malformed attribute with argument, missing closing bracket" $
     parseErrorDetails "#[qasm_def(\"qasm_subroutine_name\") \nfn empty() -> () {}" `shouldBe`
-      Just ("Malformed attribute.", "test-fixture.rs", (1, 1), (1, 2))
+      Just
+        ( "Parse error at: test-fixture.rs:1:1, with message: Malformed attribute."
+        , (1, 2)
+        )
 
   test "malformed attribute with argument, extra content" $
     parseErrorDetails "#[qasm_def(\"qasm_subroutine_name\") bogus_name] \nfn empty() -> () {}" `shouldBe`
-      Just ("Malformed attribute.", "test-fixture.rs", (1, 1), (1, 2))
+      Just
+        ( "Parse error at: test-fixture.rs:1:1, with message: Malformed attribute."
+        , (1, 2)
+        )
 
   test "function without opening brace" $
     parseErrorDetails "fn empty(); }" `shouldBe`
-      Just ("Expected a braced block starting with `{`, found instead: `;`.", "test-fixture.rs", (1, 11), (1, 12))
+      Just
+        ( "Parse error at: test-fixture.rs:1:11, with message: Expected a braced block starting with `{`, found instead: `;`."
+        , (1, 12)
+        )
 
   test "function with statement missing semicolon" $
     parseErrorDetails "fn simple() { let i: i32 = 1; 2 let j = 3;" `shouldBe`
-      Just ("Expected `;` or `}`, found instead: `let`.", "test-fixture.rs", (1, 33), (1, 36))
+      Just
+        ( "Parse error at: test-fixture.rs:1:33, with message: Expected `;` or `}`, found instead: `let`."
+        , (1, 36)
+        )
 
   -- debugTestParseError "fn simple() { let i: i32 = 1; 2 let j = 3;"

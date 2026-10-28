@@ -74,9 +74,7 @@ runExpressionParseTests = runTests $ Test.do
   test "array type reports valid continuations after its element type" $
     parseErrorDetails "fn arrays() { let b: [i32 value]; }" `shouldBe`
       Just
-        ( "Parse error: expected [']', ';'], but got identifier \"value\""
-        , "test-fixture.rs"
-        , (1, 27)
+        ( "Parse error at: test-fixture.rs:1:27, with message: expected ']' or ';', but got identifier \"value\""
         , (1, 32)
         )
 
@@ -103,144 +101,112 @@ runExpressionParseTests = runTests $ Test.do
   test "let bindings report the markers accepted after a pattern" $
     parseErrorDetails "fn f() {let x + 1;}" `shouldBe`
       Just
-        ( "Parse error: expected [':', '=', ':='], but got symbol +"
-        , "test-fixture.rs"
-        , (1, 15)
+        ( "Parse error at: test-fixture.rs:1:15, with message: expected ':', '=' or ':=', but got symbol +"
         , (1, 16)
         )
 
   test "let bindings report the markers accepted after a type annotation" $
     parseErrorDetails "fn f() {let x: i32 + 1;}" `shouldBe`
       Just
-        ( "Parse error: expected ['=', ':='], but got symbol +"
-        , "test-fixture.rs"
-        , (1, 20)
+        ( "Parse error at: test-fixture.rs:1:20, with message: expected '=' or ':=', but got symbol +"
         , (1, 21)
         )
 
   test "a builtin in place of a let pattern is described by kind" $
     parseErrorDetails "fn f() {let measr = 1;}" `shouldBe`
       Just
-        ( "Parse error: expected ['a pattern'], but got builtin measr"
-        , "test-fixture.rs"
-        , (1, 13)
+        ( "Parse error at: test-fixture.rs:1:13, with message: expected 'a pattern', but got builtin measr"
         , (1, 18)
         )
 
   test "a raw integer literal in place of a let pattern is described by kind" $
     parseErrorDetails "fn f() {let 5 = 1;}" `shouldBe`
       Just
-        ( "Parse error: expected ['a pattern'], but got raw integer literal `5`"
-        , "test-fixture.rs"
-        , (1, 13)
+        ( "Parse error at: test-fixture.rs:1:13, with message: expected 'a pattern', but got raw integer literal `5`"
         , (1, 14)
         )
 
   test "a raw float literal in place of a let pattern is described by kind" $
     parseErrorDetails "fn f() {let 5.0 = 1;}" `shouldBe`
       Just
-        ( "Parse error: expected ['a pattern'], but got raw float literal `5.0`"
-        , "test-fixture.rs"
-        , (1, 13)
+        ( "Parse error at: test-fixture.rs:1:13, with message: expected 'a pattern', but got raw float literal `5.0`"
         , (1, 16)
         )
 
   test "a raw byte literal in place of a let pattern is described by kind" $
     parseErrorDetails "fn f() {let b'a' = 1;}" `shouldBe`
       Just
-        ( "Parse error: expected ['a pattern'], but got raw byte literal `b'a'`"
-        , "test-fixture.rs"
-        , (1, 13)
+        ( "Parse error at: test-fixture.rs:1:13, with message: expected 'a pattern', but got raw byte literal `b'a'`"
         , (1, 17)
         )
 
   test "a raw byte string literal in place of a let pattern is described by kind" $
     parseErrorDetails "fn f() {let b\"hi\" = 1;}" `shouldBe`
       Just
-        ( "Parse error: expected ['a pattern'], but got raw byte string literal `b\"hi\"`"
-        , "test-fixture.rs"
-        , (1, 13)
+        ( "Parse error at: test-fixture.rs:1:13, with message: expected 'a pattern', but got raw byte string literal `b\"hi\"`"
         , (1, 18)
         )
 
   test "a raw basis string literal in place of a let pattern is described by kind" $
     parseErrorDetails "fn f() {let bs\"01\" = 1;}" `shouldBe`
       Just
-        ( "Parse error: expected ['a pattern'], but got raw basis string literal `bs\"01\"`"
-        , "test-fixture.rs"
-        , (1, 13)
+        ( "Parse error at: test-fixture.rs:1:13, with message: expected 'a pattern', but got raw basis string literal `bs\"01\"`"
         , (1, 19)
         )
 
   test "a raw string literal in place of a let pattern is described by kind" $
     parseErrorDetails "fn f() {let \"hi\" = 1;}" `shouldBe`
       Just
-        ( "Parse error: expected ['a pattern'], but got raw string literal `\"hi\"`"
-        , "test-fixture.rs"
-        , (1, 13)
+        ( "Parse error at: test-fixture.rs:1:13, with message: expected 'a pattern', but got raw string literal `\"hi\"`"
         , (1, 17)
         )
 
   test "a boolean literal in place of a let pattern is described by kind" $
     parseErrorDetails "fn f() {let true = 1;}" `shouldBe`
       Just
-        ( "Parse error: expected ['a pattern'], but got boolean literal true"
-        , "test-fixture.rs"
-        , (1, 13)
+        ( "Parse error at: test-fixture.rs:1:13, with message: expected 'a pattern', but got boolean literal true"
         , (1, 17)
         )
 
   test "a state literal in place of a let pattern is described by kind" $
     parseErrorDetails "fn f() {let zero = 1;}" `shouldBe`
       Just
-        ( "Parse error: expected ['a pattern'], but got state literal zero"
-        , "test-fixture.rs"
-        , (1, 13)
+        ( "Parse error at: test-fixture.rs:1:13, with message: expected 'a pattern', but got state literal zero"
         , (1, 17)
         )
 
   test "a primitive type in place of a let pattern is described by kind" $
     parseErrorDetails "fn f() {let i32 = 1;}" `shouldBe`
       Just
-        ( "Parse error: expected ['a pattern'], but got primitive type i32"
-        , "test-fixture.rs"
-        , (1, 13)
+        ( "Parse error at: test-fixture.rs:1:13, with message: expected 'a pattern', but got primitive type i32"
         , (1, 16)
         )
 
   test "an outer doc comment in place of a let pattern is described by kind" $
     parseErrorDetails "fn f() { let /// doc\nx = 1; }" `shouldBe`
       Just
-        ( "Parse error: expected ['a pattern'], but got outer doc comment \"/// doc\""
-        , "test-fixture.rs"
-        , (1, 14)
+        ( "Parse error at: test-fixture.rs:1:14, with message: expected 'a pattern', but got outer doc comment \"/// doc\""
         , (1, 21)
         )
 
   test "an inner doc comment in place of a let pattern is described by kind" $
     parseErrorDetails "fn f() { let //! doc\nx = 1; }" `shouldBe`
       Just
-        ( "Parse error: expected ['a pattern'], but got inner doc comment \"//! doc\""
-        , "test-fixture.rs"
-        , (1, 14)
+        ( "Parse error at: test-fixture.rs:1:14, with message: expected 'a pattern', but got inner doc comment \"//! doc\""
         , (1, 21)
         )
 
   test "an underscore in place of an expression is described by kind" $
     parseErrorDetails "fn f() { let _ = 1; _(); }" `shouldBe`
       Just
-        ( "Parse error: expected ['an expression'], but got underscore"
-        , "test-fixture.rs"
-        , (1, 21)
+        ( "Parse error at: test-fixture.rs:1:21, with message: expected 'an expression', but got underscore"
         , (1, 22)
         )
 
   test "end of input in place of a closing bracket is described by kind" $
     parseErrorDetails "fn f() { let b: [i32; 2 " `shouldBe`
       Just
-        ( "Parse error: expected [']'], but got end of input"
-        , "test-fixture.rs"
-        , (1, 25)
+        ( "Parse error at: test-fixture.rs:1:25, with message: expected ']', but got end of input"
         , (1, 26)
         )
 
@@ -290,18 +256,14 @@ runExpressionParseTests = runTests $ Test.do
   test "comparison operators cannot be chained" $
     parseErrorDetails "fn f() {a < b < c}" `shouldBe`
       Just
-        ( "Comparison operators cannot be chained. Parenthesize one of the comparisons."
-        , "test-fixture.rs"
-        , (1, 15)
+        ( "Parse error at: test-fixture.rs:1:15, with message: Comparison operators cannot be chained. Parenthesize one of the comparisons."
         , (1, 16)
         )
 
   test "mixed equality and ordering comparisons cannot be chained" $
     parseErrorDetails "fn f() {a < b == c}" `shouldBe`
       Just
-        ( "Comparison operators cannot be chained. Parenthesize one of the comparisons."
-        , "test-fixture.rs"
-        , (1, 15)
+        ( "Parse error at: test-fixture.rs:1:15, with message: Comparison operators cannot be chained. Parenthesize one of the comparisons."
         , (1, 17)
         )
 
@@ -353,35 +315,37 @@ runExpressionParseTests = runTests $ Test.do
   test "if expressions require a braced body" $
     parseErrorDetails "fn f() {if ready}" `shouldBe`
       Just
-        ( "Expected a braced block starting with `{`, found instead: `}`."
-        , "test-fixture.rs"
-        , (1, 17)
+        ( "Parse error at: test-fixture.rs:1:17, with message: Expected a braced block starting with `{`, found instead: `}`."
         , (1, 18)
         )
 
   test "else is left unconsumed when followed by neither a block nor an if" $
     parseErrorDetails "fn f() {if ready {1} else 2}" `shouldBe`
       Just
-        ( "Parse error: expected ['an expression'], but got keyword else"
-        , "test-fixture.rs"
-        , (1, 22)
+        ( "Parse error at: test-fixture.rs:1:22, with message: expected 'an expression', but got keyword else"
         , (1, 26)
         )
 
   test "quantum if expressions are not yet supported" $
     parseErrorDetails "fn f() {qif q {1} qelse {0}}" `shouldBe`
-      Just ("Quantum if expressions are not yet supported.",
-            "test-fixture.rs", (1, 9), (1, 12))
+      Just
+        ( "Parse error at: test-fixture.rs:1:9, with message: Quantum if expressions are not yet supported."
+        , (1, 12)
+        )
 
   test "match expressions are not yet supported" $
     parseErrorDetails "fn f() {match value {0 => false}}" `shouldBe`
-      Just ("Match expressions are not yet supported.",
-            "test-fixture.rs", (1, 9), (1, 14))
+      Just
+        ( "Parse error at: test-fixture.rs:1:9, with message: Match expressions are not yet supported."
+        , (1, 14)
+        )
 
   test "quantum match expressions are not yet supported" $
     parseErrorDetails "fn f() {qmatch q {0 => false}}" `shouldBe`
-      Just ("Quantum match expressions are not yet supported.",
-            "test-fixture.rs", (1, 9), (1, 15))
+      Just
+        ( "Parse error at: test-fixture.rs:1:9, with message: Quantum match expressions are not yet supported."
+        , (1, 15)
+        )
 
   test "loop while and for expressions" $
     parseAndPrettyPrint "fn control() {loop {break}; while ready {continue}; for x in values {x}}" `shouldBe`
@@ -390,36 +354,28 @@ runExpressionParseTests = runTests $ Test.do
   test "loop expressions require a braced body" $
     parseErrorDetails "fn f() {loop}" `shouldBe`
       Just
-        ( "Expected a braced block starting with `{`, found instead: `}`."
-        , "test-fixture.rs"
-        , (1, 13)
+        ( "Parse error at: test-fixture.rs:1:13, with message: Expected a braced block starting with `{`, found instead: `}`."
         , (1, 14)
         )
 
   test "while expressions require a braced body after their condition" $
     parseErrorDetails "fn f() {while ready}" `shouldBe`
       Just
-        ( "Expected a braced block starting with `{`, found instead: `}`."
-        , "test-fixture.rs"
-        , (1, 20)
+        ( "Parse error at: test-fixture.rs:1:20, with message: Expected a braced block starting with `{`, found instead: `}`."
         , (1, 21)
         )
 
   test "for expressions require in after their binder" $
     parseErrorDetails "fn f() {for x y {}}" `shouldBe`
       Just
-        ( "Parse error: expected ['for identifier in expression'], but got keyword for"
-        , "test-fixture.rs"
-        , (1, 9)
+        ( "Parse error at: test-fixture.rs:1:9, with message: expected 'for identifier in expression', but got keyword for"
         , (1, 12)
         )
 
   test "for expressions require a binder before in" $
     parseErrorDetails "fn f() {for in values {}}" `shouldBe`
       Just
-        ( "Parse error: expected ['for identifier in expression'], but got keyword for"
-        , "test-fixture.rs"
-        , (1, 9)
+        ( "Parse error at: test-fixture.rs:1:9, with message: expected 'for identifier in expression', but got keyword for"
         , (1, 12)
         )
 
@@ -459,13 +415,17 @@ runExpressionParseTests = runTests $ Test.do
 
   test "state if expressions are not yet supported" $
     parseErrorDetails "fn f() {sif state {1} else {0}}" `shouldBe`
-      Just ("State if expressions are not yet supported.",
-            "test-fixture.rs", (1, 9), (1, 12))
+      Just
+        ( "Parse error at: test-fixture.rs:1:9, with message: State if expressions are not yet supported."
+        , (1, 12)
+        )
 
   test "state match expressions are not yet supported" $
     parseErrorDetails "fn f() {smatch state {0 => 1}}" `shouldBe`
-      Just ("State match expressions are not yet supported.",
-            "test-fixture.rs", (1, 9), (1, 15))
+      Just
+        ( "Parse error at: test-fixture.rs:1:9, with message: State match expressions are not yet supported."
+        , (1, 15)
+        )
 
   test "string literal expression" $
     parseAndPrettyPrint "fn string() {\"hello\"}" `shouldBe`
@@ -485,13 +445,17 @@ runExpressionParseTests = runTests $ Test.do
 
   test "struct literal expressions are not yet supported" $
     parseErrorDetails "fn f() {Point {x: 1, y: 2}}" `shouldBe`
-      Just ("Struct literal expressions are not yet supported.",
-            "test-fixture.rs", (1, 9), (1, 14))
+      Just
+        ( "Parse error at: test-fixture.rs:1:9, with message: Struct literal expressions are not yet supported."
+        , (1, 14)
+        )
 
   test "self expressions are not yet supported" $
     parseErrorDetails "fn f() {self.field}" `shouldBe`
-      Just ("Self expressions are not yet supported.",
-            "test-fixture.rs", (1, 9), (1, 13))
+      Just
+        ( "Parse error at: test-fixture.rs:1:9, with message: Self expressions are not yet supported."
+        , (1, 13)
+        )
 
   test "controlled callable expression" $
     parseAndPrettyPrint
@@ -526,8 +490,10 @@ runExpressionParseTests = runTests $ Test.do
 
   test "control expression requires a control qubit" $
     parseErrorDetails "fn f() {ctrl().apply(H)(q)}" `shouldBe`
-      Just ("`ctrl` requires at least one control qubit.",
-            "test-fixture.rs", (1, 9), (1, 15))
+      Just
+        ( "Parse error at: test-fixture.rs:1:9, with message: `ctrl` requires at least one control qubit."
+        , (1, 15)
+        )
 
   test "adjoint as a higher-order callable" $
     parseAndPrettyPrint "fn use_adjoint() {let f_adjoint = adjoint(f);}" `shouldBe`
@@ -555,8 +521,10 @@ runExpressionParseTests = runTests $ Test.do
 
   test "adjoint requires one callable" $
     parseErrorDetails "fn f() {adjoint()}" `shouldBe`
-      Just ("`adjoint(...)` requires one callable expression.",
-            "test-fixture.rs", (1, 16), (1, 18))
+      Just
+        ( "Parse error at: test-fixture.rs:1:16, with message: `adjoint(...)` requires one callable expression."
+        , (1, 18)
+        )
 
   test "postfix index field tuple-index and method-call expressions" $
     parseAndPrettyPrint "fn postfix() {a[i]; p.x; t.0; a.len()}" `shouldBe`
@@ -594,19 +562,31 @@ runExpressionParseTests = runTests $ Test.do
 
   test "path expressions are not yet supported" $
     parseErrorDetails "fn f() {Data::Left}" `shouldBe`
-      Just ("Path expressions are not yet supported.", "test-fixture.rs", (1, 9), (1, 13))
+      Just
+        ( "Parse error at: test-fixture.rs:1:9, with message: Path expressions are not yet supported."
+        , (1, 13)
+        )
 
   test "byte literals are not yet supported" $
     parseErrorDetails "fn f() {b'a'}" `shouldBe`
-      Just ("Byte literals are not yet supported.", "test-fixture.rs", (1, 9), (1, 13))
+      Just
+        ( "Parse error at: test-fixture.rs:1:9, with message: Byte literals are not yet supported."
+        , (1, 13)
+        )
 
   test "byte string literals are not yet supported" $
     parseErrorDetails "fn f() {b\"hi\"}" `shouldBe`
-      Just ("Byte string literals are not yet supported.", "test-fixture.rs", (1, 9), (1, 14))
+      Just
+        ( "Parse error at: test-fixture.rs:1:9, with message: Byte string literals are not yet supported."
+        , (1, 14)
+        )
 
   test "state literals are not yet supported" $
     parseErrorDetails "fn f() {zero}" `shouldBe`
-      Just ("State literals are not yet supported.", "test-fixture.rs", (1, 9), (1, 13))
+      Just
+        ( "Parse error at: test-fixture.rs:1:9, with message: State literals are not yet supported."
+        , (1, 13)
+        )
 
   test "node identifiers follow source order through nested control flow" $
     map parseAndListNodeIds

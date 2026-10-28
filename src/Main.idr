@@ -34,34 +34,6 @@ isValidLeafFileName fileName =
   isOneWord fileName &&
   (isSuffixOf ".lf" fileName || isSuffixOf ".rs" fileName)
 
-showParseError : Located ParseError -> String
-showParseError err =
-  let errorFile = err.span.file
-      errorSpanStart = err.span.start
-  in "Parse error at: "
-      ++ errorFile
-      ++ ", at line: "
-      ++ show errorSpanStart.line
-      ++ ", at column: "
-      ++ show errorSpanStart.column
-      ++ ", with message: "
-      ++ renderParseError err.value
-
-showSourceSpan : SourceSpan -> String
-showSourceSpan sspan = "file: '\{sspan.file}' at line: '\{show sspan.start.line}' and column: '\{show sspan.start.column}'"
-
-showResolutionError : ResolutionError -> String
-showResolutionError (UnresolvedName name sourceSpan) =
-  "Could not find a matching declaration for this name: '\{name}' in '\{showSourceSpan sourceSpan}'."
-showResolutionError (DuplicateDeclaration name symbolIds sourceSpan previousSpan) =
-  "A duplicate declaration for name: '\{name}' declared in '\{showSourceSpan sourceSpan}' was found; the previous declaration is in '\{showSourceSpan previousSpan}'."
-showResolutionError (InaccessibleSymbol name _ sourceSpan) =
-  "At current location '\{showSourceSpan sourceSpan}' the name: '\{name}' is not publicly accessible."
-showResolutionError (BindingShadowsConstant name _ sourceSpan constantSpan) =
-  "The mutable binding for name: '\{name}' in '\{showSourceSpan sourceSpan}' cannot shadow the constant declared in '\{showSourceSpan constantSpan}'."
-showResolutionError (LocalValueUsedAsConstant name _ sourceSpan localSpan) =
-  "The local: '\{name}' used in '\{showSourceSpan sourceSpan}' is not a constant and cannot be used in an array length or repeat count; it is declared in '\{showSourceSpan localSpan}'."
-
 printAstAndProgram : PhasePretty phase => SourceFile phase -> IO ()
 printAstAndProgram astTree = do
   putStrLn "AST Nodes:"
@@ -73,7 +45,7 @@ export
 compileSource : (fileName : String) -> (source : String) -> Either String ResolvedModule
 compileSource fileName source =
   case lexFile source of
-    Left err => Left $ renderLexerError err
+    Left err => Left $ fileName ++ ": " ++ renderLexerError err
     Right tokens =>
       case parseFile fileName tokens of
         Left err => Left $ showParseError err
@@ -84,7 +56,7 @@ compileSource fileName source =
             [] =>
               let canonicalAst = desugarSurfaceSyntax surfaceAst
               in case resolveCanonicalSyntax canonicalAst of
-                Left resolutionError => Left $ showResolutionError resolutionError
+                Left resolutionError => Left $ show resolutionError
                 Right resolvedModule =>
                   case validateResolvedModule resolvedModule of
                     errors@(_ :: _) =>
