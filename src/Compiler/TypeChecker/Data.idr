@@ -170,7 +170,7 @@ data TypeError
   | InvalidBinaryOperands String LeafType LeafType SourceSpan  -- operator, left type, right type
   | NotIndexable LeafType SourceSpan                           -- attempted indexing on an unsupported type
   | IntegerLiteralOutOfRange Integer LeafType SourceSpan       -- literal value, target type
-  | InvalidCast LeafType LeafType SourceSpan                   -- source type, target typei
+  | InvalidCast LeafType LeafType SourceSpan                   -- source type, target type
   | InvalidQuantumQualifier String LeafType SourceSpan         -- qualifier, annotated type, ex: let scratch n: i32 = 5;
   | InvalidQubitReference SourceSpan                           -- explicit 'mut' on a qubit reference, ex: &mut qubit or &mut [qubit]
   | InvalidConditionType String LeafType SourceSpan            -- construct if/qif/sif/etc., actual type, ex: if q { ... } where q: qubit
@@ -179,4 +179,49 @@ data TypeError
   | MissingCapability String SourceSpan                        -- required capability (adjoint or ctrl), ex: adjoint(f) when f has no established adjoint support
   | InvalidQuantumPattern String SourceSpan               -- explanation of the invalid pattern, ex: mixing integer and basis-string patterns in one qmatch, or using _ in smatch.
                                                               -- type cycles?
+
+export
+showTypeError : TypeError -> String
+showTypeError typeError =
+  case typeError of
+    TypeMismatch expected actual sourceSpan =>
+      at sourceSpan $ "Expected type '" ++ show expected ++ "', but found '" ++ show actual ++ "'."
+    CannotInferType sourceSpan =>
+      at sourceSpan "Cannot infer the type; add a type annotation."
+    NotCallable actual sourceSpan =>
+      at sourceSpan $ "Cannot call a value of type '" ++ show actual ++ "'."
+    WrongArgumentCount expected actual sourceSpan =>
+      at sourceSpan $ "Expected " ++ show expected ++ " argument(s), but received " ++ show actual ++ "."
+    InvalidUnaryOperand operator operandType sourceSpan =>
+      at sourceSpan $ "Operator '" ++ operator ++ "' cannot be applied to type '" ++ show operandType ++ "'."
+    InvalidBinaryOperands operator leftType rightType sourceSpan =>
+      at sourceSpan $ "Operator '" ++ operator ++ "' cannot be applied to types '" ++ show leftType ++ "' and '" ++ show rightType ++ "'."
+    NotIndexable actual sourceSpan =>
+      at sourceSpan $ "Cannot index a value of type '" ++ show actual ++ "'."
+    IntegerLiteralOutOfRange value targetType sourceSpan =>
+      at sourceSpan $ "Integer literal " ++ show value ++ " is out of range for type '" ++ show targetType ++ "'."
+    InvalidCast sourceType targetType sourceSpan =>
+      at sourceSpan $ "Cannot cast type '" ++ show sourceType ++ "' to '" ++ show targetType ++ "'."
+    InvalidQuantumQualifier qualifier actual sourceSpan =>
+      at sourceSpan $ "Quantum qualifier '" ++ qualifier ++ "' is not valid for type '" ++ show actual ++ "'."
+    InvalidQubitReference sourceSpan =>
+      at sourceSpan "Qubit references are mutable by default; omit 'mut' from the reference."
+    InvalidConditionType construct actual sourceSpan =>
+      at sourceSpan $ "Type '" ++ show actual ++ "' is not a valid condition type for '" ++ construct ++ "'."
+    QuantumWidthMismatch context expected actual sourceSpan =>
+      at sourceSpan $ "Quantum width mismatch in " ++ context ++ ": expected " ++ show expected ++ ", but found " ++ show actual ++ "."
+    EffectViolation enclosingEffect operationEffect sourceSpan =>
+      at sourceSpan $ "An operation with effect '" ++ show operationEffect ++ "' is not permitted in a function with effect '" ++ show enclosingEffect ++ "'."
+    MissingCapability capability sourceSpan =>
+      at sourceSpan $ "The callable does not have established support for '" ++ capability ++ "'."
+    InvalidQuantumPattern explanation sourceSpan =>
+      at sourceSpan $ "Invalid quantum pattern: " ++ explanation
+  where
+    at : SourceSpan -> String -> String
+    at sourceSpan message =
+      "Type error at " ++ sourceSpan.file ++ ":" ++ show sourceSpan.start.line ++ ":" ++ show sourceSpan.start.column ++ ": " ++ message
+
+public export
+implementation Show TypeError where
+  show = showTypeError
 

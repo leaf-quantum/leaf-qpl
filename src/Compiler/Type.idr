@@ -1,6 +1,9 @@
 module Compiler.Type
 
 import Data.List1
+import Data.String
+import Derive.Prelude
+import Language.Reflection
 
 import Frontend.ASTData
 import Frontend.Token
@@ -8,6 +11,7 @@ import Frontend.Syntax.Common
 import Frontend.Syntax.Operator
 
 %default total
+%language ElabReflection
 
 --------------------------------------------------------------------------------
 -- Semantic Leaf types
@@ -31,6 +35,37 @@ data LeafType
   | LeafQualifiedType QuantumMultiplicityQualifier LeafType
   | LeafNeverType     -- expressions that never finish: return, break, continue, loop with no break
                       -- none of them ever produce a value at the point where they appear: control jumps somewhere else
+
+%runElab derive "LeafType" [Eq]
+
+export
+showLeafType : LeafType -> String
+showLeafType ty =
+  case ty of
+    LeafPrimitiveType primitive => show primitive
+    LeafNamedType (MkSymbolId symbolId) => "type#" ++ show symbolId
+    LeafUnitType => "()"
+    LeafTupleType (element ::: []) => "(" ++ recur element ++ ",)"
+    LeafTupleType elements => "(" ++ joinBy ", " (map recur (forget elements)) ++ ")"
+    LeafArrayType element count => "[" ++ recur element ++ "; " ++ show count ++ "]"
+    LeafSliceType element => "[" ++ recur element ++ "]"
+    LeafRangeType element => "Range<" ++ recur element ++ ">"
+    LeafReferenceType SharedBorrow referent =>
+      (case referent of
+         LeafReferenceType _ _ => "& "
+         _ => "&") ++ recur referent
+    LeafReferenceType MutableBorrow referent => "&mut " ++ recur referent
+    LeafFunctionType effect parameterTypes result =>
+      show effect ++ " fn(" ++ joinBy ", " (map recur parameterTypes) ++ ") -> " ++ recur result
+    LeafQualifiedType qualifier qualifiedType => show qualifier ++ " " ++ recur qualifiedType
+    LeafNeverType => "!"
+  where
+    recur : LeafType -> String
+    recur nestedType = showLeafType (assert_smaller ty nestedType)
+
+public export
+implementation Show LeafType where
+  show = showLeafType
 
 --------------------------------------------------------------------------------
 -- References
