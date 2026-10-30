@@ -5,9 +5,10 @@ This document compiles a list of features which are covered by the [language doc
 
 Higher priority:
 
-- Modules and imports.
-- Support for adjoint() operation.
 - Lean 4 code generation.
+- Modules and imports.
+- Handle supports adjoint/ctrl function clauses.
+- Support for adjoint() operation.
 - Uncomputation support.
 - `affine` & `scratch` qubits.
 - Quantum contracts.
