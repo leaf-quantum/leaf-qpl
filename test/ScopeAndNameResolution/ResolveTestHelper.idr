@@ -167,7 +167,7 @@ bindingMatches scope name = case lookup name.value.resolvedNameNodeText scope.va
 export
 localMatches : ResolvedModule -> ResolvedName -> Bool -> Bool
 localMatches resolved name mutable = case lookup (symbolId name) resolved.tables.localVariables of
-  Just (MkLocalVariableInfo actual PendingQbitDefault) =>
+  Just (MkLocalVariableInfo actual ()) =>
     case actual of
       MutableVariable => mutable
       ImmutableVariable => not mutable

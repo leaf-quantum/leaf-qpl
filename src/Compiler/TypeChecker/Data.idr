@@ -4,7 +4,7 @@ import Data.List1
 import Data.SortedMap
 
 import Compiler.ScopeAndNameResolution.Data
-import Compiler.Type
+import Compiler.TypeChecker.Type
 import Frontend.ASTData
 import Frontend.ASTPhases
 import Frontend.QuantumAnnotations

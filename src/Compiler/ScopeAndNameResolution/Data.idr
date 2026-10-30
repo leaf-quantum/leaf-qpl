@@ -6,7 +6,6 @@ import Frontend.Helper
 import Frontend.QuantumAnnotations
 import Frontend.Source
 import Frontend.Syntax.AST
-import Compiler.Type
 
 import Data.SortedMap
 

@@ -1,7 +1,7 @@
 module Compiler.TypeChecker.Helper
 
-import Compiler.Type
 import Compiler.TypeChecker.Data
+import Compiler.TypeChecker.Type
 import Data.List
 import Data.List1
 import Data.Maybe

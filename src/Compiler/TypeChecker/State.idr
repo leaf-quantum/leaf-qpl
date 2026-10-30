@@ -2,9 +2,9 @@ module Compiler.TypeChecker.State
 
 import Data.SortedMap
 
-import Compiler.Type
 import Compiler.TypeChecker.Data
 import Compiler.TypeChecker.TcType
+import Compiler.TypeChecker.Type
 import Frontend.ASTData
 import Frontend.Syntax.Common
 

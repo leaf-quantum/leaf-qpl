@@ -2,7 +2,7 @@ module Compiler.TypeChecker.TcType
 
 import Data.List1
 
-import Compiler.Type
+import Compiler.TypeChecker.Type
 import Frontend.ASTData
 import Frontend.Token
 import Frontend.Syntax.Common

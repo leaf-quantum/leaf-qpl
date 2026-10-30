@@ -5,10 +5,10 @@ import Data.SortedMap
 
 import Control.Monad.State
 import Compiler.ScopeAndNameResolution.Data
-import Compiler.Type
 import Compiler.TypeChecker.Data
 import Compiler.TypeChecker.Helper
 import Compiler.TypeChecker.State
+import Compiler.TypeChecker.Type
 import Frontend.ASTData
 import Frontend.ASTPhases
 import Frontend.Syntax.Attribute

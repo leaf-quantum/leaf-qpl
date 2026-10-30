@@ -2,9 +2,9 @@ module TypeChecker.TypeTranslationTest
 
 import Test.Simple
 
-import Compiler.Type
 import Compiler.TypeChecker.Data
 import Compiler.TypeChecker.Helper
+import Compiler.TypeChecker.Type
 import Data.List1
 import Desugarer.Helper
 import Frontend.ASTPhases
