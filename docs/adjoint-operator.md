@@ -88,9 +88,6 @@ unitary fn f(q: &qbit) supports adjoint, ctrl {
 }
 ```
 
-A function that contains only unitary quantum gates always supports the adjoint operation and usually does not when it measures, resets or discards qubits. Sometimes quantum code can measure/reset/discard qubits and still be treated as unitary as long as those operations are applied to qubits that are provably driven to the all-zero, separable state.
+A function that contains only unitary quantum gates always supports the adjoint operation and usually does not when it measures, resets or discards qubits. Sometimes quantum code can measure/reset/discard qubits and still be treated as unitary as long as those operations are applied to qubits that are provably driven to the all-zero, separable state. A `supports adjoint` clause requires that the compiler is able to construct an adjoint version of the function or reject the declaration. A function containing unitary gates can be inverted if the order of quantum operation can be reversed. If the function contains a sequence of gates automatically generating an inverse is straightforward. In the presence of classical code fragments inside the function this can be more challenging.
 
-TODO: how classical calls inside the adjoint block are handled? left unchanged?
-TODO: how adjoint applies or not to function that returns classical data or generates side effects
-TODO: similar issues with control
 
