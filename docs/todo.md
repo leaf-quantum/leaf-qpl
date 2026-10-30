@@ -6,6 +6,7 @@ This document compiles a list of features which are covered by the [language doc
 Higher priority:
 
 - Modules and imports.
+- Support for adjoint() operation.
 - Lean 4 code generation.
 - Uncomputation support.
 - `affine` & `scratch` qubits.
