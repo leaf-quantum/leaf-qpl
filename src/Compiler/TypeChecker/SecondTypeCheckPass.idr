@@ -8,6 +8,7 @@ import Compiler.ScopeAndNameResolution.Data
 import Compiler.TypeChecker.Data
 import Compiler.TypeChecker.Helper
 import Compiler.TypeChecker.State
+import Compiler.TypeChecker.TcType
 import Compiler.TypeChecker.Type
 import Frontend.ASTData
 import Frontend.ASTPhases
@@ -173,9 +174,11 @@ mutual
 --      typecheckAdjointExpressionNode : AdjointExpressionNode ResolvedAstPhase -> AdjointExpressionNode TypedAstPhase
 --      typecheckAdjointExpressionNode (AdjointOfCallable adjointedCallable) = AdjointOfCallable (typecheckNestedExpression adjointedCallable)
 --      typecheckAdjointExpressionNode (AdjointBlock adjointedBlock) = AdjointBlock (typecheckBlockExpression adjointedBlock)
---
-  typecheckExpression : ResolvedExpr ->  StateT CheckerState (Either TypeError) TypedExpr
-  typecheckExpression (MkAstNode expressionInfo (MkProvenanceMetadata provenance) expressionNode) =
+
+
+  typecheckExpression : (expected : Maybe TcType) -> ResolvedExpr -> StateT CheckerState (Either TypeError) (TypedExpr, TcType)
+  typecheckExpression = ?hhh
+  --typecheckExpression (MkAstNode expressionInfo (MkProvenanceMetadata provenance) expressionNode) =
     ?xxx88
     --typecheckNode expressionInfo (MkProvenanceMetadata provenance) (typecheckExpressionNode expressionNode)
 
@@ -351,7 +354,7 @@ typecheckItem (MkAstNode itemInfo metadata item) = do
     typecheckConstDeclaration : ConstDeclarationNode ResolvedAstPhase ->  StateT CheckerState (Either TypeError) (ConstDeclarationNode TypedAstPhase)
     typecheckConstDeclaration (MkConstDeclarationNode constDocs constVisibility constName constType constValue) = do
       let nameSymbolId = constName.value.resolvedNameNodeSymbolId
-      typedConstValue <- typecheckExpression constValue
+      typedConstValue <- typecheckExpression ?harg constValue
       modify $ \checkerState =>
         {
           tables.symbols := updateExisting
@@ -364,7 +367,7 @@ typecheckItem (MkAstNode itemInfo metadata item) = do
         (map typecheckAstNode constVisibility)
         (typecheckName constName)
         (typecheckType constType)
-        typedConstValue
+        ?typedConstValue_dontknow
 
     typecheckFunctionDeclaration : FunctionDeclarationNode ResolvedAstPhase -> StateT CheckerState (Either TypeError) (FunctionDeclarationNode TypedAstPhase)
     typecheckFunctionDeclaration

@@ -63,7 +63,7 @@ writtenLeafType typeAstNode@(MkAstNode _ _ typeNode) =
     TyQualified multiplicityQualifier qualifiedType =>
       LeafQualifiedType multiplicityQualifier.value <$> recur qualifiedType
     TyFunction functionEffect functionParameters returnType =>
-      LeafFunctionType (maybe EffectGeneral (.value) functionEffect)
+      LeafFunctionType (maybe EffectGeneral (.value) functionEffect) []
         <$> traverse (\parameter => recur parameter.value.parameterType) functionParameters
         <*> maybe (Just LeafUnitType) recur returnType
   where

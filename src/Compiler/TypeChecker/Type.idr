@@ -31,7 +31,7 @@ data LeafType
   | LeafSliceType LeafType
   | LeafRangeType LeafType
   | LeafReferenceType BorrowKind LeafType
-  | LeafFunctionType FunctionEffect (List LeafType) LeafType
+  | LeafFunctionType FunctionEffect (List SupportKind) (List LeafType) LeafType
   | LeafQualifiedType QuantumMultiplicityQualifier LeafType
   | LeafNeverType     -- expressions that never finish: return, break, continue, loop with no break
                       -- none of them ever produce a value at the point where they appear: control jumps somewhere else
@@ -55,8 +55,11 @@ showLeafType ty =
          LeafReferenceType _ _ => "& "
          _ => "&") ++ recur referent
     LeafReferenceType MutableBorrow referent => "&mut " ++ recur referent
-    LeafFunctionType effect parameterTypes result =>
-      show effect ++ " fn(" ++ joinBy ", " (map recur parameterTypes) ++ ") -> " ++ recur result
+    LeafFunctionType effect supportKinds parameterTypes result =>
+      show effect ++ " fn(" ++ joinBy ", " (map recur parameterTypes) ++ ") -> " ++ recur result ++
+        (case supportKinds of
+           [] => ""
+           kinds => " supports " ++ joinBy ", " (map show kinds))
     LeafQualifiedType qualifier qualifiedType => show qualifier ++ " " ++ recur qualifiedType
     LeafNeverType => "!"
   where

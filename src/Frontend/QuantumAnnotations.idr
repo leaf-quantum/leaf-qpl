@@ -13,5 +13,4 @@ data QuantumCleanup
 public export
 record QuantumStorageProperties where
   constructor MkQuantumStorageProperties
-  usage   : QuantumMultiplicityQualifier
   cleanup : QuantumCleanup
