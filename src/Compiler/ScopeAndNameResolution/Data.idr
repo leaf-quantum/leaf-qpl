@@ -22,30 +22,28 @@ data VariableMutability
   | MutableVariable
 
 public export
-data QbitStorageStatus
-  = NotQbitLocal
-  | PendingQbitDefault -- Storage classification and defaults await typechecking.
-  | AssignedQbitStorage QuantumStorageProperties
-
-public export
-record LocalVariableInfo where
+record LocalVariableInfo (storage: Type) where
   constructor MkLocalVariableInfo
   mutability     : VariableMutability
-  quantumStorage : QbitStorageStatus
+  quantumStorage : storage
+
+public export
+ResolvedLocalVariableInfo : Type
+ResolvedLocalVariableInfo = LocalVariableInfo ()
 
 public export
 record ScopeTables where
   constructor MkScopeTables
-  currentScope     : ScopeId                                  -- this field reflects the current scope while ScopeTables are being threaded through code using a State monad
+  currentScope     : ScopeId                                       -- this field reflects the current scope while ScopeTables are being threaded through code using a State monad
   currentScopeKind : ScopeKind
-  currentModule    : SymbolId                                 -- the module enclosing the current scope; threaded like currentScope
-  constContextBoundary : Maybe ScopeId                        -- scope enclosing innermost array length or repeat count where a name cannot be a local parameter
-  nodeScopes       : SortedMap NodeId ScopeId                 -- lexical environment used to resolve a node
+  currentModule    : SymbolId                                      -- the module enclosing the current scope; threaded like currentScope
+  constContextBoundary : Maybe ScopeId                             -- scope enclosing innermost array length or repeat count where a name cannot be a local parameter
+  nodeScopes       : SortedMap NodeId ScopeId                      -- lexical environment used to resolve a node
   symbols          : SortedMap SymbolId ResolvedSymbolInfo
-  localVariables   : SortedMap SymbolId LocalVariableInfo     -- Local/parameter declaration metadata, keyed by the corresponding SymbolId.
+  localVariables   : SortedMap SymbolId ResolvedLocalVariableInfo  -- Local/parameter declaration metadata, keyed by the corresponding SymbolId.
   references       : SortedMap SymbolId (SnocList SymbolReference)
   scopes           : SortedMap ScopeId ScopeInfo
-  memberScopes     : SortedMap SymbolId ScopeId               -- Given a symbol, which scope contains its members? Member example: const and functions inside a module
+  memberScopes     : SortedMap SymbolId ScopeId                    -- Given a symbol, which scope contains its members? Member example: const and functions inside a module
 
 public export
 (.nextSymbolId) : ScopeTables -> SymbolId

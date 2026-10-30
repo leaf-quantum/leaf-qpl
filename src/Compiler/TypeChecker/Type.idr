@@ -1,4 +1,4 @@
-module Compiler.Type
+module Compiler.TypeChecker.Type
 
 import Data.List1
 import Data.String

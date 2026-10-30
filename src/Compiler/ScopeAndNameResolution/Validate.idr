@@ -415,7 +415,7 @@ validateReferenceConsistency resolved =
           (seen, if sameReferenceData previous reference then errors else
             ConflictingReference reference.occurrence.nodeId reference.contextNode reference.role :: errors)
 
-validateLocal : ResolvedModule -> (SymbolId, LocalVariableInfo) -> List ResolutionInvariantError
+validateLocal : ResolvedModule -> (SymbolId, ResolvedLocalVariableInfo) -> List ResolutionInvariantError
 validateLocal resolved (key, _) =
   case lookup key resolved.tables.symbols of
     Nothing => [MissingLocalSymbol key]

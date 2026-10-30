@@ -408,8 +408,8 @@ initialTypeCheckPass (
     let initialTypeTables = MkTypeTables
           scopes
           nodeScopes
-          (map (\symbol => { symbolType :=  TypeNotYetResolved } symbol) symbols)
-          localVariables
+          (map (\symbol => { symbolType := TypeNotYetResolved } symbol) symbols)
+          (map (\variable => { quantumStorage := PendingQbitClassification } variable) localVariables)
           memberScopes
           references
           empty

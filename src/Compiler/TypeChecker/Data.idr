@@ -7,6 +7,7 @@ import Compiler.ScopeAndNameResolution.Data
 import Compiler.Type
 import Frontend.ASTData
 import Frontend.ASTPhases
+import Frontend.QuantumAnnotations
 import Frontend.Source
 import Frontend.Syntax.AST
 import Frontend.Syntax.Common
@@ -23,6 +24,16 @@ data InferredType
 public export
 TypedSymbolInfo : Type
 TypedSymbolInfo = SymbolInfo InferredType
+
+public export
+data QbitStorageStatus
+  = PendingQbitClassification
+  | NotQbitLocal
+  | AssignedQbitStorage QuantumStorageProperties
+
+public export
+TypedLocalVariableInfo : Type
+TypedLocalVariableInfo = LocalVariableInfo QbitStorageStatus
 
 public export
 data ConstValue
@@ -67,16 +78,16 @@ public export
 record TypeTables where
   constructor MkTypeTables
   scopes           : SortedMap ScopeId ScopeInfo
-  nodeScopes       : SortedMap NodeId ScopeId                 -- lexical environment used to resolve a node
+  nodeScopes       : SortedMap NodeId ScopeId                   -- lexical environment used to resolve a node
   symbols          : SortedMap SymbolId TypedSymbolInfo
-  localVariables   : SortedMap SymbolId LocalVariableInfo     -- Local/parameter declaration metadata, keyed by the corresponding SymbolId.
-  memberScopes     : SortedMap SymbolId ScopeId               -- Given a symbol, which scope contains its members? Member example: const and functions inside a module
+  localVariables   : SortedMap SymbolId TypedLocalVariableInfo  -- Local/parameter declaration metadata, keyed by the corresponding SymbolId.
+  memberScopes     : SortedMap SymbolId ScopeId                 -- Given a symbol, which scope contains its members? Member example: const and functions inside a module
   references       : SortedMap SymbolId (SnocList SymbolReference)
   constValues      : SortedMap SymbolId ConstValue
-  expressionTypes  : SortedMap NodeId LeafType                -- every Expr node, type before any coercion
-  patternTypes     : SortedMap NodeId LeafType                -- every Pattern node: type of the value it matches
-  coercions        : SortedMap NodeId Coercion                -- Expr nodes whose value is implicitly converted
-  calls            : SortedMap NodeId CallResolution          -- every ExprCall / ExprMethodCall node
+  expressionTypes  : SortedMap NodeId LeafType                  -- every Expr node, type before any coercion
+  patternTypes     : SortedMap NodeId LeafType                  -- every Pattern node: type of the value it matches
+  coercions        : SortedMap NodeId Coercion                  -- Expr nodes whose value is implicitly converted
+  calls            : SortedMap NodeId CallResolution            -- every ExprCall / ExprMethodCall node
 
 --------------------------------------------------------------------------------
 -- Ownership

@@ -130,7 +130,7 @@ declareLocalName symbolKind contextNode bindingMutability
   let variableMutability = case bindingMutability of
         Nothing => ImmutableVariable
         Just Mutable => MutableVariable
-  let localVariableInfo = MkLocalVariableInfo variableMutability PendingQbitDefault
+  let localVariableInfo = MkLocalVariableInfo variableMutability ()
   let scopeBinding = MkScopeBinding
         nameText
         (Just nameInfo.span)
