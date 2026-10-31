@@ -118,10 +118,12 @@ basis()
 clean()
 discard()
 isolated()
+len()
 measr()
 product()
 qalloc()
 reset()
+rev()
 tensor()
 separable()
 stabilized()
@@ -161,6 +163,8 @@ barrier()
 adjoint()
 // Control operations
 ctrl().on().apply()
+// Array and slice length, range reversal
+len(), rev()
 
 // (II) The following are prelude mathematical functions that can be used in Leaf programs. These are NOT part of language syntax, they should be parsed as regular functions:
 cos(), acos(), sin(), asin(), tan(), atan()
@@ -357,7 +361,10 @@ let units = [(), (), (), (), ()];
 
 let a = [1, 2, 3];
 let first = a[0];
-let n = a.len();
+let n = len(a);              // number of elements, of type u32
+
+// For a fixed-size array the length is part of the type, so the compiler
+// knows len(a) statically.
 
 //////////////////////////////////////////////
 // (9) Array slices and slice references:
@@ -388,7 +395,7 @@ let s = &a[1..4];
 
 // --- Length, indexing, and re-slicing a slice ---
 
-let n = s.len();             // number of elements in the slice
+let n = len(s);              // number of elements in the slice
 let x = s[0];                // element access
 let mid: &[i32] = &s[1..n - 1];   // a slice can itself be re-sliced
 
@@ -424,7 +431,7 @@ CX(&qv[1], &qv[2]);          // borrowed (in-place) two-qubit form
 // non-qubit, read-only:
 classical fn sum(xs: &[i32]) -> i32 {
     let mut total = 0;
-    for i in 0..xs.len() {
+    for i in 0..len(xs) {
         total += xs[i];
     }
     total
@@ -432,14 +439,14 @@ classical fn sum(xs: &[i32]) -> i32 {
 
 // non-qubit, mutable: requires &mut, exactly like Rust:
 classical fn zero_out(xs: &mut [i32]) {
-    for i in 0..xs.len() {
+    for i in 0..len(xs) {
         xs[i] = 0;
     }
 }
 
 // qubit slice: plain &[qbit] (mutable by default), recursing over the tail:
 unitary fn apply_hadamard_layer(qs: &[qbit]) {
-    if qs.len() == 0 {
+    if len(qs) == 0 {
         return;
     }
     H(&qs[0]);
@@ -1119,7 +1126,11 @@ a..=b
 ..      
 
 // reverse range
-(0..n).rev()
+rev(0..n)
+
+// rev() is a reserved built-in function, NOT a method: write rev(0..n), never
+// (0..n).rev(). It requires a range with both endpoints, so rev(1..) and
+// rev(..6) are invalid.
 
 /////////////////////////
 // (32) For loop syntax:
@@ -1129,6 +1140,19 @@ a..=b
 
 for i in 1..6 {
   // do something
+}
+
+// iterating in descending order, using the rev() built-in function:
+
+for i in rev(1..6) {
+  // 5, 4, 3, 2, 1
+}
+
+// iterating over the indices of an array or a slice, using the len() built-in
+// function:
+
+for i in 0..len(xs) {
+  // do something with xs[i]
 }
 
 /////////////////////////
@@ -1827,7 +1851,7 @@ classical fn fact(n: u32) -> u32 {
 
 // Circuit-generating unitary recursion over a classical parameter, safe if total and structurally decreasing:
 unitary fn apply_hadamard_layer(qs: &[qbit]) {
-    if qs.len() == 0 {
+    if len(qs) == 0 {
         return;
     }
 

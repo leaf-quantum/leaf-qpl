@@ -86,10 +86,12 @@ basis
 clean
 discard
 isolated
+len
 measr
 product
 qalloc
 reset
+rev
 tensor
 separable
 stabilized

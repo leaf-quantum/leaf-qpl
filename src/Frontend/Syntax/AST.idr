@@ -524,7 +524,7 @@ mutual
       -> (callArguments : List (Expr phase))
       -> ExpressionNode phase
 
-    -- a.len(), sq1.tensor(sq2), (0..n).rev(). The method name is stored
+    -- sq1.tensor(sq2), person.is_adult(). The method name is stored
     -- textually even when it arrives as a builtin token (`tensor`): its
     -- category is recoverable via builtinFromString, and method-position
     -- resolution is a later concern.

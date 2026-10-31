@@ -26,6 +26,28 @@ adjoint()
 ctrl().on().apply()
 ```
 
+Array, slice and range operations:
+```leaf
+len(), rev()
+```
+
+`len()` returns the number of elements of an array, a slice, or a reference to either, as a `u32`. For a fixed-size array `[T; N]` the length is part of the type, so the compiler knows the value statically:
+```leaf
+let a = [1, 2, 3];
+let n = len(a);              // 3
+
+for i in 0..len(a) {
+    // do something with a[i]
+}
+```
+
+`rev()` reverses a range, which is how a `for` loop counts down. It requires a range with both endpoints, so `rev(1..)` and `rev(..6)` are invalid:
+```leaf
+for i in rev(1..6) {
+    // 5, 4, 3, 2, 1
+}
+```
+
 Complex-valued phase() prelude function is often used as helper for quantum states specification:
 ```leaf
 phase(1.23) = exp(i * 1.23);

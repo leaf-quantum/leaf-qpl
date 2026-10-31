@@ -12,7 +12,7 @@ classical fn fact(n: u32) -> u32 {
 (2) Circuit-generating unitary recursion over a classical parameter, safe if total and structurally decreasing.
 ```leaf
 unitary fn apply_hadamard_layer(qs: &[qbit]) {
-    if qs.len() == 0 {
+    if len(qs) == 0 {
         return;
     }
 

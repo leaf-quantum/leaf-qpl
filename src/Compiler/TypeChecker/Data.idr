@@ -59,7 +59,7 @@ data BuiltinForm                           -- which documented overload of a bui
 public export
 data Callee
   = FunctionCall SymbolId                  -- declared, prelude or associated function named at the call
-  | MethodCall SymbolId                    -- resolved method, including built-in len/rev/tensor
+  | MethodCall SymbolId                    -- resolved method, including built-in tensor
   | ValueCall                              -- a function-typed value: parameter, adjoint(f), ctrl(..).apply(f)
   | BuiltinCall Builtin BuiltinForm
 
