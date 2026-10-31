@@ -72,7 +72,7 @@ preludeLayout resolved = do
           isPrelude symbol.origin && isPublic symbol.visibility &&
           symbol.symbolId == binding.target && symbol.declaredName == binding.writtenName &&
           symbol.declaringScope == scopeId && symbol.declaringModule == moduleId &&
-          isNothing (lookup symbol.symbolId tables.localVariables)
+          isNothing (lookup symbol.symbolId tables.localVarsMeta)
 
 export
 useOrigins : String -> Maybe (List (String, String))

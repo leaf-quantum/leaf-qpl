@@ -60,7 +60,7 @@ runPreludeFunctionsResolutionTests = runTests $ Test.do
         root <- lookup resolved.rootScope resolved.tables.scopes
         pure (length (SortedMap.toList resolved.tables.references),
               length (SortedMap.toList resolved.tables.nodeScopes),
-              length (SortedMap.toList resolved.tables.localVariables),
+              length (SortedMap.toList resolved.tables.localVarsMeta),
               length (SortedMap.toList root.valueBindings),
               length (SortedMap.toList root.typeBindings)))
       `shouldBe` Just (0, 1, 0, 0, 0)

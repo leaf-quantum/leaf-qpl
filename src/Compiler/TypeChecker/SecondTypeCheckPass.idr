@@ -176,7 +176,7 @@ mutual
 --      typecheckAdjointExpressionNode (AdjointBlock adjointedBlock) = AdjointBlock (typecheckBlockExpression adjointedBlock)
 
 
-  typecheckExpression : (expected : Maybe TcType) -> ResolvedExpr -> StateT CheckerState (Either TypeError) (TypedExpr, TcType)
+  typecheckExpression : (expected : Maybe TcType) -> ResolvedExpr -> StateT TypeCheckerState (Either TypeError) (TypedExpr, TcType)
   typecheckExpression = ?hhh
   --typecheckExpression (MkAstNode expressionInfo (MkProvenanceMetadata provenance) expressionNode) =
     ?xxx88
@@ -334,7 +334,7 @@ typecheckFunctionBody (MkAstNode functionBodyAstInfo (MkProvenanceMetadata prove
   --    (map typecheckStatement blockStatements)
   --    (map typecheckExpression finalExpression)
 
-typecheckItem : ResolvedItem -> StateT CheckerState (Either TypeError) TypedItem
+typecheckItem : ResolvedItem -> StateT TypeCheckerState (Either TypeError) TypedItem
 typecheckItem (MkAstNode itemInfo metadata item) = do
   resolvedItem <- case item of
       ItemModule declaration => notImplemented {function = "typecheckItem"} {feature = "ItemModule"}
@@ -351,17 +351,17 @@ typecheckItem (MkAstNode itemInfo metadata item) = do
         pure $ ItemFunction typedDeclaration
   pure $ typecheckNode itemInfo metadata resolvedItem
   where
-    typecheckConstDeclaration : ConstDeclarationNode ResolvedAstPhase ->  StateT CheckerState (Either TypeError) (ConstDeclarationNode TypedAstPhase)
+    typecheckConstDeclaration : ConstDeclarationNode ResolvedAstPhase ->  StateT TypeCheckerState (Either TypeError) (ConstDeclarationNode TypedAstPhase)
     typecheckConstDeclaration (MkConstDeclarationNode constDocs constVisibility constName constType constValue) = do
       let nameSymbolId = constName.value.resolvedNameNodeSymbolId
       typedConstValue <- typecheckExpression ?harg constValue
-      modify $ \checkerState =>
+      modify $ \typeCheckerState =>
         {
           tables.symbols := updateExisting
             (\symbol => { symbolType := toInferredType constType } symbol)
             nameSymbolId
-            checkerState.tables.symbols
-        } checkerState
+            typeCheckerState.tables.symbols
+        } typeCheckerState
       pure $ MkConstDeclarationNode
         (map typecheckAstNode constDocs)
         (map typecheckAstNode constVisibility)
@@ -369,7 +369,7 @@ typecheckItem (MkAstNode itemInfo metadata item) = do
         (typecheckType constType)
         ?typedConstValue_dontknow
 
-    typecheckFunctionDeclaration : FunctionDeclarationNode ResolvedAstPhase -> StateT CheckerState (Either TypeError) (FunctionDeclarationNode TypedAstPhase)
+    typecheckFunctionDeclaration : FunctionDeclarationNode ResolvedAstPhase -> StateT TypeCheckerState (Either TypeError) (FunctionDeclarationNode TypedAstPhase)
     typecheckFunctionDeclaration
         (MkFunctionDeclarationNode
           functionDocs
@@ -406,8 +406,8 @@ secondTypeCheckPass (
     (MkAstNode fileInfo metadata (MkSourceFileNode docs items))
     _                                                     -- scope tables: already copied into TypeTables by pass A
   ) signatureTables = do
-    let initialCheckerState = MkCheckerState signatureTables Nothing emptyInferenceState
-    (checkerState, typedItems) <- runStateT initialCheckerState $ do
+    let initialTypeCheckerState = MkTypeCheckerState signatureTables Nothing emptyInferenceState
+    (typeCheckerState, typedItems) <- runStateT initialTypeCheckerState $
       traverse typecheckItem items
     let typedAst = typecheckNode fileInfo metadata $
                       MkSourceFileNode (map typecheckAstNode docs) typedItems
@@ -415,5 +415,5 @@ secondTypeCheckPass (
       rootModule
       rootScope
       typedAst
-      checkerState.tables
+      typeCheckerState.tables
       (MkOwnershipTables empty empty empty empty)         -- filled by pass C

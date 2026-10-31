@@ -32,8 +32,8 @@ data QbitStorageStatus
   | AssignedQbitStorage QuantumStorageProperties
 
 public export
-TypedLocalVariableInfo : Type
-TypedLocalVariableInfo = LocalVariableInfo QbitStorageStatus
+TypedLocalVarQualifiers : Type
+TypedLocalVarQualifiers = LocalVarQualifiers QbitStorageStatus
 
 public export
 data ConstValue
@@ -52,9 +52,9 @@ data Coercion
 
 public export
 data BuiltinForm                           -- which documented overload of a builtin was chosen
-  = SingleQbit                            -- measr(q), qalloc(), barrier()
-  | SelectedQbits Nat                     -- measr(q1, q2, q3), barrier(q1, q2, q3)
-  | QbitArray Nat                         -- measr(qs), qalloc(3)
+  = SingleQbit                             -- measr(q), qalloc(), barrier()
+  | SelectedQbits Nat                      -- measr(q1, q2, q3), barrier(q1, q2, q3)
+  | QbitArray Nat                          -- measr(qs), qalloc(3)
 
 public export
 data Callee
@@ -77,17 +77,22 @@ record CallResolution where
 public export
 record TypeTables where
   constructor MkTypeTables
+  -- Scope structure and lexical environments.
   scopes           : SortedMap ScopeId ScopeInfo
-  nodeScopes       : SortedMap NodeId ScopeId                   -- lexical environment used to resolve a node
+  nodeScopes       : SortedMap NodeId ScopeId                       -- lexical environment used to resolve a node
+  -- Symbols, declaration metadata, and uses.
   symbols          : SortedMap SymbolId TypedSymbolInfo
-  localVariables   : SortedMap SymbolId TypedLocalVariableInfo  -- Local/parameter declaration metadata, keyed by the corresponding SymbolId.
-  memberScopes     : SortedMap SymbolId ScopeId                 -- Given a symbol, which scope contains its members? Member example: const and functions inside a module
-  references       : SortedMap SymbolId (SnocList SymbolReference)
+  localVarsMeta    : SortedMap SymbolId TypedLocalVarQualifiers     -- Local/parameter declaration metadata, keyed by the corresponding SymbolId.
+  memberScopes     : SortedMap SymbolId ScopeId                     -- Given a symbol, which scope contains its members? Member example: const and functions inside a module
+  references       : SortedMap SymbolId (SnocList SymbolReference)  -- records where each symbol appears in the program
+  -- Evaluated constant values.
   constValues      : SortedMap SymbolId ConstValue
-  expressionTypes  : SortedMap NodeId LeafType                  -- every Expr node, type before any coercion
-  patternTypes     : SortedMap NodeId LeafType                  -- every Pattern node: type of the value it matches
-  coercions        : SortedMap NodeId Coercion                  -- Expr nodes whose value is implicitly converted
-  calls            : SortedMap NodeId CallResolution            -- every ExprCall / ExprMethodCall node
+  -- Types assigned to expression and pattern nodes.
+  expressionTypes  : SortedMap NodeId LeafType                      -- every Expr node, type before any coercion
+  patternTypes     : SortedMap NodeId LeafType                      -- patterns describe how to match or unpack a value and bind names to its parts.
+  -- Typing decisions used by later compiler stages.
+  coercions        : SortedMap NodeId Coercion                      -- Expr nodes whose value is implicitly converted
+  calls            : SortedMap NodeId CallResolution                -- every ExprCall / ExprMethodCall node
 
 --------------------------------------------------------------------------------
 -- Ownership

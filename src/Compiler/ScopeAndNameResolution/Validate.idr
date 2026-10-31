@@ -56,7 +56,7 @@ data ResolutionInvariantError
   | UnrestoredCurrentModule SymbolId SymbolId
   | InvalidCurrentScopeKind ScopeId
   | UnrestoredConstContext ScopeId
-  | MissingLocalVariableInfo SymbolId
+  | MissingLocalVarQualifiers SymbolId
   | DeclaredBindingNameMismatch ScopeId BindingNamespace String SymbolId String
   | MissingReferenceNodeScope NodeId ScopeId
   | ReferenceNodeScopeMismatch NodeId ScopeId ScopeId
@@ -148,7 +148,7 @@ Show ResolutionInvariantError where
     "Resolution did not restore ModuleScope for root " ++ scopeLabel scope
   show (UnrestoredConstContext boundary) =
     "Resolution ended inside a constant context bounded by " ++ scopeLabel boundary
-  show (MissingLocalVariableInfo symbol) =
+  show (MissingLocalVarQualifiers symbol) =
     "Local or parameter " ++ symbolLabel symbol ++ " has no local-variable metadata"
   show (DeclaredBindingNameMismatch scope bindingNamespace written target declared) =
     scopeLabel scope ++ " has " ++ show bindingNamespace ++ " declaration binding " ++ show written ++
@@ -263,7 +263,7 @@ validateSymbol resolved declarations (key, symbol) =
      else check (hasKey (symbol.declaringScope, key) declarations)
                 (MissingDeclarationOrderEntry symbol.declaringScope key)) ++
   (if isLocal symbol.symbolKind
-     then check (hasKey key resolved.tables.localVariables) (MissingLocalVariableInfo key)
+     then check (hasKey key resolved.tables.localVarsMeta) (MissingLocalVarQualifiers key)
      else []) ++
   case lookup symbol.declaringModule resolved.tables.symbols of
     Nothing => [MissingDeclaringModule key symbol.declaringModule]
@@ -415,7 +415,7 @@ validateReferenceConsistency resolved =
           (seen, if sameReferenceData previous reference then errors else
             ConflictingReference reference.occurrence.nodeId reference.contextNode reference.role :: errors)
 
-validateLocal : ResolvedModule -> (SymbolId, ResolvedLocalVariableInfo) -> List ResolutionInvariantError
+validateLocal : ResolvedModule -> (SymbolId, ResolvedLocalVarQualifiers) -> List ResolutionInvariantError
 validateLocal resolved (key, _) =
   case lookup key resolved.tables.symbols of
     Nothing => [MissingLocalSymbol key]
@@ -456,5 +456,5 @@ validateResolvedModule resolved =
   validateReferenceConsistency resolved ++
   concatMap (\(node, scope) => check (hasKey scope resolved.tables.scopes) (MissingNodeScope node scope))
             (SortedMap.toList resolved.tables.nodeScopes) ++
-  concatMap (validateLocal resolved) (SortedMap.toList resolved.tables.localVariables) ++
+  concatMap (validateLocal resolved) (SortedMap.toList resolved.tables.localVarsMeta) ++
   concatMap (validateMembers resolved) (SortedMap.toList resolved.tables.memberScopes)

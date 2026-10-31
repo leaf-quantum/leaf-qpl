@@ -132,7 +132,7 @@ constantOccurrenceMatches resolved constant context name =
     Just scope =>
       symbolId name == symbolId constant &&
       referenceMatches resolved PatternReference context name &&
-      isNothing (lookup (symbolId name) resolved.tables.localVariables) &&
+      isNothing (lookup (symbolId name) resolved.tables.localVarsMeta) &&
       isNothing (lookup name.value.resolvedNameNodeText scope.valueBindings) &&
       not (elem (symbolId name) (scope.declaredSymbolsInOrder <>> []))
 
@@ -166,8 +166,8 @@ bindingMatches scope name = case lookup name.value.resolvedNameNodeText scope.va
 
 export
 localMatches : ResolvedModule -> ResolvedName -> Bool -> Bool
-localMatches resolved name mutable = case lookup (symbolId name) resolved.tables.localVariables of
-  Just (MkLocalVariableInfo actual ()) =>
+localMatches resolved name mutable = case lookup (symbolId name) resolved.tables.localVarsMeta of
+  Just (MkLocalVarQualifiers actual ()) =>
     case actual of
       MutableVariable => mutable
       ImmutableVariable => not mutable

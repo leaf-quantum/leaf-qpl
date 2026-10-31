@@ -89,7 +89,7 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
             bindingMatches scope x && localMatches resolved x True &&
             symbolMatches resolved x scope.id "local" x.astInfo &&
             (scope.declaredSymbolsInOrder <>> []) == [symbolId x] &&
-            map fst (SortedMap.toList resolved.tables.localVariables) == [symbolId x] &&
+            map fst (SortedMap.toList resolved.tables.localVarsMeta) == [symbolId x] &&
             referenceInventory resolved
               [(DeclarationReference, fnInfo.nodeId, fn.functionName),
                (DeclarationReference, binding.letPattern.astInfo.nodeId, x),
@@ -479,7 +479,7 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
             (case constantSymbol.visibility of PublicVisibility => True; _ => False) &&
             (case functionSymbol.visibility of PublicVisibility => True; _ => False) &&
             (case privateSymbol.visibility of ModuleVisibility => True; _ => False) &&
-            all (\name => isNothing (lookup (symbolId name) resolved.tables.localVariables))
+            all (\name => isNothing (lookup (symbolId name) resolved.tables.localVarsMeta))
               [con.constName, fn.functionName, privateFn.functionName] &&
             resolved.tables.currentScope == resolved.rootScope &&
             resolved.tables.currentModule == resolved.rootModule &&
@@ -758,7 +758,7 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       pure (all (nodeHasScope resolved scope.id) [binding.letPattern, aPattern, arrayPattern, wildcard, bPattern] &&
             all (nodeHasScope resolved scope.id) [init, one, arrayExpression, two, three] &&
             (scope.declaredSymbolsInOrder <>> []) == [symbolId a, symbolId b] &&
-            sort (map fst (SortedMap.toList resolved.tables.localVariables)) == sort [symbolId a, symbolId b] &&
+            sort (map fst (SortedMap.toList resolved.tables.localVarsMeta)) == sort [symbolId a, symbolId b] &&
             sort (map (.declaredName) (sourceSymbols resolved)) == ["", "a", "b", "f"] &&
             length (allReferences resolved) == 3 &&
             all (\ref => not (elem ref.occurrence.nodeId
@@ -787,7 +787,7 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       orderedRoot <- traverse (\id => lookup id resolved.tables.symbols) (root.declaredSymbolsInOrder <>> [])
       pure (sort (map (.symbolId) (sourceSymbols resolved)) ==
               sort [resolved.rootModule, symbolId con.constName, symbolId fn.functionName, symbolId x, symbolId y1, symbolId y2] &&
-            sort (map fst (SortedMap.toList resolved.tables.localVariables)) == sort [symbolId x, symbolId y1, symbolId y2] &&
+            sort (map fst (SortedMap.toList resolved.tables.localVarsMeta)) == sort [symbolId x, symbolId y1, symbolId y2] &&
             map (.declaredName) orderedRoot == ["<prelude>", "n", "f"] &&
             map (\(name, binding) => (name, binding.target)) (SortedMap.toList root.valueBindings) ==
               [("f", symbolId fn.functionName), ("n", symbolId con.constName)] &&
@@ -836,7 +836,7 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       final <- exprAt 1 fn.functionBody
       useOK <- useMatches resolved con.constName final
       pure (constantPatternMatches resolved con.constName binding.letPattern && useOK &&
-            null (SortedMap.toList resolved.tables.localVariables))) `shouldBe` Right True
+            null (SortedMap.toList resolved.tables.localVarsMeta))) `shouldBe` Right True
 
   test "a mutable let binder cannot shadow a module constant" $
     constantShadowing "const N: i32 = 1;\nfn f() { let mut N = 2; }"
@@ -857,7 +857,7 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
             constantPatternMatches resolved con.constName second &&
             localMatches resolved x False && bindingMatches scope x && useOK &&
             (scope.declaredSymbolsInOrder <>> []) == [symbolId x] &&
-            length (SortedMap.toList resolved.tables.localVariables) == 1)) `shouldBe` Right True
+            length (SortedMap.toList resolved.tables.localVarsMeta) == 1)) `shouldBe` Right True
 
   test "an array can contain repeated constant patterns without introducing bindings" $
     checkSource "const U: () = (); fn f() { let [U, U] = [(), ()]; }" (\resolved => do
@@ -867,7 +867,7 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       PatternArray [first, second] <- pure binding.letPattern.value | _ => Nothing
       pure (constantPatternMatches resolved con.constName first &&
             constantPatternMatches resolved con.constName second &&
-            null (SortedMap.toList resolved.tables.localVariables))) `shouldBe` Right True
+            null (SortedMap.toList resolved.tables.localVarsMeta))) `shouldBe` Right True
 
   test "constant patterns remain references in nested blocks" $
     checkSource "const U: () = (); fn f() { { let U = (); } }" (\resolved => do
@@ -876,7 +876,7 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       inner <- returnedAt 0 fn.functionBody >>= blockBody
       binding <- letAt 0 inner
       pure (constantPatternMatches resolved con.constName binding.letPattern &&
-            null (SortedMap.toList resolved.tables.localVariables))) `shouldBe` Right True
+            null (SortedMap.toList resolved.tables.localVarsMeta))) `shouldBe` Right True
 
   test "repeated constant parameters are pattern references and introduce no parameters" $
     checkSource "const U: () = (); fn f(U: (), U: ()) { U; }" (\resolved => do
@@ -888,7 +888,7 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       useOK <- useMatches resolved con.constName use
       pure (constantOccurrenceMatches resolved con.constName first.astInfo.nodeId firstName &&
             constantOccurrenceMatches resolved con.constName second.astInfo.nodeId secondName && useOK &&
-            null (SortedMap.toList resolved.tables.localVariables))) `shouldBe` Right True
+            null (SortedMap.toList resolved.tables.localVarsMeta))) `shouldBe` Right True
 
   test "for constant patterns introduce no loop binding" $
     checkSource "const U: () = (); fn f() { for U in [()] { U; } }" (\resolved => do
@@ -899,7 +899,7 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       use <- exprAt 0 body
       useOK <- useMatches resolved con.constName use
       pure (constantPatternMatches resolved con.constName pattern && useOK &&
-            null (SortedMap.toList resolved.tables.localVariables))) `shouldBe` Right True
+            null (SortedMap.toList resolved.tables.localVarsMeta))) `shouldBe` Right True
 
   test "repeated constant tuple patterns introduce no for-loop bindings" $
     checkForPattern "const U: () = (); fn f() { let (U, U) = ((), ()); for unused in [((), ())] { U; } }" (\resolved => do
@@ -916,7 +916,7 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
             constantPatternMatches resolved con.constName second && useOK &&
             (case loopScope.kind of ForScope => True; _ => False) &&
             null (SortedMap.toList loopScope.valueBindings) &&
-            null (SortedMap.toList resolved.tables.localVariables))) `shouldBe` Right True
+            null (SortedMap.toList resolved.tables.localVarsMeta))) `shouldBe` Right True
 
   test "a constant declared later in the module is still a constant pattern" $
     checkSource "fn f() { let U = (); } const U: () = ();" (\resolved => do
@@ -924,7 +924,7 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       (_, fn) <- functionNamed "f" resolved
       binding <- letAt 0 fn.functionBody
       pure (constantPatternMatches resolved con.constName binding.letPattern &&
-            null (SortedMap.toList resolved.tables.localVariables))) `shouldBe` Right True
+            null (SortedMap.toList resolved.tables.localVarsMeta))) `shouldBe` Right True
 
   test "a constant shadowing a prelude function is interpreted as a pattern" $
     checkSource "const sin: () = (); fn f() { let sin = (); }" (\resolved => do
@@ -932,7 +932,7 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       (_, fn) <- functionNamed "f" resolved
       binding <- letAt 0 fn.functionBody
       pure (constantPatternMatches resolved con.constName binding.letPattern &&
-            null (SortedMap.toList resolved.tables.localVariables))) `shouldBe` Right True
+            null (SortedMap.toList resolved.tables.localVarsMeta))) `shouldBe` Right True
 
   -- Resolving a constant pattern does not decide whether it is irrefutable.
   test "integer constant patterns defer refutability checking" $
@@ -1183,7 +1183,7 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       uses <- valueReferenceKinds resolved
       pure (constantOccurrenceMatches resolved con.constName parameter.astInfo.nodeId name &&
             uses == [("N", "constant"), ("N", "constant"), ("N", "constant")] &&
-            length (SortedMap.toList resolved.tables.localVariables) == 1)) `shouldBe` Right True
+            length (SortedMap.toList resolved.tables.localVarsMeta) == 1)) `shouldBe` Right True
 
   test "signature array lengths may use module constants alongside parameters" $
     checkSource "const N: i32 = 2; fn f(n: i32, a: [i32; N]) -> [i32; N] {}" valueReferenceKinds
@@ -1207,7 +1207,7 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       use <- exprAt 0 fn.functionBody
       useOK <- useMatches resolved con.constName use
       pure (constantOccurrenceMatches resolved con.constName parameter.astInfo.nodeId name && useOK &&
-            null (SortedMap.toList resolved.tables.localVariables))) `shouldBe` Right True
+            null (SortedMap.toList resolved.tables.localVarsMeta))) `shouldBe` Right True
 
   test "a constant parameter pattern does not hide later duplicate parameters" $
     duplicateBinder "const U: () = (); fn f(U: (), x: i32, x: i32) {}"
@@ -1256,4 +1256,4 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
             symbolId functionTarget == symbolId g.functionName &&
             referenceMatches resolved AssignmentTarget constantAssignment.assignmentTarget.astInfo.nodeId constantTarget &&
             referenceMatches resolved AssignmentTarget functionAssignment.assignmentTarget.astInfo.nodeId functionTarget &&
-            null (SortedMap.toList resolved.tables.localVariables))) `shouldBe` Right True
+            null (SortedMap.toList resolved.tables.localVarsMeta))) `shouldBe` Right True

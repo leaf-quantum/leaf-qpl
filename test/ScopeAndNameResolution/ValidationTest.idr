@@ -56,16 +56,16 @@ validModule = MkResolvedModule
   (MkScopeId 0)
   (resolvedAstNode (info 0) WrittenCode (MkSourceFileNode [] []))
   (MkScopeTables
+    (fromList [(MkScopeId 0, rootScope), (MkScopeId 1, blockScope)])
+    (fromList [(MkNodeId 0 0, MkScopeId 0), (MkNodeId 10 0, MkScopeId 1), (MkNodeId 11 0, MkScopeId 1)])
+    (fromList [(MkSymbolId 0, rootSymbol), (MkSymbolId 1, localSymbol)])
+    (fromList [(MkSymbolId 1, MkLocalVarQualifiers ImmutableVariable ())])
+    (fromList [(MkSymbolId 0, MkScopeId 0)])
+    (fromList [(MkSymbolId 1, [< reference])])
     (MkScopeId 0)
     ModuleScope
     (MkSymbolId 0)
-    Nothing
-    (fromList [(MkNodeId 0 0, MkScopeId 0), (MkNodeId 10 0, MkScopeId 1), (MkNodeId 11 0, MkScopeId 1)])
-    (fromList [(MkSymbolId 0, rootSymbol), (MkSymbolId 1, localSymbol)])
-    (fromList [(MkSymbolId 1, MkLocalVariableInfo ImmutableVariable ())])
-    (fromList [(MkSymbolId 1, [< reference])])
-    (fromList [(MkScopeId 0, rootScope), (MkScopeId 1, blockScope)])
-    (fromList [(MkSymbolId 0, MkScopeId 0)]))
+    Nothing)
 
 withSymbol : Nat -> ResolvedSymbolInfo -> ResolvedModule -> ResolvedModule
 withSymbol key symbol resolved = { tables.symbols := insert (MkSymbolId key) symbol resolved.tables.symbols } resolved
@@ -137,8 +137,8 @@ shadowedModule =
                      declaredSymbolsInOrder := [< MkSymbolId 1, MkSymbolId 2] } blockScope
   -- The earlier reference to symbol 1 remains valid after symbol 2 shadows it.
   in withSymbol 2 laterSymbol $ withScope 1 laterScope $
-       { tables.localVariables := insert (MkSymbolId 2) (MkLocalVariableInfo ImmutableVariable ())
-                                         validModule.tables.localVariables } validModule
+       { tables.localVarsMeta := insert (MkSymbolId 2) (MkLocalVarQualifiers ImmutableVariable ())
+                                         validModule.tables.localVarsMeta } validModule
 
 memberModule : ResolvedModule
 memberModule =
@@ -343,12 +343,12 @@ runResolutionValidationTests = runTests $ Test.do
       [show (MissingNodeScope (MkNodeId 10 0) (MkScopeId 99))]
 
   test "local-variable metadata must target existing symbols" $
-    diagnostics ({ tables.localVariables := insert (MkSymbolId 99) (MkLocalVariableInfo ImmutableVariable ()) validModule.tables.localVariables }
+    diagnostics ({ tables.localVarsMeta := insert (MkSymbolId 99) (MkLocalVarQualifiers ImmutableVariable ()) validModule.tables.localVarsMeta }
                  validModule) `shouldBe`
       [show (MissingLocalSymbol (MkSymbolId 99))]
 
   test "local-variable metadata cannot describe modules" $
-    diagnostics ({ tables.localVariables := insert (MkSymbolId 0) (MkLocalVariableInfo ImmutableVariable ()) validModule.tables.localVariables }
+    diagnostics ({ tables.localVarsMeta := insert (MkSymbolId 0) (MkLocalVarQualifiers ImmutableVariable ()) validModule.tables.localVarsMeta }
                  validModule) `shouldBe`
       [show (InvalidLocalSymbolKind (MkSymbolId 0))]
 
@@ -461,23 +461,23 @@ runResolutionValidationTests = runTests $ Test.do
                 UnrestoredCurrentModule (MkSymbolId 0) (MkSymbolId 1)]
 
   test "local symbols require local-variable metadata" $
-    diagnostics ({ tables.localVariables := empty } validModule) `shouldBe`
-      [show (MissingLocalVariableInfo (MkSymbolId 1))]
+    diagnostics ({ tables.localVarsMeta := empty } validModule) `shouldBe`
+      [show (MissingLocalVarQualifiers (MkSymbolId 1))]
 
   test "ordinary parameters require local-variable metadata" $
     diagnostics (withSymbol 1 ({ symbolKind := SymbolFunctionParameter } localSymbol)
-      ({ tables.localVariables := empty } validModule)) `shouldBe`
-      [show (MissingLocalVariableInfo (MkSymbolId 1))]
+      ({ tables.localVarsMeta := empty } validModule)) `shouldBe`
+      [show (MissingLocalVarQualifiers (MkSymbolId 1))]
 
   test "self receiver parameters require local-variable metadata" $
     diagnostics (withSymbol 1 ({ symbolKind := SymbolSelfReceiverParameter } localSymbol)
-      ({ tables.localVariables := empty } validModule)) `shouldBe`
-      [show (MissingLocalVariableInfo (MkSymbolId 1))]
+      ({ tables.localVarsMeta := empty } validModule)) `shouldBe`
+      [show (MissingLocalVarQualifiers (MkSymbolId 1))]
 
   test "historical shadowed symbols still require local-variable metadata" $
-    diagnostics ({ tables.localVariables := fromList
-                    [(MkSymbolId 2, MkLocalVariableInfo ImmutableVariable ())] } shadowedModule) `shouldBe`
-      [show (MissingLocalVariableInfo (MkSymbolId 1))]
+    diagnostics ({ tables.localVarsMeta := fromList
+                    [(MkSymbolId 2, MkLocalVarQualifiers ImmutableVariable ())] } shadowedModule) `shouldBe`
+      [show (MissingLocalVarQualifiers (MkSymbolId 1))]
 
   test "historical shadowed symbols must remain in declaration order" $
     diagnostics (withScope 1

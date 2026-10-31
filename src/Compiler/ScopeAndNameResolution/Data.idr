@@ -21,28 +21,31 @@ data VariableMutability
   | MutableVariable
 
 public export
-record LocalVariableInfo (storage: Type) where
-  constructor MkLocalVariableInfo
+record LocalVarQualifiers (storage: Type) where
+  constructor MkLocalVarQualifiers
   mutability     : VariableMutability
   quantumStorage : storage
 
 public export
-ResolvedLocalVariableInfo : Type
-ResolvedLocalVariableInfo = LocalVariableInfo ()
+ResolvedLocalVarQualifiers : Type
+ResolvedLocalVarQualifiers = LocalVarQualifiers ()
 
 public export
 record ScopeTables where
   constructor MkScopeTables
-  currentScope     : ScopeId                                       -- this field reflects the current scope while ScopeTables are being threaded through code using a State monad
-  currentScopeKind : ScopeKind
-  currentModule    : SymbolId                                      -- the module enclosing the current scope; threaded like currentScope
-  constContextBoundary : Maybe ScopeId                             -- scope enclosing innermost array length or repeat count where a name cannot be a local parameter
-  nodeScopes       : SortedMap NodeId ScopeId                      -- lexical environment used to resolve a node
-  symbols          : SortedMap SymbolId ResolvedSymbolInfo
-  localVariables   : SortedMap SymbolId ResolvedLocalVariableInfo  -- Local/parameter declaration metadata, keyed by the corresponding SymbolId.
-  references       : SortedMap SymbolId (SnocList SymbolReference)
+  -- Scope structure and lexical environments.
   scopes           : SortedMap ScopeId ScopeInfo
+  nodeScopes       : SortedMap NodeId ScopeId                      -- lexical environment used to resolve a node
+  -- Symbols, declaration metadata, and uses.
+  symbols          : SortedMap SymbolId ResolvedSymbolInfo
+  localVarsMeta    : SortedMap SymbolId ResolvedLocalVarQualifiers -- Local/parameter declaration metadata, keyed by the corresponding SymbolId.
   memberScopes     : SortedMap SymbolId ScopeId                    -- Given a symbol, which scope contains its members? Member example: const and functions inside a module
+  references       : SortedMap SymbolId (SnocList SymbolReference)
+  -- Resolver traversal state.
+  currentScope         : ScopeId                                  -- current scope while threading ScopeTables through the State monad
+  currentScopeKind     : ScopeKind
+  currentModule        : SymbolId                                 -- module enclosing the current scope
+  constContextBoundary : Maybe ScopeId                            -- scope enclosing innermost array length or repeat count where a name cannot be a local parameter
 
 public export
 (.nextSymbolId) : ScopeTables -> SymbolId

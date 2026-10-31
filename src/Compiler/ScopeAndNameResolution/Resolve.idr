@@ -130,7 +130,7 @@ declareLocalName symbolKind contextNode bindingMutability
   let variableMutability = case bindingMutability of
         Nothing => ImmutableVariable
         Just Mutable => MutableVariable
-  let localVariableInfo = MkLocalVariableInfo variableMutability ()
+  let localVarQualifiers = MkLocalVarQualifiers variableMutability ()
   let scopeBinding = MkScopeBinding
         nameText
         (Just nameInfo.span)
@@ -153,7 +153,7 @@ declareLocalName symbolKind contextNode bindingMutability
   modify $ \scopeTables =>
     {
       symbols := insert symbolId symbolInfo scopeTables.symbols,
-      localVariables := insert symbolId localVariableInfo scopeTables.localVariables,
+      localVarsMeta := insert symbolId localVarQualifiers scopeTables.localVarsMeta,
       references := insert symbolId [< symbolReference] scopeTables.references,
       scopes := updateExisting bindInScope scopeTables.currentScope scopeTables.scopes
     } scopeTables
@@ -935,13 +935,13 @@ resolveCanonicalSyntax (MkAstNode fileInfo metadata (MkSourceFileNode docs items
     moduleSymbolInfo = MkSymbolInfo moduleSymbolId SymbolModule () "" moduleScopeId moduleSymbolId PublicVisibility (SourceSymbol fileInfo)
     initialScopeTables =
       MkScopeTables
+        (singleton moduleScopeId moduleScopeInfo)
+        (singleton fileInfo.nodeId moduleScopeId)
+        (singleton moduleSymbolId moduleSymbolInfo)
+        empty
+        (singleton moduleSymbolId moduleScopeId)
+        empty
         moduleScopeId
         ModuleScope
         moduleSymbolId
         Nothing
-        (singleton fileInfo.nodeId moduleScopeId)
-        (singleton moduleSymbolId moduleSymbolInfo)
-        empty
-        empty
-        (singleton moduleScopeId moduleScopeInfo)
-        (singleton moduleSymbolId moduleScopeId)

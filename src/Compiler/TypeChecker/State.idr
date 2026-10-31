@@ -46,8 +46,8 @@ emptyInferenceState : InferenceState
 emptyInferenceState = MkInferenceState 0 empty empty empty empty [] [] []
 
 public export
-record CheckerState where
-  constructor MkCheckerState
+record TypeCheckerState where
+  constructor MkTypeCheckerState
   tables    : TypeTables
   function  : Maybe FunctionContext               -- Nothing while checking const initializers
   inference : InferenceState

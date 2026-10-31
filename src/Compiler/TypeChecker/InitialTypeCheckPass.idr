@@ -174,7 +174,7 @@ mutual
 --      typecheckAdjointExpressionNode (AdjointOfCallable adjointedCallable) = AdjointOfCallable (typecheckNestedExpression adjointedCallable)
 --      typecheckAdjointExpressionNode (AdjointBlock adjointedBlock) = AdjointBlock (typecheckBlockExpression adjointedBlock)
 --
-  typecheckExpression : ResolvedExpr ->  StateT CheckerState (Either TypeError) TypedExpr
+  typecheckExpression : ResolvedExpr ->  StateT TypeCheckerState (Either TypeError) TypedExpr
   typecheckExpression (MkAstNode expressionInfo (MkProvenanceMetadata provenance) expressionNode) =
     ?xxx88
     --typecheckNode expressionInfo (MkProvenanceMetadata provenance) (typecheckExpressionNode expressionNode)
@@ -331,34 +331,32 @@ typecheckFunctionBody (MkAstNode functionBodyAstInfo (MkProvenanceMetadata prove
   --    (map typecheckStatement blockStatements)
   --    (map typecheckExpression finalExpression)
 
-typecheckItem : ResolvedItem -> StateT CheckerState (Either TypeError) TypedItem
+typecheckItem : ResolvedItem -> StateT TypeCheckerState (Either TypeError) ()
 typecheckItem (MkAstNode itemInfo metadata item) = do
-  resolvedItem <- case item of
+  case item of
       ItemModule declaration => notImplemented {function = "typecheckItem"} {feature = "ItemModule"}
       ItemUse declaration => notImplemented {function = "typecheckItem"} {feature = "ItemUse"}
-      ItemConst declaration => do
-        typedDeclaration <- typecheckConstDeclaration declaration
-        pure $ ItemConst typedDeclaration
+      ItemConst declaration => typecheckConstDeclaration declaration
       ItemEnum declaration => notImplemented {function = "typecheckItem"} {feature = "ItemEnum"}
       ItemQEnum declaration => notImplemented {function = "typecheckItem"} {feature = "ItemQEnum"}
       ItemStruct declaration => notImplemented {function = "typecheckItem"} {feature = "ItemStruct"}
       ItemImpl declaration => notImplemented {function = "typecheckItem"} {feature = "ItemImpl"}
-      ItemFunction declaration => do
-        typedDeclaration <- typecheckFunctionDeclaration declaration
-        pure $ ItemFunction typedDeclaration
-  pure $ typecheckNode itemInfo metadata resolvedItem
+      ItemFunction declaration => typecheckFunctionDeclaration declaration
   where
-    typecheckConstDeclaration : ConstDeclarationNode ResolvedAstPhase ->  StateT CheckerState (Either TypeError) (ConstDeclarationNode TypedAstPhase)
+    typecheckConstDeclaration : ConstDeclarationNode ResolvedAstPhase ->  StateT TypeCheckerState (Either TypeError) ()
     typecheckConstDeclaration (MkConstDeclarationNode constDocs constVisibility constName constType constValue) = do
-      ?xxxxxxxxxxxxxxxxxx1
-      -- MkConstDeclarationNode
-      --   (map typecheckAstNode constDocs)
-      --   (map typecheckAstNode constVisibility)
-      --   (typecheckName constName)
-      --   (typecheckType constType)
-      --   typedConstValue
+      inferredLeafType <- case toInferredType constType of
+        TypeNotYetResolved => assert_total idris_crash "Ups"
+        ResolvedType leafType => pure leafType
+        NoValueType => lift $ Left (CannotInferType ?constTypesourceSpan)
+      modify $ \typeCheckerState =>
+        {
+          tables.symbols := update ?symbolid (?SymbolInfo inferredLeafType) typeCheckerState.tables.symbols,
+          tables.expressionTypes := insert ?nodeid inferredLeafType typeCheckerState.tables.expressionTypes
+        } typeCheckerState
+      ?xxx
 
-    typecheckFunctionDeclaration : FunctionDeclarationNode ResolvedAstPhase -> StateT CheckerState (Either TypeError) (FunctionDeclarationNode TypedAstPhase)
+    typecheckFunctionDeclaration : FunctionDeclarationNode ResolvedAstPhase -> StateT TypeCheckerState (Either TypeError) ()
     typecheckFunctionDeclaration
         (MkFunctionDeclarationNode
           functionDocs
@@ -394,22 +392,22 @@ initialTypeCheckPass (
     _                                                     -- rootScope
     (MkAstNode _ _ (MkSourceFileNode _ items))            -- astInfo, metadata, sourceFileInnerDocs
     (MkScopeTables
-      _                                                   -- resolver traversal state is not carried over:
-      _                                                   -- currentScope, currentScopeKind,
-      _                                                   -- currentModule, constContextBoundary
-      _
+      scopes
       nodeScopes
       symbols
-      localVariables
+      localVarsMeta
+      memberScopes
       references
-      scopes
-      memberScopes)
+      _                                                   -- currentScope: resolver traversal state is not carried over
+      _                                                   -- currentScopeKind
+      _                                                   -- currentModule
+      _)                                                  -- constContextBoundary
   ) = do
     let initialTypeTables = MkTypeTables
           scopes
           nodeScopes
           (map (\symbol => { symbolType := TypeNotYetResolved } symbol) symbols)
-          (map (\variable => { quantumStorage := PendingQbitClassification } variable) localVariables)
+          (map (\variable => { quantumStorage := PendingQbitClassification } variable) localVarsMeta)
           memberScopes
           references
           empty
@@ -417,7 +415,8 @@ initialTypeCheckPass (
           empty
           empty
           empty
-    let initialCheckerState = MkCheckerState initialTypeTables Nothing emptyInferenceState
-    (checkerState, _) <- runStateT initialCheckerState $ do
+    let initialTypeCheckerState = MkTypeCheckerState initialTypeTables Nothing emptyInferenceState
+    typeCheckerState <- execStateT initialTypeCheckerState $
       traverse_ typecheckItem items
-    pure checkerState.tables
+    pure typeCheckerState.tables
+

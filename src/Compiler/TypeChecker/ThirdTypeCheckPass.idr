@@ -174,7 +174,7 @@ mutual
 --      typecheckAdjointExpressionNode (AdjointOfCallable adjointedCallable) = AdjointOfCallable (typecheckNestedExpression adjointedCallable)
 --      typecheckAdjointExpressionNode (AdjointBlock adjointedBlock) = AdjointBlock (typecheckBlockExpression adjointedBlock)
 --
-  typecheckExpression : ResolvedExpr ->  StateT CheckerState (Either TypeError) TypedExpr
+  typecheckExpression : ResolvedExpr ->  StateT TypeCheckerState (Either TypeError) TypedExpr
   typecheckExpression (MkAstNode expressionInfo (MkProvenanceMetadata provenance) expressionNode) =
     ?xxx88
     --typecheckNode expressionInfo (MkProvenanceMetadata provenance) (typecheckExpressionNode expressionNode)
@@ -331,7 +331,7 @@ typecheckFunctionBody (MkAstNode functionBodyAstInfo (MkProvenanceMetadata prove
   --    (map typecheckStatement blockStatements)
   --    (map typecheckExpression finalExpression)
 
-typecheckItem : ResolvedItem -> StateT CheckerState (Either TypeError) TypedItem
+typecheckItem : ResolvedItem -> StateT TypeCheckerState (Either TypeError) TypedItem
 typecheckItem (MkAstNode itemInfo metadata item) = do
   resolvedItem <- case item of
       ItemModule declaration => notImplemented {function = "typecheckItem"} {feature = "ItemModule"}
@@ -348,7 +348,7 @@ typecheckItem (MkAstNode itemInfo metadata item) = do
         pure $ ItemFunction typedDeclaration
   pure $ typecheckNode itemInfo metadata resolvedItem
   where
-    typecheckConstDeclaration : ConstDeclarationNode ResolvedAstPhase ->  StateT CheckerState (Either TypeError) (ConstDeclarationNode TypedAstPhase)
+    typecheckConstDeclaration : ConstDeclarationNode ResolvedAstPhase ->  StateT TypeCheckerState (Either TypeError) (ConstDeclarationNode TypedAstPhase)
     typecheckConstDeclaration (MkConstDeclarationNode constDocs constVisibility constName constType constValue) = ?xxxxxxxxxxxxxxxxxx1
       -- MkConstDeclarationNode
       --   (map typecheckAstNode constDocs)
@@ -357,7 +357,7 @@ typecheckItem (MkAstNode itemInfo metadata item) = do
       --   (typecheckType constType)
       --   typedConstValue
 
-    typecheckFunctionDeclaration : FunctionDeclarationNode ResolvedAstPhase -> StateT CheckerState (Either TypeError) (FunctionDeclarationNode TypedAstPhase)
+    typecheckFunctionDeclaration : FunctionDeclarationNode ResolvedAstPhase -> StateT TypeCheckerState (Either TypeError) (FunctionDeclarationNode TypedAstPhase)
     typecheckFunctionDeclaration
         (MkFunctionDeclarationNode
           functionDocs
