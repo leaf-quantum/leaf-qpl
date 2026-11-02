@@ -89,11 +89,6 @@ mutual
     -- User-defined named type: struct, enum, or qenum, possibly behind a
     -- module path (Person, my_module::Config). Which of those it actually
     -- names is resolution's job; here it is just a written path.
-    --
-    -- NOTE: there is deliberately no type-argument slot here. Leaf has no
-    -- generics; if it ever grows them, TyPath acquires an argument list and
-    -- every consumer changes. That is a language-design decision to make
-    -- explicitly, not one to pre-wire.
     TyPath :
          (typePath : Path phase)
       -> TyNode phase arraySizeExpr

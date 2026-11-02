@@ -44,12 +44,12 @@ record NameNode where
   constructor MkNameNode
   nameNodeText : String
 
--- SymbolId tells which binding/program entity this name denotes
+-- SymbolId identifies the program entity (variable, function, struct, enum, module) that this name denotes
 public export
 record ResolvedNameNode where
   constructor MkResolvedNameNode
-  resolvedNameNodeText     : String
-  resolvedNameNodeSymbolId : SymbolId
+  nameNodeText     : String
+  nameNodeSymbolId : SymbolId
 
 public export
 NameFor : AstPhase -> Type

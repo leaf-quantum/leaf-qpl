@@ -246,7 +246,7 @@ resolvePatternUnchecked (MkAstNode patternInfo metadata patternNode) = do
       case constant of
         Just name =>
           pure $ PatternPath $ resolveNode name.astInfo name.metadata $
-            MkResolvedPathNode name.value.resolvedNameNodeText [] name.value.resolvedNameNodeSymbolId
+            MkResolvedPathNode name.value.nameNodeText [] name.value.nameNodeSymbolId
         Nothing => do
           resolvedBinderName <- declareLocalName SymbolLocalBinding patternInfo.nodeId mutability binderName
           pure $ PatternName mutability resolvedBinderName
@@ -302,12 +302,12 @@ rejectDuplicateBindings names = do
     checkNames : ScopeTables -> SortedMap String ResolvedName -> List ResolvedName -> Either ResolutionError ()
     checkNames _ _ [] = Right ()
     checkNames scopeTables seen (name :: rest) =
-      case lookup name.value.resolvedNameNodeSymbolId scopeTables.symbols of
+      case lookup name.value.nameNodeSymbolId scopeTables.symbols of
         Just symbol => if isLocalSymbolKind symbol.symbolKind
-          then case lookup name.value.resolvedNameNodeText seen of
-            Just first => Left $ DuplicateDeclaration name.value.resolvedNameNodeText
-              [first.value.resolvedNameNodeSymbolId] name.astInfo.span first.astInfo.span
-            Nothing => checkNames scopeTables (insert name.value.resolvedNameNodeText name seen) rest
+          then case lookup name.value.nameNodeText seen of
+            Just first => Left $ DuplicateDeclaration name.value.nameNodeText
+              [first.value.nameNodeSymbolId] name.astInfo.span first.astInfo.span
+            Nothing => checkNames scopeTables (insert name.value.nameNodeText name seen) rest
           else checkNames scopeTables seen rest
         Nothing => checkNames scopeTables seen rest
 

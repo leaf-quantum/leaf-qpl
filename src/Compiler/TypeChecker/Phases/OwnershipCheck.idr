@@ -1,4 +1,4 @@
-module Compiler.TypeChecker.BodyCheck
+module Compiler.TypeChecker.Phases.OwnershipCheck
 
 import Data.List1
 import Data.SortedMap
@@ -8,7 +8,6 @@ import Compiler.ScopeAndNameResolution.Data
 import Compiler.TypeChecker.Data
 import Compiler.TypeChecker.Helper
 import Compiler.TypeChecker.State
-import Compiler.TypeChecker.TcType
 import Compiler.TypeChecker.Type
 import Frontend.ASTData
 import Frontend.ASTPhases
@@ -174,11 +173,9 @@ mutual
 --      typecheckAdjointExpressionNode : AdjointExpressionNode ResolvedAstPhase -> AdjointExpressionNode TypedAstPhase
 --      typecheckAdjointExpressionNode (AdjointOfCallable adjointedCallable) = AdjointOfCallable (typecheckNestedExpression adjointedCallable)
 --      typecheckAdjointExpressionNode (AdjointBlock adjointedBlock) = AdjointBlock (typecheckBlockExpression adjointedBlock)
-
-
-  typecheckExpression : (expected : Maybe TcType) -> ResolvedExpr -> StateT TypeCheckerState (Either TypeError) (TypedExpr, TcType)
-  typecheckExpression = ?hhh
-  --typecheckExpression (MkAstNode expressionInfo (MkProvenanceMetadata provenance) expressionNode) =
+--
+  typecheckExpression : ResolvedExpr ->  StateT TypeCheckerState (Either TypeError) TypedExpr
+  typecheckExpression (MkAstNode expressionInfo (MkProvenanceMetadata provenance) expressionNode) =
     ?xxx88
     --typecheckNode expressionInfo (MkProvenanceMetadata provenance) (typecheckExpressionNode expressionNode)
 
@@ -352,22 +349,13 @@ typecheckItem (MkAstNode itemInfo metadata item) = do
   pure $ typecheckNode itemInfo metadata resolvedItem
   where
     typecheckConstDeclaration : ConstDeclarationNode ResolvedAstPhase ->  StateT TypeCheckerState (Either TypeError) (ConstDeclarationNode TypedAstPhase)
-    typecheckConstDeclaration (MkConstDeclarationNode constDocs constVisibility constName constType constValue) = do
-      let nameSymbolId = constName.value.resolvedNameNodeSymbolId
-      typedConstValue <- typecheckExpression ?harg constValue
-      modify $ \typeCheckerState =>
-        {
-          tables.symbols := updateExisting
-            (\symbol => { symbolType := toInferredType constType } symbol)
-            nameSymbolId
-            typeCheckerState.tables.symbols
-        } typeCheckerState
-      pure $ MkConstDeclarationNode
-        (map typecheckAstNode constDocs)
-        (map typecheckAstNode constVisibility)
-        (typecheckName constName)
-        (typecheckType constType)
-        ?typedConstValue_dontknow
+    typecheckConstDeclaration (MkConstDeclarationNode constDocs constVisibility constName constType constValue) = ?xxxxxxxxxxxxxxxxxx1
+      -- MkConstDeclarationNode
+      --   (map typecheckAstNode constDocs)
+      --   (map typecheckAstNode constVisibility)
+      --   (typecheckName constName)
+      --   (typecheckType constType)
+      --   typedConstValue
 
     typecheckFunctionDeclaration : FunctionDeclarationNode ResolvedAstPhase -> StateT TypeCheckerState (Either TypeError) (FunctionDeclarationNode TypedAstPhase)
     typecheckFunctionDeclaration
@@ -398,22 +386,5 @@ typecheckItem (MkAstNode itemInfo metadata item) = do
             --  (typecheckFunctionBody functionBody)
 
 export
-checkBodies : ResolvedModule -> TypeTables -> Either TypeError TypedModule
-checkBodies (
-  MkResolvedModule
-    rootModule
-    rootScope
-    (MkAstNode fileInfo metadata (MkSourceFileNode docs items))
-    _                                                     -- scope tables: already copied into TypeTables by pass A
-  ) signatureTables = do
-    let initialTypeCheckerState = MkTypeCheckerState signatureTables Nothing emptyInferenceState
-    (typeCheckerState, typedItems) <- runStateT initialTypeCheckerState $
-      traverse typecheckItem items
-    let typedAst = typecheckNode fileInfo metadata $
-                      MkSourceFileNode (map typecheckAstNode docs) typedItems
-    pure $ MkTypedModule
-      rootModule
-      rootScope
-      typedAst
-      typeCheckerState.tables
-      (MkOwnershipTables empty empty empty empty)         -- filled by pass C
+checkOwnership : TypedModule -> Either TypeError TypedModule
+checkOwnership typedModule = ?checkOwnershipHole

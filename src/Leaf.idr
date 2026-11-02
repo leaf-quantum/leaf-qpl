@@ -2,11 +2,21 @@ module Leaf
 
 -- a module used to load Leaf libraries in REPL sessions
 
+import Compiler.Desugar.Desugar
+import Compiler.Desugar.Helper
+import Compiler.ScopeAndNameResolution.Resolve
+import Compiler.TypeChecker.OwnershipEffects
+import Compiler.TypeChecker.Phases.ConstEval
+import Compiler.TypeChecker.Phases.EffectsCheck
+import Compiler.TypeChecker.Phases.OwnershipEvents
+import Compiler.TypeChecker.Phases.SignatureCheck
+import Compiler.TypeChecker.Phases.TypedAstTranslation
+import Compiler.TypeChecker.Signatures
+import Compiler.TypeChecker.Type
+import Compiler.TypeChecker.Validate
+import Compiler.Validation.PostParseValidation
 import Frontend.ASTData
 import Frontend.ASTPhases
-import Compiler.Validation.PostParseValidation
-import Frontend.Source
-import Frontend.Token
 import Frontend.Lexer.Error
 import Frontend.Lexer.Lexer
 import Frontend.Lexer.Regex
@@ -14,9 +24,8 @@ import Frontend.Lexer.Rules
 import Frontend.Parser.Error
 import Frontend.Parser.Helper
 import Frontend.Parser.Parser
+import Frontend.Source
 import Frontend.Syntax.AST
-import Frontend.Utils.ASTDebugPrinter
-import Frontend.Utils.ASTPrettyPrinter
 import Frontend.Syntax.Attribute
 import Frontend.Syntax.Common
 import Frontend.Syntax.Contract
@@ -26,16 +35,7 @@ import Frontend.Syntax.Name
 import Frontend.Syntax.Operator
 import Frontend.Syntax.Pattern
 import Frontend.Syntax.Type
-import Compiler.Desugar.Desugar
-import Compiler.Desugar.Helper
-import Compiler.ScopeAndNameResolution.Resolve
-import Compiler.TypeChecker.ConstEval
-import Compiler.TypeChecker.EffectsCheck
-import Compiler.TypeChecker.OwnershipEvents
-import Compiler.TypeChecker.OwnershipEffects
-import Compiler.TypeChecker.SignatureCheck
-import Compiler.TypeChecker.Signatures
-import Compiler.TypeChecker.Type
-import Compiler.TypeChecker.TypedAstTranslation
-import Compiler.TypeChecker.Validate
+import Frontend.Token
+import Frontend.Utils.ASTDebugPrinter
+import Frontend.Utils.ASTPrettyPrinter
 

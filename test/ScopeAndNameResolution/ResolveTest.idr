@@ -246,7 +246,7 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       uses <- traverse (\i => exprAt i fn.functionBody) [2, 3, 4, 5]
       matches <- traverse (\(name, use) => useMatches resolved name use) (zip names uses)
       scope <- scopeFor resolved fn.functionBody
-      pure (map (\name => name.value.resolvedNameNodeText) names == ["a", "b", "c", "d"] &&
+      pure (map (\name => name.value.nameNodeText) names == ["a", "b", "c", "d"] &&
             length (nub (map symbolId names)) == 4 && all id matches &&
             all (\(name, mutable) => localMatches resolved name mutable) (zip names [True, False, True, False]) &&
             all (\(pattern, name) => referenceMatches resolved DeclarationReference pattern.astInfo.nodeId name) binders &&

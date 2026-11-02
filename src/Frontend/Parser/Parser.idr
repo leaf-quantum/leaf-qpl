@@ -1878,6 +1878,11 @@ parsePrimaryExpression _ nodeId
     TokIdent nameText =>
       case remaining of
         (B (TokSym SymLBrace) braceBounds) :: afterBrace =>
+          -- TODO: an uppercase name followed by `{` is read as a struct
+          -- literal and rejected, so a constant directly before a block
+          -- (`for i in 0..N { … }`, `while i < N { … }`, `if FLAG { … }`)
+          -- does not parse; parenthesizing it (`0..(N)`) works. Disallow
+          -- struct literals in condition and iterator position, as Rust does.
           if startsWithUppercase nameText
             then failWithCustomError
                    (UnsupportedFeature

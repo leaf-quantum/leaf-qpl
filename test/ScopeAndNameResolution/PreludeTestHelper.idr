@@ -114,8 +114,8 @@ constantShadowsPrelude resolved = do
   [reference] <- pure (valueReferences resolved) | _ => Nothing
   layout <- preludeLayout resolved
   pure (layout && sourceBinding.target /= preludeBinding.target &&
-        sourceBinding.target == con.constName.value.resolvedNameNodeSymbolId &&
-        use.value.resolvedNameNodeSymbolId == sourceBinding.target &&
+        sourceBinding.target == con.constName.value.nameNodeSymbolId &&
+        use.value.nameNodeSymbolId == sourceBinding.target &&
         (case sourceBinding.bindingKind of DeclaredBinding => True; _ => False) &&
         (case sourceBinding.bindingVisibility of ModuleVisibility => True; _ => False) &&
         (case sourceSymbol.symbolKind of SymbolConstant => True; _ => False) &&

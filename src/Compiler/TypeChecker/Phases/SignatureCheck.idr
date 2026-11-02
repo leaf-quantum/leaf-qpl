@@ -1,4 +1,4 @@
-module Compiler.TypeChecker.OwnershipCheck
+module Compiler.TypeChecker.Phases.SignatureCheck
 
 import Data.List1
 import Data.SortedMap
@@ -331,33 +331,33 @@ typecheckFunctionBody (MkAstNode functionBodyAstInfo (MkProvenanceMetadata prove
   --    (map typecheckStatement blockStatements)
   --    (map typecheckExpression finalExpression)
 
-typecheckItem : ResolvedItem -> StateT TypeCheckerState (Either TypeError) TypedItem
+typecheckItem : ResolvedItem -> StateT TypeCheckerState (Either TypeError) ()
 typecheckItem (MkAstNode itemInfo metadata item) = do
-  resolvedItem <- case item of
+  case item of
       ItemModule declaration => notImplemented {function = "typecheckItem"} {feature = "ItemModule"}
       ItemUse declaration => notImplemented {function = "typecheckItem"} {feature = "ItemUse"}
-      ItemConst declaration => do
-        typedDeclaration <- typecheckConstDeclaration declaration
-        pure $ ItemConst typedDeclaration
+      ItemConst declaration => typecheckConstDeclaration declaration
       ItemEnum declaration => notImplemented {function = "typecheckItem"} {feature = "ItemEnum"}
       ItemQEnum declaration => notImplemented {function = "typecheckItem"} {feature = "ItemQEnum"}
       ItemStruct declaration => notImplemented {function = "typecheckItem"} {feature = "ItemStruct"}
       ItemImpl declaration => notImplemented {function = "typecheckItem"} {feature = "ItemImpl"}
-      ItemFunction declaration => do
-        typedDeclaration <- typecheckFunctionDeclaration declaration
-        pure $ ItemFunction typedDeclaration
-  pure $ typecheckNode itemInfo metadata resolvedItem
+      ItemFunction declaration => typecheckFunctionDeclaration declaration
   where
-    typecheckConstDeclaration : ConstDeclarationNode ResolvedAstPhase ->  StateT TypeCheckerState (Either TypeError) (ConstDeclarationNode TypedAstPhase)
-    typecheckConstDeclaration (MkConstDeclarationNode constDocs constVisibility constName constType constValue) = ?xxxxxxxxxxxxxxxxxx1
-      -- MkConstDeclarationNode
-      --   (map typecheckAstNode constDocs)
-      --   (map typecheckAstNode constVisibility)
-      --   (typecheckName constName)
-      --   (typecheckType constType)
-      --   typedConstValue
+    typecheckConstDeclaration : ConstDeclarationNode ResolvedAstPhase ->  StateT TypeCheckerState (Either TypeError) ()
+    typecheckConstDeclaration (MkConstDeclarationNode constDocs constVisibility constName constType constValue) = do
+      typeCheckerState <- get
+      inferredLeafType <- case toInferredType constType of
+        TypeNotYetResolved => assert_total idris_crash "Ups"
+        ResolvedType leafType => pure leafType
+        NoValueType => lift $ Left (CannotInferType ?constTypesourceSpan)
+      modify $ \typeCheckerState =>
+        {
+          tables.symbols := update ?symbolid (?SymbolInfo inferredLeafType) typeCheckerState.tables.symbols,
+          tables.expressionTypes := insert ?nodeid inferredLeafType typeCheckerState.tables.expressionTypes
+        } typeCheckerState
+      ?xxx
 
-    typecheckFunctionDeclaration : FunctionDeclarationNode ResolvedAstPhase -> StateT TypeCheckerState (Either TypeError) (FunctionDeclarationNode TypedAstPhase)
+    typecheckFunctionDeclaration : FunctionDeclarationNode ResolvedAstPhase -> StateT TypeCheckerState (Either TypeError) ()
     typecheckFunctionDeclaration
         (MkFunctionDeclarationNode
           functionDocs
@@ -371,7 +371,7 @@ typecheckItem (MkAstNode itemInfo metadata item) = do
           supportClause
           contractClauses
           functionBody
-        ) = ?xxxxxxxxxxxxxxxxxx
+        ) = ?xxxxxxxxxxxxxxxxxx2
             --MkFunctionDeclarationNode
             --  (map typecheckAstNode functionDocs)
             --  (map typecheckAttribute functionAttributes)
@@ -386,5 +386,39 @@ typecheckItem (MkAstNode itemInfo metadata item) = do
             --  (typecheckFunctionBody functionBody)
 
 export
-checkOwnership : TypedModule -> Either TypeError TypedModule
-checkOwnership typedModule = ?checkOwnershipHole
+checkSignatures : ResolvedModule -> Either TypeError TypeTables
+checkSignatures = ?checkSignaturesH
+--checkSignatures (
+--  MkResolvedModule
+--    _                                                     -- rootModule
+--    _                                                     -- rootScope
+--    (MkAstNode _ _ (MkSourceFileNode _ items))            -- astInfo, metadata, sourceFileInnerDocs
+--    (MkScopeTables
+--      scopes
+--      nodeScopes
+--      symbols
+--      localVarsMeta
+--      memberScopes
+--      references
+--      _                                                   -- currentScope: resolver traversal state is not carried over
+--      _                                                   -- currentScopeKind
+--      _                                                   -- currentModule
+--      _)                                                  -- constContextBoundary
+--  ) = do
+--    let initialTypeTables = MkTypeTables
+--          scopes
+--          nodeScopes
+--          (map (\symbol => { symbolType := TypeNotYetResolved } symbol) symbols)
+--          (map (\variable => { quantumStorage := PendingQbitClassification } variable) localVarsMeta)
+--          memberScopes
+--          references
+--          empty
+--          empty
+--          empty
+--          empty
+--          empty
+--    let initialTypeCheckerState = MkTypeCheckerState initialTypeTables Nothing emptyInferenceState
+--    typeCheckerState <- execStateT initialTypeCheckerState $
+--      traverse_ typecheckItem items
+--    pure typeCheckerState.tables
+--

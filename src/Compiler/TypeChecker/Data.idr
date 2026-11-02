@@ -194,7 +194,7 @@ data TypeError
   | EffectViolation FunctionEffect FunctionEffect SourceSpan   -- enclosing effect restriction, offending operation's effect, ex: measr(&q) inside a unitary function,
   | MissingCapability String SourceSpan                        -- required capability (adjoint or ctrl), ex: adjoint(f) when f has no established adjoint support
   | InvalidQuantumPattern String SourceSpan               -- explanation of the invalid pattern, ex: mixing integer and basis-string patterns in one qmatch, or using _ in smatch.
-                                                              -- type cycles?
+  | CyclicDeclaration (List SymbolId) SourceSpan                -- symbols involved in a declaration dependency cycle
 
 export
 showTypeError : TypeError -> String
@@ -232,6 +232,8 @@ showTypeError typeError =
       at sourceSpan $ "The callable does not have established support for '" ++ capability ++ "'."
     InvalidQuantumPattern explanation sourceSpan =>
       at sourceSpan $ "Invalid quantum pattern: " ++ explanation
+    CyclicDeclaration symbols sourceSpan =>
+      at sourceSpan $ "Cyclic declaration dependency involving symbols " ++ show (map (.id) symbols) ++ "."
   where
     at : SourceSpan -> String -> String
     at sourceSpan message = "Type error at \{sourceSpan}: \{message}"

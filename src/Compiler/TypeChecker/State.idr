@@ -1,11 +1,14 @@
 module Compiler.TypeChecker.State
 
 import Data.SortedMap
+import Data.SortedSet
 
 import Compiler.TypeChecker.Data
 import Compiler.TypeChecker.TcType
 import Compiler.TypeChecker.Type
+import Frontend.Syntax.AST
 import Frontend.ASTData
+import Frontend.ASTPhases
 import Frontend.Syntax.Common
 
 %default total
@@ -48,6 +51,10 @@ emptyInferenceState = MkInferenceState 0 empty empty empty empty [] [] []
 public export
 record TypeCheckerState where
   constructor MkTypeCheckerState
-  tables    : TypeTables
-  function  : Maybe FunctionContext               -- Nothing while checking const initializers
-  inference : InferenceState
+  tables        : TypeTables
+  function      : Maybe FunctionContext            -- tells pass B (BodyCheck) which function it is operating inside, if any.
+  inference     : InferenceState                   -- pass B's (BodyCheck) scratch space for the one body it is checking right now
+  declarations  : SortedMap SymbolId ResolvedItem  -- maps each top-level item's symbol to that item's resolved AST node
+  checkedBodies : SortedSet SymbolId               -- set of functions whose bodies pass B (BodyCheck) has already finished
+  constExprs    : SortedMap NodeId Nat
+

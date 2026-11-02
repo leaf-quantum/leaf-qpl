@@ -36,7 +36,7 @@ functionNamed name resolved =
   where
     pick : ResolvedItem -> Maybe (AstInfo, FunctionDeclarationNode ResolvedAstPhase)
     pick (MkAstNode info _ (ItemFunction fn)) =
-      if fn.functionName.value.resolvedNameNodeText == name then Just (info, fn) else Nothing
+      if fn.functionName.value.nameNodeText == name then Just (info, fn) else Nothing
     pick _ = Nothing
 
 export
@@ -47,7 +47,7 @@ constantNamed name resolved =
   where
     pick : ResolvedItem -> Maybe (AstInfo, ConstDeclarationNode ResolvedAstPhase)
     pick (MkAstNode info _ (ItemConst con)) =
-      if con.constName.value.resolvedNameNodeText == name then Just (info, con) else Nothing
+      if con.constName.value.nameNodeText == name then Just (info, con) else Nothing
     pick _ = Nothing
 
 export
@@ -91,7 +91,7 @@ initializer binding = map (.initializerValue) binding.letInitializer
 
 export
 symbolId : ResolvedName -> SymbolId
-symbolId name = name.value.resolvedNameNodeSymbolId
+symbolId name = name.value.nameNodeSymbolId
 
 export
 scopeFor : ResolvedModule -> AstNode ResolvedAstPhase a -> Maybe ScopeInfo
@@ -116,7 +116,7 @@ referenceMatches resolved role context name =
   case filter (\ref => ref.occurrence.nodeId == name.astInfo.nodeId &&
                        sameRole ref.role role && ref.contextNode == context) (allReferences resolved) of
     [ref] => ref.target == symbolId name && sameRole ref.role role &&
-             ref.contextNode == context && ref.writtenName == name.value.resolvedNameNodeText &&
+             ref.contextNode == context && ref.writtenName == name.value.nameNodeText &&
              spanKey ref.occurrence.span == spanKey name.astInfo.span &&
              lookup name.astInfo.nodeId resolved.tables.nodeScopes == Just ref.enclosingScope &&
              lookup context resolved.tables.nodeScopes == Just ref.enclosingScope
@@ -133,7 +133,7 @@ constantOccurrenceMatches resolved constant context name =
       symbolId name == symbolId constant &&
       referenceMatches resolved PatternReference context name &&
       isNothing (lookup (symbolId name) resolved.tables.localVarsMeta) &&
-      isNothing (lookup name.value.resolvedNameNodeText scope.valueBindings) &&
+      isNothing (lookup name.value.nameNodeText scope.valueBindings) &&
       not (elem (symbolId name) (scope.declaredSymbolsInOrder <>> []))
 
 export
@@ -143,7 +143,7 @@ constantPatternMatches resolved constant pattern = case pattern.value of
     let name = MkAstNode path.astInfo path.metadata
                  (MkResolvedNameNode path.value.firstPathSegmentText path.value.resolvedPathTargetSymbolId)
     in path.value.remainingPathSegmentTexts == [] &&
-       path.value.firstPathSegmentText == constant.value.resolvedNameNodeText &&
+       path.value.firstPathSegmentText == constant.value.nameNodeText &&
        constantOccurrenceMatches resolved constant pattern.astInfo.nodeId name
   _ => False
 
@@ -156,10 +156,10 @@ useMatches resolved declaration expression = do
 
 export
 bindingMatches : ScopeInfo -> ResolvedName -> Bool
-bindingMatches scope name = case lookup name.value.resolvedNameNodeText scope.valueBindings of
+bindingMatches scope name = case lookup name.value.nameNodeText scope.valueBindings of
   Nothing => False
   Just binding => binding.target == symbolId name &&
-    binding.writtenName == name.value.resolvedNameNodeText &&
+    binding.writtenName == name.value.nameNodeText &&
     map spanKey binding.introducedAt == Just (spanKey name.astInfo.span) &&
     (case binding.bindingKind of DeclaredBinding => True; _ => False) &&
     (case binding.bindingVisibility of LexicalVisibility => True; _ => False)
@@ -179,7 +179,7 @@ symbolMatches resolved name scope kind origin =
   case lookup (symbolId name) resolved.tables.symbols of
     Nothing => False
     Just symbol => symbol.symbolId == symbolId name &&
-      symbol.declaredName == name.value.resolvedNameNodeText &&
+      symbol.declaredName == name.value.nameNodeText &&
       symbol.declaringScope == scope && symbol.declaringModule == resolved.rootModule &&
       kindText symbol.symbolKind == kind &&
       (case symbol.origin of
@@ -294,7 +294,7 @@ expressionUses expression expected select = checkSource
     (_, g) <- functionNamed "g" resolved
     (_, f) <- functionNamed "f" resolved
     names <- parameterNames f
-    let declarations = SortedMap.fromList $ map (\name => (name.value.resolvedNameNodeText, name))
+    let declarations = SortedMap.fromList $ map (\name => (name.value.nameNodeText, name))
                                      (con.constName :: g.functionName :: names)
     targets <- traverse (\name => SortedMap.lookup name declarations) expected
     expression <- exprAt 0 f.functionBody
