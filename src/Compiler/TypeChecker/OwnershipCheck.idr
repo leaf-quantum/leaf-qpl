@@ -1,4 +1,4 @@
-module Compiler.TypeChecker.ThirdTypeCheckPass
+module Compiler.TypeChecker.OwnershipCheck
 
 import Data.List1
 import Data.SortedMap
@@ -386,5 +386,5 @@ typecheckItem (MkAstNode itemInfo metadata item) = do
             --  (typecheckFunctionBody functionBody)
 
 export
-thirdTypeCheckPass : TypedModule -> Either TypeError TypedModule
-thirdTypeCheckPass typedModule = ?thirdTypeCheckPassHole
+checkOwnership : TypedModule -> Either TypeError TypedModule
+checkOwnership typedModule = ?checkOwnershipHole

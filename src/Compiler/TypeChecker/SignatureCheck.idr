@@ -1,4 +1,4 @@
-module Compiler.TypeChecker.SecondTypeCheckPass
+module Compiler.TypeChecker.SignatureCheck
 
 import Data.List1
 import Data.SortedMap
@@ -8,7 +8,6 @@ import Compiler.ScopeAndNameResolution.Data
 import Compiler.TypeChecker.Data
 import Compiler.TypeChecker.Helper
 import Compiler.TypeChecker.State
-import Compiler.TypeChecker.TcType
 import Compiler.TypeChecker.Type
 import Frontend.ASTData
 import Frontend.ASTPhases
@@ -174,11 +173,9 @@ mutual
 --      typecheckAdjointExpressionNode : AdjointExpressionNode ResolvedAstPhase -> AdjointExpressionNode TypedAstPhase
 --      typecheckAdjointExpressionNode (AdjointOfCallable adjointedCallable) = AdjointOfCallable (typecheckNestedExpression adjointedCallable)
 --      typecheckAdjointExpressionNode (AdjointBlock adjointedBlock) = AdjointBlock (typecheckBlockExpression adjointedBlock)
-
-
-  typecheckExpression : (expected : Maybe TcType) -> ResolvedExpr -> StateT TypeCheckerState (Either TypeError) (TypedExpr, TcType)
-  typecheckExpression = ?hhh
-  --typecheckExpression (MkAstNode expressionInfo (MkProvenanceMetadata provenance) expressionNode) =
+--
+  typecheckExpression : ResolvedExpr ->  StateT TypeCheckerState (Either TypeError) TypedExpr
+  typecheckExpression (MkAstNode expressionInfo (MkProvenanceMetadata provenance) expressionNode) =
     ?xxx88
     --typecheckNode expressionInfo (MkProvenanceMetadata provenance) (typecheckExpressionNode expressionNode)
 
@@ -334,42 +331,33 @@ typecheckFunctionBody (MkAstNode functionBodyAstInfo (MkProvenanceMetadata prove
   --    (map typecheckStatement blockStatements)
   --    (map typecheckExpression finalExpression)
 
-typecheckItem : ResolvedItem -> StateT TypeCheckerState (Either TypeError) TypedItem
+typecheckItem : ResolvedItem -> StateT TypeCheckerState (Either TypeError) ()
 typecheckItem (MkAstNode itemInfo metadata item) = do
-  resolvedItem <- case item of
+  case item of
       ItemModule declaration => notImplemented {function = "typecheckItem"} {feature = "ItemModule"}
       ItemUse declaration => notImplemented {function = "typecheckItem"} {feature = "ItemUse"}
-      ItemConst declaration => do
-        typedDeclaration <- typecheckConstDeclaration declaration
-        pure $ ItemConst typedDeclaration
+      ItemConst declaration => typecheckConstDeclaration declaration
       ItemEnum declaration => notImplemented {function = "typecheckItem"} {feature = "ItemEnum"}
       ItemQEnum declaration => notImplemented {function = "typecheckItem"} {feature = "ItemQEnum"}
       ItemStruct declaration => notImplemented {function = "typecheckItem"} {feature = "ItemStruct"}
       ItemImpl declaration => notImplemented {function = "typecheckItem"} {feature = "ItemImpl"}
-      ItemFunction declaration => do
-        typedDeclaration <- typecheckFunctionDeclaration declaration
-        pure $ ItemFunction typedDeclaration
-  pure $ typecheckNode itemInfo metadata resolvedItem
+      ItemFunction declaration => typecheckFunctionDeclaration declaration
   where
-    typecheckConstDeclaration : ConstDeclarationNode ResolvedAstPhase ->  StateT TypeCheckerState (Either TypeError) (ConstDeclarationNode TypedAstPhase)
+    typecheckConstDeclaration : ConstDeclarationNode ResolvedAstPhase ->  StateT TypeCheckerState (Either TypeError) ()
     typecheckConstDeclaration (MkConstDeclarationNode constDocs constVisibility constName constType constValue) = do
-      let nameSymbolId = constName.value.resolvedNameNodeSymbolId
-      typedConstValue <- typecheckExpression ?harg constValue
+      typeCheckerState <- get
+      inferredLeafType <- case toInferredType constType of
+        TypeNotYetResolved => assert_total idris_crash "Ups"
+        ResolvedType leafType => pure leafType
+        NoValueType => lift $ Left (CannotInferType ?constTypesourceSpan)
       modify $ \typeCheckerState =>
         {
-          tables.symbols := updateExisting
-            (\symbol => { symbolType := toInferredType constType } symbol)
-            nameSymbolId
-            typeCheckerState.tables.symbols
+          tables.symbols := update ?symbolid (?SymbolInfo inferredLeafType) typeCheckerState.tables.symbols,
+          tables.expressionTypes := insert ?nodeid inferredLeafType typeCheckerState.tables.expressionTypes
         } typeCheckerState
-      pure $ MkConstDeclarationNode
-        (map typecheckAstNode constDocs)
-        (map typecheckAstNode constVisibility)
-        (typecheckName constName)
-        (typecheckType constType)
-        ?typedConstValue_dontknow
+      ?xxx
 
-    typecheckFunctionDeclaration : FunctionDeclarationNode ResolvedAstPhase -> StateT TypeCheckerState (Either TypeError) (FunctionDeclarationNode TypedAstPhase)
+    typecheckFunctionDeclaration : FunctionDeclarationNode ResolvedAstPhase -> StateT TypeCheckerState (Either TypeError) ()
     typecheckFunctionDeclaration
         (MkFunctionDeclarationNode
           functionDocs
@@ -383,7 +371,7 @@ typecheckItem (MkAstNode itemInfo metadata item) = do
           supportClause
           contractClauses
           functionBody
-        ) = ?xxxxxxxxxxxxxxxxxx
+        ) = ?xxxxxxxxxxxxxxxxxx2
             --MkFunctionDeclarationNode
             --  (map typecheckAstNode functionDocs)
             --  (map typecheckAttribute functionAttributes)
@@ -398,22 +386,38 @@ typecheckItem (MkAstNode itemInfo metadata item) = do
             --  (typecheckFunctionBody functionBody)
 
 export
-secondTypeCheckPass : ResolvedModule -> TypeTables -> Either TypeError TypedModule
-secondTypeCheckPass (
+checkSignatures : ResolvedModule -> Either TypeError TypeTables
+checkSignatures (
   MkResolvedModule
-    rootModule
-    rootScope
-    (MkAstNode fileInfo metadata (MkSourceFileNode docs items))
-    _                                                     -- scope tables: already copied into TypeTables by pass A
-  ) signatureTables = do
-    let initialTypeCheckerState = MkTypeCheckerState signatureTables Nothing emptyInferenceState
-    (typeCheckerState, typedItems) <- runStateT initialTypeCheckerState $
-      traverse typecheckItem items
-    let typedAst = typecheckNode fileInfo metadata $
-                      MkSourceFileNode (map typecheckAstNode docs) typedItems
-    pure $ MkTypedModule
-      rootModule
-      rootScope
-      typedAst
-      typeCheckerState.tables
-      (MkOwnershipTables empty empty empty empty)         -- filled by pass C
+    _                                                     -- rootModule
+    _                                                     -- rootScope
+    (MkAstNode _ _ (MkSourceFileNode _ items))            -- astInfo, metadata, sourceFileInnerDocs
+    (MkScopeTables
+      scopes
+      nodeScopes
+      symbols
+      localVarsMeta
+      memberScopes
+      references
+      _                                                   -- currentScope: resolver traversal state is not carried over
+      _                                                   -- currentScopeKind
+      _                                                   -- currentModule
+      _)                                                  -- constContextBoundary
+  ) = do
+    let initialTypeTables = MkTypeTables
+          scopes
+          nodeScopes
+          (map (\symbol => { symbolType := TypeNotYetResolved } symbol) symbols)
+          (map (\variable => { quantumStorage := PendingQbitClassification } variable) localVarsMeta)
+          memberScopes
+          references
+          empty
+          empty
+          empty
+          empty
+          empty
+    let initialTypeCheckerState = MkTypeCheckerState initialTypeTables Nothing emptyInferenceState
+    typeCheckerState <- execStateT initialTypeCheckerState $
+      traverse_ typecheckItem items
+    pure typeCheckerState.tables
+

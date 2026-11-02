@@ -29,5 +29,13 @@ import Frontend.Syntax.Type
 import Compiler.Desugar.Desugar
 import Compiler.Desugar.Helper
 import Compiler.ScopeAndNameResolution.Resolve
-import Compiler.TypeChecker.InitialTypeCheckPass
+import Compiler.TypeChecker.ConstEval
+import Compiler.TypeChecker.EffectChecker
+import Compiler.TypeChecker.OwnershipEvents
+import Compiler.TypeChecker.OwnershipEffects
+import Compiler.TypeChecker.SignatureCheck
+import Compiler.TypeChecker.Signatures
 import Compiler.TypeChecker.Type
+import Compiler.TypeChecker.TypedAstTranslation
+import Compiler.TypeChecker.Validate
+

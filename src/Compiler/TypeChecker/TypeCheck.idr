@@ -3,18 +3,18 @@ module Compiler.TypeChecker.TypeCheck
 import Control.Monad.State
 
 import Compiler.ScopeAndNameResolution.Data
+import Compiler.TypeChecker.BodyCheck
 import Compiler.TypeChecker.Data
-import Compiler.TypeChecker.InitialTypeCheckPass
-import Compiler.TypeChecker.SecondTypeCheckPass
-import Compiler.TypeChecker.ThirdTypeCheckPass
+import Compiler.TypeChecker.OwnershipCheck
+import Compiler.TypeChecker.SignatureCheck
 
 %default total
 
 public export
 typeCheck : ResolvedModule -> Either TypeError TypedModule
 typeCheck resolvedModule = do
-    signatureTables <- initialTypeCheckPass resolvedModule
-    typedModule     <- secondTypeCheckPass resolvedModule signatureTables
-    thirdTypeCheckPass typedModule
+    signatureTables <- checkSignatures resolvedModule
+    typedModule     <- checkBodies resolvedModule signatureTables
+    checkOwnership typedModule
 
 
