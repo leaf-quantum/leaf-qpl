@@ -30,7 +30,7 @@ import Compiler.Desugar.Desugar
 import Compiler.Desugar.Helper
 import Compiler.ScopeAndNameResolution.Resolve
 import Compiler.TypeChecker.ConstEval
-import Compiler.TypeChecker.EffectChecker
+import Compiler.TypeChecker.EffectsCheck
 import Compiler.TypeChecker.OwnershipEvents
 import Compiler.TypeChecker.OwnershipEffects
 import Compiler.TypeChecker.SignatureCheck
