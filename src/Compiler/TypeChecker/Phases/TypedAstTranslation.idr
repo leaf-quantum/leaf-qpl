@@ -8,7 +8,7 @@ import Frontend.Syntax.AST
 %default total
 
 export
-translateSourceFile : TypeTables -> ResolvedSourceFile -> TypedSourceFile
-translateSourceFile = ?translateSourceFileH
+translateAst : TypeTables -> ResolvedSourceFile -> TypedSourceFile
+translateAst = ?translateSourceFileH
 
 

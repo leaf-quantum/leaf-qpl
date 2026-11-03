@@ -64,18 +64,14 @@ data CheckFailure
   = Blocked SymbolId                               -- needs this symbol's signature, value or checked body first
   | Failed TypeError
 
-public export
-Eval : Type -> Type
-Eval = StateT TypeCheckerState (Either CheckFailure)
-
 ||| Every diagnostic goes through this
 public export
-failed : TypeError -> Eval a
+failed : TypeError -> StateT TypeCheckerState (Either CheckFailure) a
 failed err = lift (Left (Failed err))
 
 ||| Stop until `symbol`'s signature, value or checked body exists.
 public export
-blocked : SymbolId -> Eval a
+blocked : SymbolId -> StateT TypeCheckerState (Either CheckFailure) a
 blocked symbol = lift (Left (Blocked symbol))
 
 

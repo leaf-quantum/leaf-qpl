@@ -59,8 +59,8 @@ sameItem a b = a.astInfo.nodeId == b.astInfo.nodeId
 -- Seeding
 --------------------------------------------------------------------------------
 
-sourceItems : ResolvedSourceFile -> List ResolvedItem
-sourceItems (MkAstNode _ _ (MkSourceFileNode _ items)) = items
+sourceCodeItems : ResolvedSourceFile -> List ResolvedItem
+sourceCodeItems (MkAstNode _ _ (MkSourceFileNode _ items)) = items
 
 seedTypeTables : ScopeTables -> TypeTables
 seedTypeTables scopeTables =
@@ -132,7 +132,7 @@ resolutionCycleError tables stuck =
                Nothing   => reverse (symbol :: visited)
 
 --------------------------------------------------------------------------------
--- Passes A and B, in rounds
+-- Passes A and B, in runBodyAndSignatureCheck
 --------------------------------------------------------------------------------
 
 -- What passes A and B still have to do, each list in source order.
@@ -145,7 +145,7 @@ noRemaining : WorkTodo -> Nat
 noRemaining work = length work.signatures + length work.bodies
 
 -- A blocked check leaves the state exactly as it was so retrying next round is safe.
-attempt : Eval () -> Eval (Maybe SymbolId)
+attempt : StateT TypeCheckerState (Either CheckFailure) () -> StateT TypeCheckerState (Either CheckFailure) (Maybe SymbolId)
 attempt check = do
   before <- get
   case runStateT before check of
@@ -154,7 +154,10 @@ attempt check = do
     Left failure          => lift (Left failure)
 
 -- The items whose check blocked, each with the symbol it is waiting for.
-attemptAll : (ResolvedItem -> Eval ()) -> List ResolvedItem -> Eval (List (ResolvedItem, SymbolId))
+attemptAll : (ResolvedItem -> 
+             StateT TypeCheckerState (Either CheckFailure) ()) -> 
+             List ResolvedItem -> 
+             StateT TypeCheckerState (Either CheckFailure) (List (ResolvedItem, SymbolId))
 attemptAll check [] = pure []
 attemptAll check (item :: items) = do
   outcome <- attempt (check item)
@@ -163,28 +166,28 @@ attemptAll check (item :: items) = do
 
 -- One round: pass A on every pending signature, then pass B on every pending
 -- body whose signature is recorded. Each productive round completes at least
--- one of the 2n entries, so 2n + 1 rounds always suffice.
-rounds : (fuel : Nat) -> WorkTodo -> Eval ()
-rounds _ (MkWorkTodo [] []) = pure ()
-rounds Z _ = unreachable {function = "rounds"} {reason = "every productive round completes an entry"}
-rounds (S fuel) work = do
+-- one of the 2n entries, so 2n + 1 runBodyAndSignatureCheck always suffice.
+runBodyAndSignatureCheck : (fuel : Nat) -> WorkTodo -> StateT TypeCheckerState (Either CheckFailure) ()
+runBodyAndSignatureCheck _ (MkWorkTodo [] []) = pure ()
+runBodyAndSignatureCheck Z _ = unreachable {function = "runBodyAndSignatureCheck"} {reason = "every productive round completes an entry"}
+runBodyAndSignatureCheck (S fuel) work = do
   stuckSignatures <- attemptAll checkSignature work.signatures
   let waitingForSignature = \item => any (sameItem item . fst) stuckSignatures
   stuckBodies <- attemptAll checkBody (filter (not . waitingForSignature) work.bodies)
   let stillPending = \item => waitingForSignature item || any (sameItem item . fst) stuckBodies
       next = MkWorkTodo (map fst stuckSignatures) (filter stillPending work.bodies)
   if noRemaining next < noRemaining work
-    then rounds fuel next
+    then runBodyAndSignatureCheck fuel next
     else do
       checkerState <- get
       failed (resolutionCycleError checkerState.tables (stuckSignatures ++ stuckBodies))
 
-checkTypes : TypeCheckerState -> List ResolvedItem -> Either TypeError TypeTables
-checkTypes seeded items =
-  case runStateT seeded (rounds (2 * length items + 1) (MkWorkTodo items items)) of
+resolveAndCheckTypes : TypeCheckerState -> List ResolvedItem -> Either TypeError TypeTables
+resolveAndCheckTypes seeded items =
+  case runStateT seeded (runBodyAndSignatureCheck (2 * length items + 1) (MkWorkTodo items items)) of
     Right (settled, ()) => Right settled.tables
     Left (Failed err)   => Left err
-    Left (Blocked _)    => unreachable {function = "checkTypes"} {reason = "attempt catches every block"}
+    Left (Blocked _)    => unreachable {function = "resolveAndCheckTypes"} {reason = "attempt catches every block"}
 
 --------------------------------------------------------------------------------
 -- The pipeline
@@ -195,10 +198,10 @@ checkTypes seeded items =
 public export
 typeCheck : ResolvedModule -> Either TypeError TypedModule
 typeCheck resolvedModule = do
-  let items = sourceItems resolvedModule.ast
-  tables <- checkTypes (seedTypeCheckerState resolvedModule items) items      -- A ⇄ B
-  let typedAst = translateSourceFile tables resolvedModule.ast                -- T: pure, cannot fail
-  checkEffects tables typedAst                                                -- E
-  ownership <- checkOwnership tables typedAst                                 -- C
-  pure (MkTypedModule resolvedModule.rootModule resolvedModule.rootScope typedAst tables ownership)
+  let items = sourceCodeItems resolvedModule.ast
+  typeTables <- resolveAndCheckTypes (seedTypeCheckerState resolvedModule items) items    -- A ⇄ B
+  let typedAst = translateAst typeTables resolvedModule.ast                               -- T: pure, cannot fail
+  checkEffects typeTables typedAst                                                        -- E
+  ownership <- checkOwnership typeTables typedAst                                         -- C
+  pure (MkTypedModule resolvedModule.rootModule resolvedModule.rootScope typedAst typeTables ownership)
 
