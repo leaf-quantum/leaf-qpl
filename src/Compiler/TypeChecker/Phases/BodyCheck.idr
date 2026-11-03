@@ -398,8 +398,8 @@ typecheckItem (MkAstNode itemInfo metadata item) = do
             --  (typecheckFunctionBody functionBody)
 
 export
-checkBodies : ResolvedModule -> TypeTables -> Either TypeError TypedModule
-checkBodies = ?checkBodiesH
+checkBody : ResolvedItem -> Eval ()
+checkBody = ?checkBodiesH
 --checkBodies (
 --  MkResolvedModule
 --    rootModule

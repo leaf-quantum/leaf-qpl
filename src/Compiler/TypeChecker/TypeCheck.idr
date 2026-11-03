@@ -12,7 +12,7 @@ import Compiler.TypeChecker.Phases.EffectsCheck             -- phase E
 import Compiler.TypeChecker.Helper
 import Compiler.TypeChecker.Phases.OwnershipCheck           -- phase C
 import Compiler.TypeChecker.Phases.SignatureCheck           -- phase A
-import Compiler.TypeChecker.Signatures
+import Compiler.TypeChecker.PreludeSignatures
 import Compiler.TypeChecker.State
 import Compiler.TypeChecker.Type
 import Compiler.TypeChecker.Phases.TypedAstTranslation      -- phase T
@@ -77,28 +77,20 @@ seedTypeTables scopeTables =
     empty                                                -- coercions
     empty                                                -- calls
 
--- The symbols no pass computes a type for. A module — the root, which is not
--- an item, and the prelude's `<prelude>` — has no value. A prelude function
--- used as a value has the type Signatures gives it (§4.2): a gate's owned form
--- at `linear` with both capabilities, a math function's f64 form; `Param` and
--- `phase` are not values (`NoValueType`). Calls to prelude names are checked
--- from Signatures directly.
-seedFixedTypes : TypeTables -> TypeTables
-seedFixedTypes tables = { symbols := map fixedType tables.symbols } tables
+seedPresetSymbolTypes : TypeTables -> TypeTables
+seedPresetSymbolTypes tables = { symbols := map fixedType tables.symbols } tables
   where
     fixedType : TypedSymbolInfo -> TypedSymbolInfo
     fixedType symbol =
       case (symbol.symbolKind, symbol.origin) of
         (SymbolModule, _)               => { symbolType := NoValueType } symbol
-        (SymbolFunction, PreludeSymbol) => { symbolType := preludeValueType symbol.declaredName } symbol
+        (SymbolFunction, PreludeSymbol) => { symbolType := preludeSymbolType symbol.declaredName } symbol
         _                               => symbol
 
--- Resolution's tables with every type still unresolved except the prelude's,
--- and the items indexed by the symbol each declares.
 seedTypeCheckerState : ResolvedModule -> List ResolvedItem -> TypeCheckerState
 seedTypeCheckerState resolvedModule items =
   MkTypeCheckerState
-    (seedFixedTypes (seedTypeTables resolvedModule.tables))
+    (seedPresetSymbolTypes (seedTypeTables resolvedModule.tables))
     Nothing
     emptyInferenceState
     (fromList (map (\item => (itemSymbolId item, item)) items))
@@ -113,13 +105,19 @@ seedTypeCheckerState resolvedModule items =
 -- the waits from the first stuck item must revisit a symbol; the symbols from
 -- that first visit onwards are the cycle. `const A: i32 = B; const B: i32 = A;`
 -- gives [B, A].
-cycleError : List (ResolvedItem, SymbolId) -> TypeError
-cycleError stuck =
+resolutionCycleError : TypeTables -> List (ResolvedItem, SymbolId) -> TypeError
+resolutionCycleError tables stuck =
   case stuck of
-    [] => unreachable {function = "cycleError"} {reason = "a round without progress has stuck items"}
+    [] => unreachable {function = "resolutionCycleError"} {reason = "a round without progress has stuck items"}
     (first, firstWait) :: _ =>
-      CyclicDeclaration (loopFrom (S (length stuck)) [] firstWait) (itemNameSpan first)
+      CyclicDeclaration (map symbolName (loopFrom (S (length stuck)) [] firstWait)) (itemNameSpan first)
   where
+    symbolName : SymbolId -> String
+    symbolName symbolId =
+      case lookup symbolId tables.symbols of
+        Just symbol => symbol.declaredName
+        Nothing => unreachable "resolutionCycleError" "a cycle references an unknown symbol"
+
     waits : List (SymbolId, SymbolId)
     waits = map (\(item, waitingFor) => (itemSymbolId item, waitingFor)) stuck
 
@@ -132,3 +130,75 @@ cycleError stuck =
         else case lookup symbol waits of
                Just next => loopFrom fuel (symbol :: visited) next
                Nothing   => reverse (symbol :: visited)
+
+--------------------------------------------------------------------------------
+-- Passes A and B, in rounds
+--------------------------------------------------------------------------------
+
+-- What passes A and B still have to do, each list in source order.
+record WorkTodo where
+  constructor MkWorkTodo
+  signatures : List ResolvedItem     -- pass A has not recorded the signature yet
+  bodies     : List ResolvedItem     -- pass B has not checked the body or initializer yet
+
+noRemaining : WorkTodo -> Nat
+noRemaining work = length work.signatures + length work.bodies
+
+-- A blocked check leaves the state exactly as it was so retrying next round is safe.
+attempt : Eval () -> Eval (Maybe SymbolId)
+attempt check = do
+  before <- get
+  case runStateT before check of
+    Right (after, ())     => put after >> pure Nothing
+    Left (Blocked symbol) => pure (Just symbol)
+    Left failure          => lift (Left failure)
+
+-- The items whose check blocked, each with the symbol it is waiting for.
+attemptAll : (ResolvedItem -> Eval ()) -> List ResolvedItem -> Eval (List (ResolvedItem, SymbolId))
+attemptAll check [] = pure []
+attemptAll check (item :: items) = do
+  outcome <- attempt (check item)
+  stuck <- attemptAll check items
+  pure (maybe stuck (\waitingFor => (item, waitingFor) :: stuck) outcome)
+
+-- One round: pass A on every pending signature, then pass B on every pending
+-- body whose signature is recorded. Each productive round completes at least
+-- one of the 2n entries, so 2n + 1 rounds always suffice.
+rounds : (fuel : Nat) -> WorkTodo -> Eval ()
+rounds _ (MkWorkTodo [] []) = pure ()
+rounds Z _ = unreachable {function = "rounds"} {reason = "every productive round completes an entry"}
+rounds (S fuel) work = do
+  stuckSignatures <- attemptAll checkSignature work.signatures
+  let waitingForSignature = \item => any (sameItem item . fst) stuckSignatures
+  stuckBodies <- attemptAll checkBody (filter (not . waitingForSignature) work.bodies)
+  let stillPending = \item => waitingForSignature item || any (sameItem item . fst) stuckBodies
+      next = MkWorkTodo (map fst stuckSignatures) (filter stillPending work.bodies)
+  if noRemaining next < noRemaining work
+    then rounds fuel next
+    else do
+      checkerState <- get
+      failed (resolutionCycleError checkerState.tables (stuckSignatures ++ stuckBodies))
+
+checkTypes : TypeCheckerState -> List ResolvedItem -> Either TypeError TypeTables
+checkTypes seeded items =
+  case runStateT seeded (rounds (2 * length items + 1) (MkWorkTodo items items)) of
+    Right (settled, ()) => Right settled.tables
+    Left (Failed err)   => Left err
+    Left (Blocked _)    => unreachable {function = "checkTypes"} {reason = "attempt catches every block"}
+
+--------------------------------------------------------------------------------
+-- The pipeline
+--------------------------------------------------------------------------------
+
+||| Passes A and B run in rounds until every signature and body is checked;
+||| then the typed AST is built, and effects and ownership are checked once each.
+public export
+typeCheck : ResolvedModule -> Either TypeError TypedModule
+typeCheck resolvedModule = do
+  let items = sourceItems resolvedModule.ast
+  tables <- checkTypes (seedTypeCheckerState resolvedModule items) items      -- A ⇄ B
+  let typedAst = translateSourceFile tables resolvedModule.ast                -- T: pure, cannot fail
+  checkEffects tables typedAst                                                -- E
+  ownership <- checkOwnership tables typedAst                                 -- C
+  pure (MkTypedModule resolvedModule.rootModule resolvedModule.rootScope typedAst tables ownership)
+

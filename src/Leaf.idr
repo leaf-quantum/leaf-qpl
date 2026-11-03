@@ -11,7 +11,7 @@ import Compiler.TypeChecker.Phases.EffectsCheck
 import Compiler.TypeChecker.Phases.OwnershipEvents
 import Compiler.TypeChecker.Phases.SignatureCheck
 import Compiler.TypeChecker.Phases.TypedAstTranslation
-import Compiler.TypeChecker.Signatures
+import Compiler.TypeChecker.PreludeSignatures
 import Compiler.TypeChecker.Type
 import Compiler.TypeChecker.Validate
 import Compiler.Validation.PostParseValidation

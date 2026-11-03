@@ -386,8 +386,8 @@ typecheckItem (MkAstNode itemInfo metadata item) = do
             --  (typecheckFunctionBody functionBody)
 
 export
-checkSignatures : ResolvedModule -> Either TypeError TypeTables
-checkSignatures = ?checkSignaturesH
+checkSignature : ResolvedItem -> Eval ()
+checkSignature = ?checkSignaturH
 --checkSignatures (
 --  MkResolvedModule
 --    _                                                     -- rootModule

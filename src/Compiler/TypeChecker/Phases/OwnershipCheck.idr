@@ -380,11 +380,11 @@ typecheckItem (MkAstNode itemInfo metadata item) = do
             --  (map typecheckAstNode functionEffect)
             --  (typecheckName functionName)
             --  (map typecheckFunctionParameter functionParameters)
-            --  (map typecheckType returnType)
+            --  (map typecheckType returnType)=
             --  (map typecheckAstNode supportClause)
             --  (map typecheckContractClause contractClauses)
             --  (typecheckFunctionBody functionBody)
 
 export
-checkOwnership : TypedModule -> Either TypeError TypedModule
+checkOwnership : TypeTables -> TypedSourceFile -> Either TypeError OwnershipTables
 checkOwnership typedModule = ?checkOwnershipHole

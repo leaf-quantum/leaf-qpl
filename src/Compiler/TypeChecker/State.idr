@@ -1,5 +1,6 @@
 module Compiler.TypeChecker.State
 
+import Control.Monad.State
 import Data.SortedMap
 import Data.SortedSet
 
@@ -57,4 +58,24 @@ record TypeCheckerState where
   declarations  : SortedMap SymbolId ResolvedItem  -- maps each top-level item's symbol to that item's resolved AST node
   checkedBodies : SortedSet SymbolId               -- set of functions whose bodies pass B (BodyCheck) has already finished
   constExprs    : SortedMap NodeId Nat
+
+public export
+data CheckFailure
+  = Blocked SymbolId                               -- needs this symbol's signature, value or checked body first
+  | Failed TypeError
+
+public export
+Eval : Type -> Type
+Eval = StateT TypeCheckerState (Either CheckFailure)
+
+||| Every diagnostic goes through this
+public export
+failed : TypeError -> Eval a
+failed err = lift (Left (Failed err))
+
+||| Stop until `symbol`'s signature, value or checked body exists.
+public export
+blocked : SymbolId -> Eval a
+blocked symbol = lift (Left (Blocked symbol))
+
 
