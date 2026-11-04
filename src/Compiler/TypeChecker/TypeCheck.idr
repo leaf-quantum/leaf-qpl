@@ -105,8 +105,8 @@ seedTypeCheckerState resolvedModule items =
 -- the waits from the first stuck item must revisit a symbol; the symbols from
 -- that first visit onwards are the cycle. `const A: i32 = B; const B: i32 = A;`
 -- gives [B, A].
-resolutionCycleError : TypeTables -> List (ResolvedItem, SymbolId) -> TypeError
-resolutionCycleError tables stuck =
+resolutionCycleTypeError : TypeTables -> List (ResolvedItem, SymbolId) -> TypeError
+resolutionCycleTypeError tables stuck =
   case stuck of
     [] => unreachable {function = "resolutionCycleError"} {reason = "a round without progress has stuck items"}
     (first, firstWait) :: _ =>
@@ -145,49 +145,49 @@ noRemaining : WorkTodo -> Nat
 noRemaining work = length work.signatures + length work.bodies
 
 -- A blocked check leaves the state exactly as it was so retrying next round is safe.
-attempt : StateT TypeCheckerState (Either CheckFailure) () -> StateT TypeCheckerState (Either CheckFailure) (Maybe SymbolId)
-attempt check = do
-  before <- get
-  case runStateT before check of
-    Right (after, ())     => put after >> pure Nothing
-    Left (Blocked symbol) => pure (Just symbol)
-    Left failure          => lift (Left failure)
+attemptCheck : StateT TypeCheckerState (Either CheckFailure) () -> StateT TypeCheckerState (Either CheckFailure) (Maybe SymbolId)
+attemptCheck computation = do
+  stateBefore <- get
+  case execStateT stateBefore computation of
+    Right stateAfter       => put stateAfter >> pure Nothing
+    Left (Blocked symbol)  => pure (Just symbol)
+    Left failure           => lift (Left failure)
 
 -- The items whose check blocked, each with the symbol it is waiting for.
-attemptAll : (ResolvedItem -> 
-             StateT TypeCheckerState (Either CheckFailure) ()) -> 
-             List ResolvedItem -> 
-             StateT TypeCheckerState (Either CheckFailure) (List (ResolvedItem, SymbolId))
-attemptAll check [] = pure []
-attemptAll check (item :: items) = do
-  outcome <- attempt (check item)
-  stuck <- attemptAll check items
+attemptAllChecks : (ResolvedItem -> StateT TypeCheckerState (Either CheckFailure) ()) 
+    -> List ResolvedItem 
+    -> StateT TypeCheckerState (Either CheckFailure) (List (ResolvedItem, SymbolId))
+attemptAllChecks checkFunction [] = pure []
+attemptAllChecks checkFunction (item :: items) = do
+  outcome <- attemptCheck (checkFunction item)
+  stuck <- attemptAllChecks checkFunction items
   pure (maybe stuck (\waitingFor => (item, waitingFor) :: stuck) outcome)
 
 -- One round: pass A on every pending signature, then pass B on every pending
 -- body whose signature is recorded. Each productive round completes at least
 -- one of the 2n entries, so 2n + 1 runBodyAndSignatureCheck always suffice.
-runBodyAndSignatureCheck : (fuel : Nat) -> WorkTodo -> StateT TypeCheckerState (Either CheckFailure) ()
-runBodyAndSignatureCheck _ (MkWorkTodo [] []) = pure ()
-runBodyAndSignatureCheck Z _ = unreachable {function = "runBodyAndSignatureCheck"} {reason = "every productive round completes an entry"}
-runBodyAndSignatureCheck (S fuel) work = do
-  stuckSignatures <- attemptAll checkSignature work.signatures
+runBodyAndSignatureChecks : (fuel : Nat) -> WorkTodo -> StateT TypeCheckerState (Either CheckFailure) ()
+runBodyAndSignatureChecks _ (MkWorkTodo [] []) = pure ()
+runBodyAndSignatureChecks Z _ = unreachable {function = "runBodyAndSignatureCheck"} {reason = "every productive round completes an entry"}
+runBodyAndSignatureChecks (S fuel) work = do
+  stuckSignatures <- attemptAllChecks checkSignature work.signatures
   let waitingForSignature = \item => any (sameItem item . fst) stuckSignatures
-  stuckBodies <- attemptAll checkBody (filter (not . waitingForSignature) work.bodies)
+  stuckBodies <- attemptAllChecks checkBody (filter (not . waitingForSignature) work.bodies)
   let stillPending = \item => waitingForSignature item || any (sameItem item . fst) stuckBodies
       next = MkWorkTodo (map fst stuckSignatures) (filter stillPending work.bodies)
   if noRemaining next < noRemaining work
-    then runBodyAndSignatureCheck fuel next
+    then runBodyAndSignatureChecks fuel next
     else do
       checkerState <- get
-      failed (resolutionCycleError checkerState.tables (stuckSignatures ++ stuckBodies))
+      let typeError = resolutionCycleTypeError checkerState.tables (stuckSignatures ++ stuckBodies)
+      lift (Left (Failed typeError)) 
 
 resolveAndCheckTypes : TypeCheckerState -> List ResolvedItem -> Either TypeError TypeTables
-resolveAndCheckTypes seeded items =
-  case runStateT seeded (runBodyAndSignatureCheck (2 * length items + 1) (MkWorkTodo items items)) of
-    Right (settled, ()) => Right settled.tables
-    Left (Failed err)   => Left err
-    Left (Blocked _)    => unreachable {function = "resolveAndCheckTypes"} {reason = "attempt catches every block"}
+resolveAndCheckTypes seededState items =
+  case execStateT seededState (runBodyAndSignatureChecks (2 * length items + 1) (MkWorkTodo items items)) of
+    Right finalState      => Right finalState.tables
+    Left (Failed typeErr) => Left typeErr
+    Left (Blocked _)      => unreachable {function = "resolveAndCheckTypes"} {reason = "attemptCheck catches every block"}
 
 --------------------------------------------------------------------------------
 -- The pipeline

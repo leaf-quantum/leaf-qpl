@@ -24,401 +24,365 @@ import Frontend.Syntax.Type
 
 %default total
 
-typecheckNode : AstInfo -> ProvenanceMetadata -> a -> TypedAstNode a
-typecheckNode astInfo (MkProvenanceMetadata provenance) = typedAstNode astInfo provenance
+checkNode : AstInfo -> ProvenanceMetadata -> a -> TypedAstNode a
+checkNode astInfo (MkProvenanceMetadata provenance) = typedAstNode astInfo provenance
 
-typecheckAstNode : {a : Type} -> AstNode ResolvedAstPhase a -> AstNode TypedAstPhase a
-typecheckAstNode (MkAstNode docInfo (MkProvenanceMetadata provenance) value) = typecheckNode docInfo (MkProvenanceMetadata provenance) value
+checkAstNode : {a : Type} -> AstNode ResolvedAstPhase a -> AstNode TypedAstPhase a
+checkAstNode (MkAstNode docInfo (MkProvenanceMetadata provenance) value) = checkNode docInfo (MkProvenanceMetadata provenance) value
 
-typecheckName : ResolvedName -> TypedName
-typecheckName (MkAstNode nameInfo (MkProvenanceMetadata provenance) (MkResolvedNameNode nameText symbolId)) =
-  typecheckNode nameInfo (MkProvenanceMetadata provenance) $
+checkName : ResolvedName -> TypedName
+checkName (MkAstNode nameInfo (MkProvenanceMetadata provenance) (MkResolvedNameNode nameText symbolId)) =
+  checkNode nameInfo (MkProvenanceMetadata provenance) $
     MkResolvedNameNode nameText symbolId
 
-typecheckMemberName : AstNode ResolvedAstPhase (MemberNameFor ResolvedAstPhase) -> TypedName
-typecheckMemberName = ?typecheckMemberNameH
+checkMemberName : AstNode ResolvedAstPhase (MemberNameFor ResolvedAstPhase) -> TypedName
+checkMemberName = ?checkMemberNameH
 
-typecheckAttribute : ResolvedAttribute -> TypedAttribute
-typecheckAttribute (MkAstNode attributeInfo (MkProvenanceMetadata provenance) (MkAttributeNode name arguments)) =
-  typecheckNode attributeInfo (MkProvenanceMetadata provenance) $
+checkAttribute : ResolvedAttribute -> TypedAttribute
+checkAttribute (MkAstNode attributeInfo (MkProvenanceMetadata provenance) (MkAttributeNode name arguments)) =
+  checkNode attributeInfo (MkProvenanceMetadata provenance) $
     MkAttributeNode
-      (typecheckAstNode name)
-      (map (map typecheckAstNode) arguments)
+      (checkAstNode name)
+      (map (map checkAstNode) arguments)
 
-typecheckPath : ResolvedPath -> TypedPath
-typecheckPath (MkAstNode pathAstInfo (MkProvenanceMetadata provenance) (MkResolvedPathNode firstSegmentText remainingSegmentTexts targetSymbolId)) =
-  typecheckNode pathAstInfo (MkProvenanceMetadata provenance) $
+checkPath : ResolvedPath -> TypedPath
+checkPath (MkAstNode pathAstInfo (MkProvenanceMetadata provenance) (MkResolvedPathNode firstSegmentText remainingSegmentTexts targetSymbolId)) =
+  checkNode pathAstInfo (MkProvenanceMetadata provenance) $
     MkResolvedPathNode firstSegmentText remainingSegmentTexts targetSymbolId
 
-typecheckPattern : ResolvedPattern -> TypedPattern
-typecheckPattern (MkAstNode patternInfo (MkProvenanceMetadata provenance) patternNode) =
-  typecheckNode patternInfo (MkProvenanceMetadata provenance) $
+checkPattern : ResolvedPattern -> TypedPattern
+checkPattern (MkAstNode patternInfo (MkProvenanceMetadata provenance) patternNode) =
+  checkNode patternInfo (MkProvenanceMetadata provenance) $
     case patternNode of
       PatternWildcard =>
         PatternWildcard
       PatternName mutability binderName =>
-        PatternName mutability (typecheckName binderName)
+        PatternName mutability (checkName binderName)
       PatternPath valuePath =>
-        PatternPath (typecheckPath valuePath)
+        PatternPath (checkPath valuePath)
       PatternLiteral literal =>
-        PatternLiteral (typecheckAstNode literal)
+        PatternLiteral (checkAstNode literal)
       PatternParenthesized innerPattern =>
-        unreachable {function = "typecheckPattern"} {reason = "parenthesized patterns should have been removed during desugaring"}
+        unreachable {function = "checkPattern"} {reason = "parenthesized patterns should have been removed during desugaring"}
       PatternTuple elementPatterns =>
         PatternTuple (map recur elementPatterns)
       PatternArray elementPatterns =>
         PatternArray (map recur elementPatterns)
       PatternStruct structPath fieldPatterns =>
         PatternStruct
-          (typecheckPath structPath)
-          (map typecheckStructPatternField fieldPatterns)
+          (checkPath structPath)
+          (map checkStructPatternField fieldPatterns)
       PatternEnumTuple variantPath argumentPatterns =>
         PatternEnumTuple
-          (typecheckPath variantPath)
+          (checkPath variantPath)
           (map recur argumentPatterns)
   where
     recur : ResolvedPattern -> TypedPattern
     recur pattern =
-      typecheckPattern (assert_smaller patternNode pattern)
+      checkPattern (assert_smaller patternNode pattern)
 
-    typecheckStructPatternField : ResolvedStructPatternField -> TypedStructPatternField
-    typecheckStructPatternField (MkAstNode fieldInfo (MkProvenanceMetadata provenance) fieldNode) =
-      typecheckNode fieldInfo (MkProvenanceMetadata provenance) $
+    checkStructPatternField : ResolvedStructPatternField -> TypedStructPatternField
+    checkStructPatternField (MkAstNode fieldInfo (MkProvenanceMetadata provenance) fieldNode) =
+      checkNode fieldInfo (MkProvenanceMetadata provenance) $
         case fieldNode of
           StructPatternFieldShorthand mutability fieldAndBinderName =>
             StructPatternFieldShorthand
               mutability
-              (typecheckName fieldAndBinderName)
+              (checkName fieldAndBinderName)
           StructPatternFieldExplicit fieldName fieldPattern =>
             StructPatternFieldExplicit
-              (typecheckName fieldName)
+              (checkName fieldName)
               (recur fieldPattern)
 
 mutual
-  typecheckExpressionNode : ExpressionNode ResolvedAstPhase -> ExpressionNode TypedAstPhase
-  typecheckExpressionNode expression =
+  checkExpressionNode : ExpressionNode ResolvedAstPhase -> ExpressionNode TypedAstPhase
+  checkExpressionNode expression =
     ?xxx9999
 --    case expression of
---      ExprLiteral literal => ExprLiteral (typecheckAstNode literal)
---      ExprName name => ExprName (typecheckName name)
---      ExprPath path => ExprPath (typecheckPath path)
+--      ExprLiteral literal => ExprLiteral (checkAstNode literal)
+--      ExprName name => ExprName (checkName name)
+--      ExprPath path => ExprPath (checkPath path)
 --      ExprBuiltin builtin => ExprBuiltin builtin
 --      ExprSelf selfReceiver => ExprSelf selfReceiver
---      ExprParenthesized inner => unreachable {function = "typecheckExpressionNode"} {reason = "parenthesized expressions should have been removed during desugaring"}
---      ExprTuple elements => ExprTuple (map typecheckNestedExpression elements)
---      ExprArray elements => ExprArray (map typecheckNestedExpression elements)
---      ExprRepeatedArray element count => ExprRepeatedArray (typecheckNestedExpression element) (typecheckNestedExpression count)
---      ExprStructLiteral path fields => notImplemented {function = "typecheckExpressionNode"} {feature = "ExprStructLiteral"}
---      ExprCall callee arguments => ExprCall (typecheckNestedExpression callee) (map typecheckNestedExpression arguments)
---      ExprMethodCall receiver name arguments => ExprMethodCall (typecheckNestedExpression receiver) (typecheckMemberName name) (map typecheckNestedExpression arguments)
---      ExprField object name => ExprField (typecheckNestedExpression object) (typecheckMemberName name)
---      ExprTupleIndex tuple indexText => ExprTupleIndex (typecheckNestedExpression tuple) indexText
---      ExprIndex object index => ExprIndex (typecheckNestedExpression object) (typecheckNestedExpression index)
---      ExprUnary operator operand => ExprUnary (typecheckAstNode operator) (typecheckNestedExpression operand)
---      ExprBinary operator left right => ExprBinary (typecheckAstNode operator) (typecheckNestedExpression left) (typecheckNestedExpression right)
---      ExprRange start operator end => ExprRange (map typecheckNestedExpression start) (typecheckAstNode operator) (map typecheckNestedExpression end)
---      ExprCast operand target => ExprCast (typecheckNestedExpression operand) (typecheckType target)
---      ExprBlock block => ExprBlock (typecheckBlockExpression block)
---      ExprIf ifNode => ExprIf (typecheckIfNode ifNode)
---      ExprQIf ifNode => notImplemented {function = "typecheckExpressionNode"} {feature = "ExprQIf"}
---      ExprSIf ifNode => notImplemented {function = "typecheckExpressionNode"} {feature = "ExprSIf"}
---      ExprMatch matchNode => notImplemented {function = "typecheckExpressionNode"} {feature = "ExprMatch"}
---      ExprQMatch matchNode => notImplemented {function = "typecheckExpressionNode"} {feature = "ExprQMatch"}
---      ExprSMatch matchNode => notImplemented {function = "typecheckExpressionNode"} {feature = "ExprSMatch"}
---      ExprLoop body => ExprLoop (typecheckBlockExpression body)
---      ExprWhile condition body => ExprWhile (typecheckNestedExpression condition) (typecheckBlockExpression body)
---      ExprFor pattern iterator body => ExprFor (typecheckPattern pattern) (typecheckNestedExpression iterator) (typecheckBlockExpression body)
---      ExprBreak value => ExprBreak (map typecheckNestedExpression value)
+--      ExprParenthesized inner => unreachable {function = "checkExpressionNode"} {reason = "parenthesized expressions should have been removed during desugaring"}
+--      ExprTuple elements => ExprTuple (map checkNestedExpression elements)
+--      ExprArray elements => ExprArray (map checkNestedExpression elements)
+--      ExprRepeatedArray element count => ExprRepeatedArray (checkNestedExpression element) (checkNestedExpression count)
+--      ExprStructLiteral path fields => notImplemented {function = "checkExpressionNode"} {feature = "ExprStructLiteral"}
+--      ExprCall callee arguments => ExprCall (checkNestedExpression callee) (map checkNestedExpression arguments)
+--      ExprMethodCall receiver name arguments => ExprMethodCall (checkNestedExpression receiver) (checkMemberName name) (map checkNestedExpression arguments)
+--      ExprField object name => ExprField (checkNestedExpression object) (checkMemberName name)
+--      ExprTupleIndex tuple indexText => ExprTupleIndex (checkNestedExpression tuple) indexText
+--      ExprIndex object index => ExprIndex (checkNestedExpression object) (checkNestedExpression index)
+--      ExprUnary operator operand => ExprUnary (checkAstNode operator) (checkNestedExpression operand)
+--      ExprBinary operator left right => ExprBinary (checkAstNode operator) (checkNestedExpression left) (checkNestedExpression right)
+--      ExprRange start operator end => ExprRange (map checkNestedExpression start) (checkAstNode operator) (map checkNestedExpression end)
+--      ExprCast operand target => ExprCast (checkNestedExpression operand) (checkType target)
+--      ExprBlock block => ExprBlock (checkBlockExpression block)
+--      ExprIf ifNode => ExprIf (checkIfNode ifNode)
+--      ExprQIf ifNode => notImplemented {function = "checkExpressionNode"} {feature = "ExprQIf"}
+--      ExprSIf ifNode => notImplemented {function = "checkExpressionNode"} {feature = "ExprSIf"}
+--      ExprMatch matchNode => notImplemented {function = "checkExpressionNode"} {feature = "ExprMatch"}
+--      ExprQMatch matchNode => notImplemented {function = "checkExpressionNode"} {feature = "ExprQMatch"}
+--      ExprSMatch matchNode => notImplemented {function = "checkExpressionNode"} {feature = "ExprSMatch"}
+--      ExprLoop body => ExprLoop (checkBlockExpression body)
+--      ExprWhile condition body => ExprWhile (checkNestedExpression condition) (checkBlockExpression body)
+--      ExprFor pattern iterator body => ExprFor (checkPattern pattern) (checkNestedExpression iterator) (checkBlockExpression body)
+--      ExprBreak value => ExprBreak (map checkNestedExpression value)
 --      ExprContinue => ExprContinue
---      ExprReturn value => ExprReturn (map typecheckNestedExpression value)
---      ExprCtrl control => ExprCtrl (typecheckControlExpressionNode control)
---      ExprAdjoint adjoint => ExprAdjoint (typecheckAdjointExpressionNode adjoint)
+--      ExprReturn value => ExprReturn (map checkNestedExpression value)
+--      ExprCtrl control => ExprCtrl (checkControlExpressionNode control)
+--      ExprAdjoint adjoint => ExprAdjoint (checkAdjointExpressionNode adjoint)
 --    where
---      typecheckNestedExpression : ResolvedExpr -> TypedExpr
---      typecheckNestedExpression nestedExpression =
---        typecheckExpression (assert_smaller expression nestedExpression)
---      typecheckBlockExpression : ResolvedBlock -> TypedBlock
---      typecheckBlockExpression 
+--      checkNestedExpression : ResolvedExpr -> TypedExpr
+--      checkNestedExpression nestedExpression =
+--        checkExpression (assert_smaller expression nestedExpression)
+--      checkBlockExpression : ResolvedBlock -> TypedBlock
+--      checkBlockExpression 
 --        (MkAstNode blockAstInfo (MkProvenanceMetadata provenance) (MkBlockNode blockInnerDocs blockStatements finalExpression)) =
---        typecheckNode blockAstInfo (MkProvenanceMetadata provenance) $
+--        checkNode blockAstInfo (MkProvenanceMetadata provenance) $
 --          MkBlockNode 
---            (map typecheckAstNode blockInnerDocs) 
---            (map (\statement => typecheckStatement (assert_smaller expression statement)) blockStatements) 
---            (map typecheckNestedExpression finalExpression)
---      typecheckIfNode : ClassicalIfNode ResolvedAstPhase -> ClassicalIfNode TypedAstPhase
---      typecheckIfNode ifNode@(MkClassicalIfNode ifCondition ifThenBlock ifElseBranch) =
+--            (map checkAstNode blockInnerDocs) 
+--            (map (\statement => checkStatement (assert_smaller expression statement)) blockStatements) 
+--            (map checkNestedExpression finalExpression)
+--      checkIfNode : ClassicalIfNode ResolvedAstPhase -> ClassicalIfNode TypedAstPhase
+--      checkIfNode ifNode@(MkClassicalIfNode ifCondition ifThenBlock ifElseBranch) =
 --        MkClassicalIfNode
---          (typecheckNestedExpression ifCondition)
---          (typecheckBlockExpression ifThenBlock)
---          (map typecheckElseNode ifElseBranch)
+--          (checkNestedExpression ifCondition)
+--          (checkBlockExpression ifThenBlock)
+--          (map checkElseNode ifElseBranch)
 --        where
---          typecheckElseNode : ClassicalElseNode ResolvedAstPhase -> ClassicalElseNode TypedAstPhase
---          typecheckElseNode (ElseBlock elseBlock) =
---            ElseBlock (typecheckBlockExpression elseBlock)
---          typecheckElseNode (ElseChainedIf (MkAstNode chainedIfInfo (MkProvenanceMetadata provenance) chainedIfNode)) =
+--          checkElseNode : ClassicalElseNode ResolvedAstPhase -> ClassicalElseNode TypedAstPhase
+--          checkElseNode (ElseBlock elseBlock) =
+--            ElseBlock (checkBlockExpression elseBlock)
+--          checkElseNode (ElseChainedIf (MkAstNode chainedIfInfo (MkProvenanceMetadata provenance) chainedIfNode)) =
 --            ElseChainedIf $
---              typecheckNode chainedIfInfo (MkProvenanceMetadata provenance) $
---                typecheckIfNode (assert_smaller ifNode chainedIfNode)
---      typecheckControlExpressionNode : ControlExpressionNode ResolvedAstPhase -> ControlExpressionNode TypedAstPhase
---      typecheckControlExpressionNode (ControlledCallable controlQbits onBasisRaw controlledCallable) =
+--              checkNode chainedIfInfo (MkProvenanceMetadata provenance) $
+--                checkIfNode (assert_smaller ifNode chainedIfNode)
+--      checkControlExpressionNode : ControlExpressionNode ResolvedAstPhase -> ControlExpressionNode TypedAstPhase
+--      checkControlExpressionNode (ControlledCallable controlQbits onBasisRaw controlledCallable) =
 --        ControlledCallable
---          (map typecheckNestedExpression controlQbits)
---          (map typecheckAstNode onBasisRaw)
---          (typecheckNestedExpression controlledCallable)
---      typecheckControlExpressionNode (ControlledBlock controlQbits onBasisRaw controlledBlock) =
+--          (map checkNestedExpression controlQbits)
+--          (map checkAstNode onBasisRaw)
+--          (checkNestedExpression controlledCallable)
+--      checkControlExpressionNode (ControlledBlock controlQbits onBasisRaw controlledBlock) =
 --        ControlledBlock
---          (map typecheckNestedExpression controlQbits)
---          (map typecheckAstNode onBasisRaw)
---          (typecheckBlockExpression controlledBlock)
---      typecheckAdjointExpressionNode : AdjointExpressionNode ResolvedAstPhase -> AdjointExpressionNode TypedAstPhase
---      typecheckAdjointExpressionNode (AdjointOfCallable adjointedCallable) = AdjointOfCallable (typecheckNestedExpression adjointedCallable)
---      typecheckAdjointExpressionNode (AdjointBlock adjointedBlock) = AdjointBlock (typecheckBlockExpression adjointedBlock)
+--          (map checkNestedExpression controlQbits)
+--          (map checkAstNode onBasisRaw)
+--          (checkBlockExpression controlledBlock)
+--      checkAdjointExpressionNode : AdjointExpressionNode ResolvedAstPhase -> AdjointExpressionNode TypedAstPhase
+--      checkAdjointExpressionNode (AdjointOfCallable adjointedCallable) = AdjointOfCallable (checkNestedExpression adjointedCallable)
+--      checkAdjointExpressionNode (AdjointBlock adjointedBlock) = AdjointBlock (checkBlockExpression adjointedBlock)
 --
-  typecheckExpression : ResolvedExpr ->  StateT TypeCheckerState (Either TypeError) TypedExpr
-  typecheckExpression (MkAstNode expressionInfo (MkProvenanceMetadata provenance) expressionNode) =
+  checkExpression : ResolvedExpr ->  StateT TypeCheckerState (Either TypeError) TypedExpr
+  checkExpression (MkAstNode expressionInfo (MkProvenanceMetadata provenance) expressionNode) =
     ?xxx88
-    --typecheckNode expressionInfo (MkProvenanceMetadata provenance) (typecheckExpressionNode expressionNode)
+    --checkNode expressionInfo (MkProvenanceMetadata provenance) (checkExpressionNode expressionNode)
 
-  typecheckType : Ty ResolvedAstPhase (Expr ResolvedAstPhase) -> Ty TypedAstPhase (Expr TypedAstPhase)
-  typecheckType (MkAstNode tyAstInfo (MkProvenanceMetadata provenance) typeNode) =
+  checkType : Ty ResolvedAstPhase (Expr ResolvedAstPhase) -> Ty TypedAstPhase (Expr TypedAstPhase)
+  checkType (MkAstNode tyAstInfo (MkProvenanceMetadata provenance) typeNode) =
     ?xxx0002
---    typecheckNode tyAstInfo (MkProvenanceMetadata provenance) $
+--    checkNode tyAstInfo (MkProvenanceMetadata provenance) $
 --      case typeNode of
 --        TyPrimitive primitiveName =>
 --          TyPrimitive primitiveName
 --        TyPath typePath =>
---          TyPath (typecheckPath typePath)
+--          TyPath (checkPath typePath)
 --        TyUnit =>
 --          TyUnit
 --        TyParenthesized innerType =>
---          unreachable {function = "typecheckType"} {reason = "parenthesized types should have been removed during desugaring"}
+--          unreachable {function = "checkType"} {reason = "parenthesized types should have been removed during desugaring"}
 --        TyTuple elementTypes =>
---          TyTuple (map typecheckNestedType elementTypes)
+--          TyTuple (map checkNestedType elementTypes)
 --        TyArray elementType sizeExpression =>
 --          TyArray 
---            (typecheckNestedType elementType) 
---            (typecheckExpression sizeExpression)
+--            (checkNestedType elementType) 
+--            (checkExpression sizeExpression)
 --        TySlice elementType =>
---          TySlice (typecheckNestedType elementType)
+--          TySlice (checkNestedType elementType)
 --        TyReference borrowKind referencedType =>
 --          TyReference 
---            (typecheckAstNode borrowKind) 
---            (typecheckNestedType referencedType)
+--            (checkAstNode borrowKind) 
+--            (checkNestedType referencedType)
 --        TyQualified ownershipQualifier qualifiedType =>
---          TyQualified (typecheckAstNode ownershipQualifier) (typecheckNestedType qualifiedType)
+--          TyQualified (checkAstNode ownershipQualifier) (checkNestedType qualifiedType)
 --        TyFunction functionEffect functionParameters returnType =>
 --          TyFunction
---            (map typecheckAstNode functionEffect)
---            (map typecheckParameter functionParameters)
---            (map typecheckNestedType returnType)
+--            (map checkAstNode functionEffect)
+--            (map checkParameter functionParameters)
+--            (map checkNestedType returnType)
 --      where
---        typecheckNestedType : ResolvedTy -> TypedTy
---        typecheckNestedType nestedType =
---          typecheckType (assert_smaller typeNode nestedType)
---        typecheckParameter : ResolvedAstNode (FunctionTypeParameterNode ResolvedAstPhase (ResolvedAstNode (ExpressionNode ResolvedAstPhase))) ->
+--        checkNestedType : ResolvedTy -> TypedTy
+--        checkNestedType nestedType =
+--          checkType (assert_smaller typeNode nestedType)
+--        checkParameter : ResolvedAstNode (FunctionTypeParameterNode ResolvedAstPhase (ResolvedAstNode (ExpressionNode ResolvedAstPhase))) ->
 --          TypedAstNode (FunctionTypeParameterNode TypedAstPhase (TypedAstNode (ExpressionNode TypedAstPhase)))
---        typecheckParameter (MkAstNode parameterAstInfo (MkProvenanceMetadata provenance) (MkFunctionTypeParameterNode parameterName parameterType)) =
---          typecheckNode parameterAstInfo (MkProvenanceMetadata provenance) $
---            -- Not typecheckName: a function-type parameter name is never a
+--        checkParameter (MkAstNode parameterAstInfo (MkProvenanceMetadata provenance) (MkFunctionTypeParameterNode parameterName parameterType)) =
+--          checkNode parameterAstInfo (MkProvenanceMetadata provenance) $
+--            -- Not checkName: a function-type parameter name is never a
 --            -- symbol (see the comment on FunctionTypeParameterNode in
 --            -- Syntax/Type.idr), so only its AstNode wrapping is updated.
---            MkFunctionTypeParameterNode (typecheckAstNode parameterName) (typecheckNestedType parameterType)
+--            MkFunctionTypeParameterNode (checkAstNode parameterName) (checkNestedType parameterType)
 --
-  typecheckFunctionParameter: AstNode ResolvedAstPhase (FunctionParameterNode ResolvedAstPhase) -> AstNode TypedAstPhase (FunctionParameterNode TypedAstPhase)
-  typecheckFunctionParameter (MkAstNode parameterInfo (MkProvenanceMetadata provenance) (NormalParameter parameterDocs parameterMutability parameterName parameterType)) =
-    typecheckNode parameterInfo (MkProvenanceMetadata provenance) $
+  checkFunctionParameter: AstNode ResolvedAstPhase (FunctionParameterNode ResolvedAstPhase) -> AstNode TypedAstPhase (FunctionParameterNode TypedAstPhase)
+  checkFunctionParameter (MkAstNode parameterInfo (MkProvenanceMetadata provenance) (NormalParameter parameterDocs parameterMutability parameterName parameterType)) =
+    checkNode parameterInfo (MkProvenanceMetadata provenance) $
       NormalParameter
-        (map typecheckAstNode parameterDocs)
-        (map typecheckAstNode parameterMutability)
-        (typecheckName parameterName)
-        (typecheckType parameterType)
-  typecheckFunctionParameter (MkAstNode parameterInfo (MkProvenanceMetadata provenance) (ReceiverParameter receiverDocs receiverBorrow)) =
-    typecheckNode parameterInfo (MkProvenanceMetadata provenance) $
+        (map checkAstNode parameterDocs)
+        (map checkAstNode parameterMutability)
+        (checkName parameterName)
+        (checkType parameterType)
+  checkFunctionParameter (MkAstNode parameterInfo (MkProvenanceMetadata provenance) (ReceiverParameter receiverDocs receiverBorrow)) =
+    checkNode parameterInfo (MkProvenanceMetadata provenance) $
       ReceiverParameter
-        (map typecheckAstNode receiverDocs)
-        (map typecheckAstNode receiverBorrow)
+        (map checkAstNode receiverDocs)
+        (map checkAstNode receiverBorrow)
 
-  typecheckSignedPauliTerm : SignedPauliTerm ResolvedAstPhase -> SignedPauliTerm TypedAstPhase
-  typecheckSignedPauliTerm (MkAstNode termInfo (MkProvenanceMetadata provenance) (MkSignedPauliTermNode sign pauliString)) =
-    typecheckNode termInfo (MkProvenanceMetadata provenance) $
-      MkSignedPauliTermNode sign (typecheckAstNode pauliString)
+  checkSignedPauliTerm : SignedPauliTerm ResolvedAstPhase -> SignedPauliTerm TypedAstPhase
+  checkSignedPauliTerm (MkAstNode termInfo (MkProvenanceMetadata provenance) (MkSignedPauliTermNode sign pauliString)) =
+    checkNode termInfo (MkProvenanceMetadata provenance) $
+      MkSignedPauliTermNode sign (checkAstNode pauliString)
 
-  typecheckContractPredicate : ResolvedContractPredicate -> TypedContractPredicate
-  typecheckContractPredicate (MkAstNode predicateInfo (MkProvenanceMetadata provenance) predicateNode) =
+  checkContractPredicate : ResolvedContractPredicate -> TypedContractPredicate
+  checkContractPredicate (MkAstNode predicateInfo (MkProvenanceMetadata provenance) predicateNode) =
     ?xxx22
-    --typecheckNode predicateInfo (MkProvenanceMetadata provenance) $
+    --checkNode predicateInfo (MkProvenanceMetadata provenance) $
     --  case predicateNode of
     --    ContractClean qbitArgument =>
-    --      ContractClean (typecheckExpression qbitArgument)
+    --      ContractClean (checkExpression qbitArgument)
     --    ContractBasis qbitArgument pauliString =>
     --      ContractBasis
-    --        (typecheckExpression qbitArgument)
-    --        (typecheckAstNode pauliString)
+    --        (checkExpression qbitArgument)
+    --        (checkAstNode pauliString)
     --    ContractSeparable qbitArgument =>
-    --      ContractSeparable (typecheckExpression qbitArgument)
+    --      ContractSeparable (checkExpression qbitArgument)
     --    ContractIsolated qbitArgument =>
-    --      ContractIsolated (typecheckExpression qbitArgument)
+    --      ContractIsolated (checkExpression qbitArgument)
     --    ContractProduct firstQbitSet otherQbitSets =>
     --      ContractProduct
-    --        (typecheckExpression firstQbitSet)
-    --        (map typecheckExpression otherQbitSets)
+    --        (checkExpression firstQbitSet)
+    --        (map checkExpression otherQbitSets)
     --    ContractStabilized qbitArgument stabilizerTerms =>
     --      ContractStabilized
-    --        (typecheckExpression qbitArgument)
-    --        (map typecheckSignedPauliTerm stabilizerTerms)
+    --        (checkExpression qbitArgument)
+    --        (map checkSignedPauliTerm stabilizerTerms)
 
-  typecheckContractClause : ContractClause ResolvedAstPhase (Expr ResolvedAstPhase) -> ContractClause TypedAstPhase (Expr TypedAstPhase)  
-  typecheckContractClause (MkAstNode contractAstInfo (MkProvenanceMetadata provenance) contractClauseNode) =
-    ?typecheckContractClauseHole
-  --  typecheckNode contractAstInfo (MkProvenanceMetadata provenance) $
+  checkContractClause : ContractClause ResolvedAstPhase (Expr ResolvedAstPhase) -> ContractClause TypedAstPhase (Expr TypedAstPhase)  
+  checkContractClause (MkAstNode contractAstInfo (MkProvenanceMetadata provenance) contractClauseNode) =
+    ?checkContractClauseHole
+  --  checkNode contractAstInfo (MkProvenanceMetadata provenance) $
   --    case contractClauseNode of
   --         l
-  --      RequiresClause predicate => RequiresClause (typecheckContractPredicate predicate)
-  --      EnsuresClause predicate => EnsuresClause (typecheckContractPredicate predicate)
+  --      RequiresClause predicate => RequiresClause (checkContractPredicate predicate)
+  --      EnsuresClause predicate => EnsuresClause (checkContractPredicate predicate)
 
-  --typecheckLetInitializer : LetInitializerNode ResolvedAstPhase -> LetInitializerNode TypedAstPhase
-  --typecheckLetInitializer (MkLetInitializerNode marker value) =
-  --  MkLetInitializerNode (typecheckAstNode marker) (typecheckExpression value)
+  --checkLetInitializer : LetInitializerNode ResolvedAstPhase -> LetInitializerNode TypedAstPhase
+  --checkLetInitializer (MkLetInitializerNode marker value) =
+  --  MkLetInitializerNode (checkAstNode marker) (checkExpression value)
 
-  typecheckAssignmentTarget : ResolvedAstNode (AssignmentTargetNode ResolvedAstPhase) -> TypedAstNode (AssignmentTargetNode TypedAstPhase)
-  typecheckAssignmentTarget (MkAstNode assignmentTargetAstInfo (MkProvenanceMetadata provenance) assignmentTargetNode) =
-    ?typecheckAssignmentTargetHole
-  --  typecheckNode assignmentTargetAstInfo (MkProvenanceMetadata provenance) $
+  checkAssignmentTarget : ResolvedAstNode (AssignmentTargetNode ResolvedAstPhase) -> TypedAstNode (AssignmentTargetNode TypedAstPhase)
+  checkAssignmentTarget (MkAstNode assignmentTargetAstInfo (MkProvenanceMetadata provenance) assignmentTargetNode) =
+    ?checkAssignmentTargetHole
+  --  checkNode assignmentTargetAstInfo (MkProvenanceMetadata provenance) $
   --    case assignmentTargetNode of
   --      AssignTargetName targetName =>
-  --        AssignTargetName (typecheckName targetName)
+  --        AssignTargetName (checkName targetName)
   --      AssignTargetIndex targetObject indexExpression =>
   --        AssignTargetIndex
-  --          (typecheckExpression targetObject)
-  --          (typecheckExpression indexExpression)
+  --          (checkExpression targetObject)
+  --          (checkExpression indexExpression)
   --      AssignTargetField targetObject fieldName =>
   --        AssignTargetField
-  --          (typecheckExpression targetObject)
-  --          (typecheckMemberName fieldName)
+  --          (checkExpression targetObject)
+  --          (checkMemberName fieldName)
   --      AssignTargetTupleIndex targetObject tupleIndexRawText =>
   --        AssignTargetTupleIndex
-  --          (typecheckExpression targetObject)
+  --          (checkExpression targetObject)
   --          tupleIndexRawText
 
-  typecheckStatement : Statement ResolvedAstPhase -> Statement TypedAstPhase
-  typecheckStatement (MkAstNode statementAstInfo (MkProvenanceMetadata provenance) statementNode) = ?typeCheckStatementHole
-  --typecheckNode statementAstInfo (MkProvenanceMetadata provenance) $
+  checkStatement : Statement ResolvedAstPhase -> Statement TypedAstPhase
+  checkStatement (MkAstNode statementAstInfo (MkProvenanceMetadata provenance) statementNode) = ?typeCheckStatementHole
+  --checkNode statementAstInfo (MkProvenanceMetadata provenance) $
   --    case statementNode of
   --      StatementLet (MkLetBindingNode qualifiers pattern typeAnnotation initializer) =>
   --        StatementLet $
   --          MkLetBindingNode
-  --            (map typecheckAstNode qualifiers)
-  --            (typecheckPattern pattern)
-  --            (map (\ty => typecheckType (assert_smaller statementNode ty)) typeAnnotation)
-  --            (map (\init => typecheckLetInitializer (assert_smaller statementNode init)) initializer)
+  --            (map checkAstNode qualifiers)
+  --            (checkPattern pattern)
+  --            (map (\ty => checkType (assert_smaller statementNode ty)) typeAnnotation)
+  --            (map (\init => checkLetInitializer (assert_smaller statementNode init)) initializer)
   --      StatementAssignment (MkAssignmentNode assignmentTarget assignmentOperator assignmentValue) =>
   --        StatementAssignment $
   --          MkAssignmentNode
-  --            (typecheckAssignmentTarget assignmentTarget)
-  --            (typecheckAstNode assignmentOperator)
-  --            (typecheckExpression assignmentValue)
+  --            (checkAssignmentTarget assignmentTarget)
+  --            (checkAstNode assignmentOperator)
+  --            (checkExpression assignmentValue)
   --      StatementSemiExpression statementExpression =>
-  --        StatementSemiExpression (typecheckExpression statementExpression)
+  --        StatementSemiExpression (checkExpression statementExpression)
   --      StatementExpression statementExpression =>
-  --        StatementExpression (typecheckExpression statementExpression)
+  --        StatementExpression (checkExpression statementExpression)
  
-typecheckFunctionBody : Block ResolvedAstPhase -> Block TypedAstPhase
-typecheckFunctionBody (MkAstNode functionBodyAstInfo (MkProvenanceMetadata provenance) (MkBlockNode blockInnerDocs blockStatements finalExpression)) =
-  ?typecheckFunctionBodyHole
-  --typecheckNode functionBodyAstInfo (MkProvenanceMetadata provenance) $
+checkFunctionBody : Block ResolvedAstPhase -> Block TypedAstPhase
+checkFunctionBody (MkAstNode functionBodyAstInfo (MkProvenanceMetadata provenance) (MkBlockNode blockInnerDocs blockStatements finalExpression)) =
+  ?checkFunctionBodyHole
+  --checkNode functionBodyAstInfo (MkProvenanceMetadata provenance) $
   --  MkBlockNode
-  --    (map typecheckAstNode blockInnerDocs)
-  --    (map typecheckStatement blockStatements)
-  --    (map typecheckExpression finalExpression)
+  --    (map checkAstNode blockInnerDocs)
+  --    (map checkStatement blockStatements)
+  --    (map checkExpression finalExpression)
 
-typecheckItem : ResolvedItem -> StateT TypeCheckerState (Either TypeError) ()
-typecheckItem (MkAstNode itemInfo metadata item) = do
-  case item of
-      ItemModule declaration => notImplemented {function = "typecheckItem"} {feature = "ItemModule"}
-      ItemUse declaration => notImplemented {function = "typecheckItem"} {feature = "ItemUse"}
-      ItemConst declaration => typecheckConstDeclaration declaration
-      ItemEnum declaration => notImplemented {function = "typecheckItem"} {feature = "ItemEnum"}
-      ItemQEnum declaration => notImplemented {function = "typecheckItem"} {feature = "ItemQEnum"}
-      ItemStruct declaration => notImplemented {function = "typecheckItem"} {feature = "ItemStruct"}
-      ItemImpl declaration => notImplemented {function = "typecheckItem"} {feature = "ItemImpl"}
-      ItemFunction declaration => typecheckFunctionDeclaration declaration
-  where
-    typecheckConstDeclaration : ConstDeclarationNode ResolvedAstPhase ->  StateT TypeCheckerState (Either TypeError) ()
-    typecheckConstDeclaration (MkConstDeclarationNode constDocs constVisibility constName constType constValue) = do
-      typeCheckerState <- get
-      inferredLeafType <- case toInferredType constType of
-        TypeNotYetResolved => assert_total idris_crash "Ups"
-        ResolvedType leafType => pure leafType
-        NoValueType => lift $ Left (CannotInferType ?constTypesourceSpan)
-      modify $ \typeCheckerState =>
-        {
-          tables.symbols := update ?symbolid (?SymbolInfo inferredLeafType) typeCheckerState.tables.symbols,
-          tables.expressionTypes := insert ?nodeid inferredLeafType typeCheckerState.tables.expressionTypes
-        } typeCheckerState
-      ?xxx
+checkFunctionDeclaration : FunctionDeclarationNode ResolvedAstPhase -> StateT TypeCheckerState (Either CheckFailure) ()
+checkFunctionDeclaration
+    (MkFunctionDeclarationNode
+      functionDocs
+      functionAttributes
+      functionVisibility
+      functionConstness
+      functionEffect
+      functionName
+      functionParameters
+      returnType
+      supportClause
+      contractClauses
+      functionBody
+    ) = ?xxxxxxxxxxxxxxxxxx2
+        --MkFunctionDeclarationNode
+        --  (map checkAstNode functionDocs)
+        --  (map checkAttribute functionAttributes)
+        --  (map checkAstNode functionVisibility)
+        --  (map checkAstNode functionConstness)
+        --  (map checkAstNode functionEffect)
+        --  (checkName functionName)
+        --  (map checkFunctionParameter functionParameters)
+        --  (map checkType returnType)
+        --  (map checkAstNode supportClause)
+        --  (map checkContractClause contractClauses)
+        --  (checkFunctionBody functionBody)
 
-    typecheckFunctionDeclaration : FunctionDeclarationNode ResolvedAstPhase -> StateT TypeCheckerState (Either TypeError) ()
-    typecheckFunctionDeclaration
-        (MkFunctionDeclarationNode
-          functionDocs
-          functionAttributes
-          functionVisibility
-          functionConstness
-          functionEffect
-          functionName
-          functionParameters
-          returnType
-          supportClause
-          contractClauses
-          functionBody
-        ) = ?xxxxxxxxxxxxxxxxxx2
-            --MkFunctionDeclarationNode
-            --  (map typecheckAstNode functionDocs)
-            --  (map typecheckAttribute functionAttributes)
-            --  (map typecheckAstNode functionVisibility)
-            --  (map typecheckAstNode functionConstness)
-            --  (map typecheckAstNode functionEffect)
-            --  (typecheckName functionName)
-            --  (map typecheckFunctionParameter functionParameters)
-            --  (map typecheckType returnType)
-            --  (map typecheckAstNode supportClause)
-            --  (map typecheckContractClause contractClauses)
-            --  (typecheckFunctionBody functionBody)
+checkConstDeclaration : ConstDeclarationNode ResolvedAstPhase ->  StateT TypeCheckerState (Either CheckFailure) ()
+checkConstDeclaration (MkConstDeclarationNode constDocs constVisibility constName constType constValue) = do
+  typeCheckerState <- get
+  inferredLeafType <- case toInferredType constType of
+    TypeNotYetResolved => assert_total idris_crash "Ups"
+    ResolvedType leafType => pure leafType
+    NoValueType => lift $ Left $ Failed (CannotInferType ?constTypesourceSpan)
+  modify $ \typeCheckerState =>
+    {
+      tables.symbols := update ?symbolid (?SymbolInfo inferredLeafType) typeCheckerState.tables.symbols,
+      tables.expressionTypes := insert ?nodeid inferredLeafType typeCheckerState.tables.expressionTypes
+    } typeCheckerState
+  ?xxx
 
 export
 checkSignature : ResolvedItem -> StateT TypeCheckerState (Either CheckFailure) ()
-checkSignature = ?checkSignaturH
---checkSignatures (
---  MkResolvedModule
---    _                                                     -- rootModule
---    _                                                     -- rootScope
---    (MkAstNode _ _ (MkSourceFileNode _ items))            -- astInfo, metadata, sourceFileInnerDocs
---    (MkScopeTables
---      scopes
---      nodeScopes
---      symbols
---      localVarsMeta
---      memberScopes
---      references
---      _                                                   -- currentScope: resolver traversal state is not carried over
---      _                                                   -- currentScopeKind
---      _                                                   -- currentModule
---      _)                                                  -- constContextBoundary
---  ) = do
---    let initialTypeTables = MkTypeTables
---          scopes
---          nodeScopes
---          (map (\symbol => { symbolType := TypeNotYetResolved } symbol) symbols)
---          (map (\variable => { quantumStorage := PendingQbitClassification } variable) localVarsMeta)
---          memberScopes
---          references
---          empty
---          empty
---          empty
---          empty
---          empty
---    let initialTypeCheckerState = MkTypeCheckerState initialTypeTables Nothing emptyInferenceState
---    typeCheckerState <- execStateT initialTypeCheckerState $
---      traverse_ typecheckItem items
---    pure typeCheckerState.tables
---
+checkSignature (MkAstNode itemInfo metadata item) = do
+  case item of
+      ItemModule declaration => notImplemented {function = "checkItem"} {feature = "ItemModule"}
+      ItemUse declaration => notImplemented {function = "checkItem"} {feature = "ItemUse"}
+      ItemConst declaration => checkConstDeclaration declaration
+      ItemEnum declaration => notImplemented {function = "checkItem"} {feature = "ItemEnum"}
+      ItemQEnum declaration => notImplemented {function = "checkItem"} {feature = "ItemQEnum"}
+      ItemStruct declaration => notImplemented {function = "checkItem"} {feature = "ItemStruct"}
+      ItemImpl declaration => notImplemented {function = "checkItem"} {feature = "ItemImpl"}
+      ItemFunction declaration => checkFunctionDeclaration declaration
+
