@@ -31,38 +31,38 @@ at (S n) (_ :: xs) = at n xs
 export
 functionNamed : String -> ResolvedModule -> Maybe (AstInfo, FunctionDeclarationNode ResolvedAstPhase)
 functionNamed name resolved =
-  let MkSourceFileNode _ items = resolved.ast.value
+  let MkSourceFileNode _ items = resolved.ast.nodeValue
   in head' (mapMaybe pick items)
   where
     pick : ResolvedItem -> Maybe (AstInfo, FunctionDeclarationNode ResolvedAstPhase)
     pick (MkAstNode info _ (ItemFunction fn)) =
-      if fn.functionName.value.nameNodeText == name then Just (info, fn) else Nothing
+      if fn.functionName.nodeValue.nameNodeText == name then Just (info, fn) else Nothing
     pick _ = Nothing
 
 export
 constantNamed : String -> ResolvedModule -> Maybe (AstInfo, ConstDeclarationNode ResolvedAstPhase)
 constantNamed name resolved =
-  let MkSourceFileNode _ items = resolved.ast.value
+  let MkSourceFileNode _ items = resolved.ast.nodeValue
   in head' (mapMaybe pick items)
   where
     pick : ResolvedItem -> Maybe (AstInfo, ConstDeclarationNode ResolvedAstPhase)
     pick (MkAstNode info _ (ItemConst con)) =
-      if con.constName.value.nameNodeText == name then Just (info, con) else Nothing
+      if con.constName.nodeValue.nameNodeText == name then Just (info, con) else Nothing
     pick _ = Nothing
 
 export
 letAt : Nat -> ResolvedBlock -> Maybe (LetBindingNode ResolvedAstPhase)
 letAt index block = do
-  statement <- at index block.value.blockStatements
-  case statement.value of
+  statement <- at index block.nodeValue.blockStatements
+  case statement.nodeValue of
     StatementLet binding => Just binding
     _ => Nothing
 
 export
 exprAt : Nat -> ResolvedBlock -> Maybe ResolvedExpr
 exprAt index block = do
-  statement <- at index block.value.blockStatements
-  case statement.value of
+  statement <- at index block.nodeValue.blockStatements
+  case statement.nodeValue of
     StatementSemiExpression expression => Just expression
     StatementExpression expression => Just expression
     _ => Nothing
@@ -91,7 +91,7 @@ initializer binding = map (.initializerValue) binding.letInitializer
 
 export
 symbolId : ResolvedName -> SymbolId
-symbolId name = name.value.nameNodeSymbolId
+symbolId name = name.nodeValue.nameNodeSymbolId
 
 export
 scopeFor : ResolvedModule -> AstNode ResolvedAstPhase a -> Maybe ScopeInfo
@@ -116,7 +116,7 @@ referenceMatches resolved role context name =
   case filter (\ref => ref.occurrence.nodeId == name.astInfo.nodeId &&
                        sameRole ref.role role && ref.contextNode == context) (allReferences resolved) of
     [ref] => ref.target == symbolId name && sameRole ref.role role &&
-             ref.contextNode == context && ref.writtenName == name.value.nameNodeText &&
+             ref.contextNode == context && ref.writtenName == name.nodeValue.nameNodeText &&
              spanKey ref.occurrence.span == spanKey name.astInfo.span &&
              lookup name.astInfo.nodeId resolved.tables.nodeScopes == Just ref.enclosingScope &&
              lookup context resolved.tables.nodeScopes == Just ref.enclosingScope
@@ -133,17 +133,17 @@ constantOccurrenceMatches resolved constant context name =
       symbolId name == symbolId constant &&
       referenceMatches resolved PatternReference context name &&
       isNothing (lookup (symbolId name) resolved.tables.localVarsMeta) &&
-      isNothing (lookup name.value.nameNodeText scope.valueBindings) &&
+      isNothing (lookup name.nodeValue.nameNodeText scope.valueBindings) &&
       not (elem (symbolId name) (scope.declaredSymbolsInOrder <>> []))
 
 export
 constantPatternMatches : ResolvedModule -> ResolvedName -> ResolvedPattern -> Bool
-constantPatternMatches resolved constant pattern = case pattern.value of
+constantPatternMatches resolved constant pattern = case pattern.nodeValue of
   PatternPath path =>
     let name = MkAstNode path.astInfo path.metadata
-                 (MkResolvedNameNode path.value.firstPathSegmentText path.value.resolvedPathTargetSymbolId)
-    in path.value.remainingPathSegmentTexts == [] &&
-       path.value.firstPathSegmentText == constant.value.nameNodeText &&
+                 (MkResolvedNameNode path.nodeValue.firstPathSegmentText path.nodeValue.resolvedPathTargetSymbolId)
+    in path.nodeValue.remainingPathSegmentTexts == [] &&
+       path.nodeValue.firstPathSegmentText == constant.nodeValue.nameNodeText &&
        constantOccurrenceMatches resolved constant pattern.astInfo.nodeId name
   _ => False
 
@@ -156,10 +156,10 @@ useMatches resolved declaration expression = do
 
 export
 bindingMatches : ScopeInfo -> ResolvedName -> Bool
-bindingMatches scope name = case lookup name.value.nameNodeText scope.valueBindings of
+bindingMatches scope name = case lookup name.nodeValue.nameNodeText scope.valueBindings of
   Nothing => False
   Just binding => binding.target == symbolId name &&
-    binding.writtenName == name.value.nameNodeText &&
+    binding.writtenName == name.nodeValue.nameNodeText &&
     map spanKey binding.introducedAt == Just (spanKey name.astInfo.span) &&
     (case binding.bindingKind of DeclaredBinding => True; _ => False) &&
     (case binding.bindingVisibility of LexicalVisibility => True; _ => False)
@@ -179,7 +179,7 @@ symbolMatches resolved name scope kind origin =
   case lookup (symbolId name) resolved.tables.symbols of
     Nothing => False
     Just symbol => symbol.symbolId == symbolId name &&
-      symbol.declaredName == name.value.nameNodeText &&
+      symbol.declaredName == name.nodeValue.nameNodeText &&
       symbol.declaringScope == scope && symbol.declaringModule == resolved.rootModule &&
       kindText symbol.symbolKind == kind &&
       (case symbol.origin of
@@ -272,8 +272,8 @@ parameterNames fn = traverse parameterName fn.functionParameters
 export
 assignmentAt : Nat -> ResolvedBlock -> Maybe (AssignmentNode ResolvedAstPhase)
 assignmentAt index block = do
-  statement <- at index block.value.blockStatements
-  case statement.value of
+  statement <- at index block.nodeValue.blockStatements
+  case statement.nodeValue of
     StatementAssignment assignment => Just assignment
     _ => Nothing
 
@@ -294,7 +294,7 @@ expressionUses expression expected select = checkSource
     (_, g) <- functionNamed "g" resolved
     (_, f) <- functionNamed "f" resolved
     names <- parameterNames f
-    let declarations = SortedMap.fromList $ map (\name => (name.value.nameNodeText, name))
+    let declarations = SortedMap.fromList $ map (\name => (name.nodeValue.nameNodeText, name))
                                      (con.constName :: g.functionName :: names)
     targets <- traverse (\name => SortedMap.lookup name declarations) expected
     expression <- exprAt 0 f.functionBody
@@ -335,42 +335,42 @@ sourceSymbols resolved = filter fromSource (map snd (SortedMap.toList resolved.t
 -- are retained, and the resulting AST contains each node only once.
 moveLetPatternToFor : SourceFile CanonicalAstPhase -> Maybe (SourceFile CanonicalAstPhase)
 moveLetPatternToFor source = do
-  let MkSourceFileNode docs items = source.value
+  let MkSourceFileNode docs items = source.nodeValue
   items <- traverse moveInFunction items
-  pure ({ value := MkSourceFileNode docs items } source)
+  pure ({ nodeValue := MkSourceFileNode docs items } source)
   where
     replaceLoopPattern : CanonicalPattern -> CanonicalExpr -> Maybe CanonicalExpr
-    replaceLoopPattern pattern expression = case expression.value of
-      ExprFor _ iterator body => Just ({ value := ExprFor pattern iterator body } expression)
+    replaceLoopPattern pattern expression = case expression.nodeValue of
+      ExprFor _ iterator body => Just ({ nodeValue := ExprFor pattern iterator body } expression)
       _ => Nothing
 
     -- A loop that ends the function body was desugared into its `return` statement.
     replaceExpression : CanonicalPattern -> CanonicalExpr -> Maybe CanonicalExpr
-    replaceExpression pattern expression = case expression.value of
+    replaceExpression pattern expression = case expression.nodeValue of
       ExprReturn (Just returned) => do
         returned <- replaceLoopPattern pattern returned
-        pure ({ value := ExprReturn (Just returned) } expression)
+        pure ({ nodeValue := ExprReturn (Just returned) } expression)
       _ => replaceLoopPattern pattern expression
 
     replaceStatement : CanonicalPattern -> Statement CanonicalAstPhase -> Maybe (Statement CanonicalAstPhase)
-    replaceStatement pattern statement = case statement.value of
+    replaceStatement pattern statement = case statement.nodeValue of
       StatementExpression expression => do
         expression <- replaceExpression pattern expression
-        pure ({ value := StatementExpression expression } statement)
+        pure ({ nodeValue := StatementExpression expression } statement)
       StatementSemiExpression expression => do
         expression <- replaceExpression pattern expression
-        pure ({ value := StatementSemiExpression expression } statement)
+        pure ({ nodeValue := StatementSemiExpression expression } statement)
       _ => Nothing
 
     moveInFunction : Item CanonicalAstPhase -> Maybe (Item CanonicalAstPhase)
-    moveInFunction item = case item.value of
+    moveInFunction item = case item.nodeValue of
       ItemFunction fn => do
-        first :: loop :: rest <- pure fn.functionBody.value.blockStatements | _ => Nothing
-        StatementLet binding <- pure first.value | _ => Nothing
+        first :: loop :: rest <- pure fn.functionBody.nodeValue.blockStatements | _ => Nothing
+        StatementLet binding <- pure first.nodeValue | _ => Nothing
         loop <- replaceStatement binding.letPattern loop
         let body : CanonicalBlock =
-              { value := { blockStatements := loop :: rest } fn.functionBody.value } fn.functionBody
-        pure ({ value := ItemFunction ({ functionBody := body } fn) } item)
+              { nodeValue := { blockStatements := loop :: rest } fn.functionBody.nodeValue } fn.functionBody
+        pure ({ nodeValue := ItemFunction ({ functionBody := body } fn) } item)
       _ => Just item
 
 withForPattern : String -> (Either FixtureError ResolvedModule -> Either String a) -> Either String a

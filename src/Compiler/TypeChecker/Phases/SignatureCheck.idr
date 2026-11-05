@@ -2,6 +2,7 @@ module Compiler.TypeChecker.Phases.SignatureCheck
 
 import Data.List1
 import Data.SortedMap
+import Data.SortedSet
 
 import Control.Monad.State
 import Compiler.ScopeAndNameResolution.Data
@@ -345,19 +346,29 @@ checkFunctionDeclaration
       supportClause
       contractClauses
       functionBody
-    ) = ?xxxxxxxxxxxxxxxxxx2
-        --MkFunctionDeclarationNode
-        --  (map checkAstNode functionDocs)
-        --  (map checkAttribute functionAttributes)
-        --  (map checkAstNode functionVisibility)
-        --  (map checkAstNode functionConstness)
-        --  (map checkAstNode functionEffect)
-        --  (checkName functionName)
-        --  (map checkFunctionParameter functionParameters)
-        --  (map checkType returnType)
-        --  (map checkAstNode supportClause)
-        --  (map checkContractClause contractClauses)
-        --  (checkFunctionBody functionBody)
+    ) = do
+  typecheckerState <- get
+  inferredLeafType <- case toInferredType ?returnType of
+    TypeNotYetResolved => assert_total idris_crash "Ups"
+    ResolvedType leafType => pure leafType
+    NoValueType => lift $ Left $ Failed (CannotInferType ?constTypesourceSpan)
+  modify $ \typeCheckerState =>
+    {
+      tables.symbols := update ?symbolid1 (?typedSymbolInfo inferredLeafType) typeCheckerState.tables.symbols,
+      tables.localVarsMeta := update ?symbolid2 ?meta typeCheckerState.tables.localVarsMeta,    -- Local/parameter declaration metadata, keyed by the corresponding SymbolId.
+      tables.constValues := insert ?symbolid3 ?constValue typeCheckerState.tables.constValues,
+      tables.expressionTypes := insert ?nodeid1 inferredLeafType typeCheckerState.tables.expressionTypes,
+      tables.patternTypes := insert ?nodeid2 inferredLeafType typeCheckerState.tables.patternTypes,
+      tables.coercions := insert ?nodeid3 ?coercion typeCheckerState.tables.coercions,
+      tables.calls := insert ?nodeid4 ?call typeCheckerState.tables.calls,
+      function := ?maybeFunctionContext,                                                        -- tells pass B (BodyCheck) which function it is operating inside, if any.
+      inference := ?inferenceState,                                                             -- pass B's (BodyCheck) scratch space for the one body it is checking right now
+      declarations := SortedMap.insert ?symbolid4 ?resolvedItem typeCheckerState.declarations,  -- maps each top-level item's symbol to that item's resolved AST node
+      checkedBodies := SortedSet.insert ?symbolid5 typeCheckerState.checkedBodies,              -- set of functions whose bodies pass B (BodyCheck) has already finished
+      constExprs := SortedMap.insert ?nodeid5 ?natNumber typeCheckerState.constExprs 
+    } typeCheckerState
+  ?xxx
+
 
 checkConstDeclaration : ConstDeclarationNode ResolvedAstPhase ->  StateT TypeCheckerState (Either CheckFailure) ()
 checkConstDeclaration (MkConstDeclarationNode constDocs constVisibility constName constType constValue) = do
@@ -365,13 +376,22 @@ checkConstDeclaration (MkConstDeclarationNode constDocs constVisibility constNam
   inferredLeafType <- case toInferredType constType of
     TypeNotYetResolved => assert_total idris_crash "Ups"
     ResolvedType leafType => pure leafType
-    NoValueType => lift $ Left $ Failed (CannotInferType ?constTypesourceSpan)
+    NoValueType => lift $ Left $ Failed (CannotInferType ?constTypesourceSpan2)
   modify $ \typeCheckerState =>
     {
-      tables.symbols := update ?symbolid (?SymbolInfo inferredLeafType) typeCheckerState.tables.symbols,
-      tables.expressionTypes := insert ?nodeid inferredLeafType typeCheckerState.tables.expressionTypes
+      tables.symbols := update ?symbolid11 (?typedSymbolInfo2 inferredLeafType) typeCheckerState.tables.symbols,
+      tables.localVarsMeta := update ?symbolid12 ?meta2 typeCheckerState.tables.localVarsMeta,    -- Local/parameter declaration metadata, keyed by the corresponding SymbolId.
+      tables.constValues := insert ?symbolid13 ?cconstValue2 typeCheckerState.tables.constValues,
+      tables.expressionTypes := insert ?nodeid11 inferredLeafType typeCheckerState.tables.expressionTypes,
+      tables.patternTypes := insert ?nodeid12 inferredLeafType typeCheckerState.tables.patternTypes,
+      tables.coercions := insert ?nodeid13 ?coercion2 typeCheckerState.tables.coercions,
+      tables.calls := insert ?nodeid14 ?call2 typeCheckerState.tables.calls,
+      function := ?maybeFunctionContext2,                                                        -- tells pass B (BodyCheck) which function it is operating inside, if any.
+      inference := ?inferenceState2,                                                             -- pass B's (BodyCheck) scratch space for the one body it is checking right now
+      declarations := SortedMap.insert ?symbolid14 ?resolvedItem2 typeCheckerState.declarations,  -- maps each top-level item's symbol to that item's resolved AST node
+      checkedBodies := SortedSet.insert ?symbolid15 typeCheckerState.checkedBodies,              -- set of functions whose bodies pass B (BodyCheck) has already finished
+      constExprs := SortedMap.insert ?nodeid15 ?natNumber2 typeCheckerState.constExprs 
     } typeCheckerState
-  ?xxx
 
 export
 checkSignature : ResolvedItem -> StateT TypeCheckerState (Either CheckFailure) ()

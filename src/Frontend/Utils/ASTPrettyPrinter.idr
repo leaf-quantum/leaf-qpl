@@ -521,7 +521,7 @@ mutual
   showFunctionTypeParameterList style (MkAstNode _ _ (MkFunctionTypeParameterNode nm ty) :: rest) =
     -- Not showName: a function-type parameter name is plain NameNode at
     -- every phase (never resolved), so no PhasePretty dispatch is needed.
-    (prettyNameNode nm.value ++ ": " ++ showTy style ty) :: showFunctionTypeParameterList style rest
+    (prettyNameNode nm.nodeValue ++ ": " ++ showTy style ty) :: showFunctionTypeParameterList style rest
 
 --------------------------------------------------------------------------------
 -- Expressions

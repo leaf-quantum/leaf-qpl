@@ -324,7 +324,7 @@ isComparisonOperator _ = False
 public export
 isUnparenthesizedComparison : SurfaceExpr -> Bool
 isUnparenthesizedComparison (MkAstNode _ _ (ExprBinary operator _ _)) =
-  isComparisonOperator operator.value
+  isComparisonOperator operator.nodeValue
 isUnparenthesizedComparison _ = False
 
 public export
@@ -377,10 +377,10 @@ addStorageQualifier :
   -> SurfaceAstNode QuantumStorageQualifier
   -> Either String StorageQualifiers
 addStorageQualifier qualifiers located =
-  case located.value of
+  case located.nodeValue of
     QualifierScratch =>
       case qualifiers.scratch of
-        Just existing => Left (secondQualifierMessage existing.value located.value)
+        Just existing => Left (secondQualifierMessage existing.nodeValue located.nodeValue)
         Nothing => Right $ MkStorageQualifiers qualifiers.multiplicity
           (Just located) (qualifiers.ordered :< located)
     QualifierLinear => addMultiplicity
@@ -391,7 +391,7 @@ addStorageQualifier qualifiers located =
       case qualifiers.multiplicity of
         Nothing => Right $ MkStorageQualifiers (Just located)
           qualifiers.scratch (qualifiers.ordered :< located)
-        Just existing => Left (secondQualifierMessage existing.value located.value)
+        Just existing => Left (secondQualifierMessage existing.nodeValue located.nodeValue)
 
 ||| `scratch` describes cleanup at the end of a binding's scope, so it is only
 ||| valid on `let` bindings, never inside a type.

@@ -353,7 +353,7 @@ typecheckItem (MkAstNode itemInfo metadata item) = do
   where
     typecheckConstDeclaration : ConstDeclarationNode ResolvedAstPhase ->  StateT TypeCheckerState (Either TypeError) (ConstDeclarationNode TypedAstPhase)
     typecheckConstDeclaration (MkConstDeclarationNode constDocs constVisibility constName constType constValue) = do
-      let nameSymbolId = constName.value.nameNodeSymbolId
+      let nameSymbolId = constName.nodeValue.nameNodeSymbolId
       typedConstValue <- typecheckExpression ?harg constValue
       modify $ \typeCheckerState =>
         {

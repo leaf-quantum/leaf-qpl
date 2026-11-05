@@ -30,9 +30,9 @@ import Frontend.Syntax.Name
 
 itemSymbolId : ResolvedItem -> SymbolId
 itemSymbolId item =
-  case item.value of
-    ItemFunction declaration => declaration.functionName.value.nameNodeSymbolId
-    ItemConst declaration    => declaration.constName.value.nameNodeSymbolId
+  case item.nodeValue of
+    ItemFunction declaration => declaration.functionName.nodeValue.nameNodeSymbolId
+    ItemConst declaration    => declaration.constName.nodeValue.nameNodeSymbolId
     ItemModule _             => notImplemented "itemSymbol" "ItemModule"
     ItemUse _                => notImplemented "itemSymbol" "ItemUse"
     ItemEnum _               => notImplemented "itemSymbol" "ItemEnum"
@@ -42,7 +42,7 @@ itemSymbolId item =
 
 itemNameSpan : ResolvedItem -> SourceSpan
 itemNameSpan item =
-  case item.value of
+  case item.nodeValue of
     ItemFunction declaration => declaration.functionName.astInfo.span
     ItemConst declaration    => declaration.constName.astInfo.span
     ItemModule _             => notImplemented "itemNameSpan" "ItemModule"
@@ -78,10 +78,10 @@ seedTypeTables scopeTables =
     empty                                                -- calls
 
 seedPresetSymbolTypes : TypeTables -> TypeTables
-seedPresetSymbolTypes tables = { symbols := map fixedType tables.symbols } tables
+seedPresetSymbolTypes tables = { symbols := map seedPresetSymbolType tables.symbols } tables
   where
-    fixedType : TypedSymbolInfo -> TypedSymbolInfo
-    fixedType symbol =
+    seedPresetSymbolType : TypedSymbolInfo -> TypedSymbolInfo
+    seedPresetSymbolType symbol =
       case (symbol.symbolKind, symbol.origin) of
         (SymbolModule, _)               => { symbolType := NoValueType } symbol
         (SymbolFunction, PreludeSymbol) => { symbolType := preludeSymbolType symbol.declaredName } symbol

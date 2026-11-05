@@ -314,7 +314,7 @@ letMultiplicityConflicts :
   -> List ValidationError
 letMultiplicityConflicts _ Nothing = []
 letMultiplicityConflicts letQualifiers (Just annotation) =
-  case mapMaybe (storageMultiplicity . (.value)) letQualifiers of
+  case mapMaybe (storageMultiplicity . (.nodeValue)) letQualifiers of
     [] => []
     letQualifier :: _ =>
       map (\(MkAstNode qualifierInfo _ typeQualifier) =>

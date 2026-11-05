@@ -98,11 +98,11 @@ missingName source = case expectUnresolvedName source of
 export
 constantShadowsPrelude : ResolvedModule -> Maybe Bool
 constantShadowsPrelude resolved = do
-  MkSourceFileNode _ [MkAstNode _ _ (ItemFunction fn), MkAstNode _ _ (ItemConst con)] <- pure resolved.ast.value
+  MkSourceFileNode _ [MkAstNode _ _ (ItemFunction fn), MkAstNode _ _ (ItemConst con)] <- pure resolved.ast.nodeValue
     | _ => Nothing
-  MkAstNode _ _ (StatementSemiExpression expression) :: _ <- pure fn.functionBody.value.blockStatements
+  MkAstNode _ _ (StatementSemiExpression expression) :: _ <- pure fn.functionBody.nodeValue.blockStatements
     | _ => Nothing
-  ExprName use <- pure expression.value | _ => Nothing
+  ExprName use <- pure expression.nodeValue | _ => Nothing
   root <- lookup resolved.rootScope resolved.tables.scopes
   preludeId <- root.parent
   preludeScope <- lookup preludeId resolved.tables.scopes
@@ -114,8 +114,8 @@ constantShadowsPrelude resolved = do
   [reference] <- pure (valueReferences resolved) | _ => Nothing
   layout <- preludeLayout resolved
   pure (layout && sourceBinding.target /= preludeBinding.target &&
-        sourceBinding.target == con.constName.value.nameNodeSymbolId &&
-        use.value.nameNodeSymbolId == sourceBinding.target &&
+        sourceBinding.target == con.constName.nodeValue.nameNodeSymbolId &&
+        use.nodeValue.nameNodeSymbolId == sourceBinding.target &&
         (case sourceBinding.bindingKind of DeclaredBinding => True; _ => False) &&
         (case sourceBinding.bindingVisibility of ModuleVisibility => True; _ => False) &&
         (case sourceSymbol.symbolKind of SymbolConstant => True; _ => False) &&

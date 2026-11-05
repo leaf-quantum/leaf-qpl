@@ -199,10 +199,10 @@ resolveConstantPatternName : NodeId -> Maybe Mutability -> CanonicalName ->
                             StateT ScopeTables (Either ResolutionError) (Maybe ResolvedName)
 resolveConstantPatternName context mutability name = do
   case mutability of
-    Just Mutable => rejectConstantShadowing name.value.nameNodeText name.astInfo.span
+    Just Mutable => rejectConstantShadowing name.nodeValue.nameNodeText name.astInfo.span
     Nothing => pure ()
   scopeTables <- get
-  case visibleConstantBinding name.value.nameNodeText scopeTables of
+  case visibleConstantBinding name.nodeValue.nameNodeText scopeTables of
     Just _ => map Just (resolveName context PatternReference name)
     Nothing => pure Nothing
 
@@ -246,7 +246,7 @@ resolvePatternUnchecked (MkAstNode patternInfo metadata patternNode) = do
       case constant of
         Just name =>
           pure $ PatternPath $ resolveNode name.astInfo name.metadata $
-            MkResolvedPathNode name.value.nameNodeText [] name.value.nameNodeSymbolId
+            MkResolvedPathNode name.nodeValue.nameNodeText [] name.nodeValue.nameNodeSymbolId
         Nothing => do
           resolvedBinderName <- declareLocalName SymbolLocalBinding patternInfo.nodeId mutability binderName
           pure $ PatternName mutability resolvedBinderName
@@ -302,12 +302,12 @@ rejectDuplicateBindings names = do
     checkNames : ScopeTables -> SortedMap String ResolvedName -> List ResolvedName -> Either ResolutionError ()
     checkNames _ _ [] = Right ()
     checkNames scopeTables seen (name :: rest) =
-      case lookup name.value.nameNodeSymbolId scopeTables.symbols of
+      case lookup name.nodeValue.nameNodeSymbolId scopeTables.symbols of
         Just symbol => if isLocalSymbolKind symbol.symbolKind
-          then case lookup name.value.nameNodeText seen of
-            Just first => Left $ DuplicateDeclaration name.value.nameNodeText
-              [first.value.nameNodeSymbolId] name.astInfo.span first.astInfo.span
-            Nothing => checkNames scopeTables (insert name.value.nameNodeText name seen) rest
+          then case lookup name.nodeValue.nameNodeText seen of
+            Just first => Left $ DuplicateDeclaration name.nodeValue.nameNodeText
+              [first.nodeValue.nameNodeSymbolId] name.astInfo.span first.astInfo.span
+            Nothing => checkNames scopeTables (insert name.nodeValue.nameNodeText name seen) rest
           else checkNames scopeTables seen rest
         Nothing => checkNames scopeTables seen rest
 
@@ -334,7 +334,7 @@ resolvePattern pattern = do
 resolveFunctionParameterName : CanonicalFunctionParameter -> StateT ScopeTables (Either ResolutionError) ResolvedName
 resolveFunctionParameterName (MkAstNode parameterInfo _ (NormalParameter _ mutability name _)) = do
   recordNodeScope parameterInfo.nodeId
-  resolveParameterName parameterInfo.nodeId (map (.value) mutability) name
+  resolveParameterName parameterInfo.nodeId (map (.nodeValue) mutability) name
 resolveFunctionParameterName (MkAstNode _ _ (ReceiverParameter _ _)) =
   notImplemented {function = "resolveFunctionParameterName"} {feature = "receiver parameters (self, &self, &mut self)"}
 

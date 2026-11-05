@@ -31,9 +31,9 @@ MetadataFor TypedAstPhase     = ProvenanceMetadata
 public export
 record AstNode (phase : AstPhase) a where
   constructor MkAstNode
-  astInfo  : AstInfo
-  metadata : MetadataFor phase
-  value    : a
+  astInfo   : AstInfo
+  metadata  : MetadataFor phase
+  nodeValue : a
 
 --------------------------------------------------------------------------------
 -- Name aliases for the four phases

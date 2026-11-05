@@ -46,9 +46,9 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       x <- binder xBinding.letPattern
       y <- binder yBinding.letPattern
       xRead <- initializer yBinding
-      statement <- at 2 fn.functionBody.value.blockStatements
-      StatementAssignment assignment <- pure statement.value | _ => Nothing
-      AssignTargetName target <- pure assignment.assignmentTarget.value | _ => Nothing
+      statement <- at 2 fn.functionBody.nodeValue.blockStatements
+      StatementAssignment assignment <- pure statement.nodeValue | _ => Nothing
+      AssignTargetName target <- pure assignment.assignmentTarget.nodeValue | _ => Nothing
       finalRead <- exprAt 3 fn.functionBody
       readsX <- useMatches resolved x xRead
       readsY <- useMatches resolved y assignment.assignmentValue
@@ -64,7 +64,7 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
             length (xRefs <>> []) == 4 && length (yRefs <>> []) == 2 &&
             bindingMatches scope x && bindingMatches scope y &&
             all (\statement => lookup statement.astInfo.nodeId resolved.tables.nodeScopes == Just scope.id)
-              fn.functionBody.value.blockStatements &&
+              fn.functionBody.nodeValue.blockStatements &&
             (scope.declaredSymbolsInOrder <>> []) == [symbolId x, symbolId y] &&
             symbolMatches resolved x scope.id "local" x.astInfo &&
             symbolMatches resolved y scope.id "local" y.astInfo &&
@@ -77,9 +77,9 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       x <- binder binding.letPattern
       annotation <- binding.letTypeAnnotation
       assignment <- assignmentAt 1 fn.functionBody
-      AssignTargetName target <- pure assignment.assignmentTarget.value | _ => Nothing
+      AssignTargetName target <- pure assignment.assignmentTarget.nodeValue | _ => Nothing
       final <- exprAt 2 fn.functionBody
-      ExprName read <- pure final.value | _ => Nothing
+      ExprName read <- pure final.nodeValue | _ => Nothing
       scope <- scopeFor resolved fn.functionBody
       readOK <- usesInScope resolved scope.id [(x, final)]
       pure (isNothing binding.letInitializer && symbolId target == symbolId x && readOK &&
@@ -104,7 +104,7 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       first <- binder firstBinding.letPattern
       second <- binder secondBinding.letPattern
       init <- initializer secondBinding
-      ExprBinary _ left _ <- pure init.value | _ => Nothing
+      ExprBinary _ left _ <- pure init.nodeValue | _ => Nothing
       usesFirst <- useMatches resolved first left
       final <- exprAt 2 fn.functionBody
       usesSecond <- useMatches resolved second final
@@ -122,13 +122,13 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       binding <- letAt 0 fn.functionBody
       [(xPattern, newX), (yPattern, newY)] <- pure (patternBinders binding.letPattern) | _ => Nothing
       init <- initializer binding
-      ExprTuple (oldYUse ::: [oldXUse]) <- pure init.value | _ => Nothing
-      ExprName oldY <- pure oldYUse.value | _ => Nothing
-      ExprName oldX <- pure oldXUse.value | _ => Nothing
+      ExprTuple (oldYUse ::: [oldXUse]) <- pure init.nodeValue | _ => Nothing
+      ExprName oldY <- pure oldYUse.nodeValue | _ => Nothing
+      ExprName oldX <- pure oldXUse.nodeValue | _ => Nothing
       finalX <- exprAt 1 fn.functionBody
       finalY <- exprAt 2 fn.functionBody
-      ExprName readX <- pure finalX.value | _ => Nothing
-      ExprName readY <- pure finalY.value | _ => Nothing
+      ExprName readX <- pure finalX.nodeValue | _ => Nothing
+      ExprName readY <- pure finalY.nodeValue | _ => Nothing
       functionScope <- scopeFor resolved xp
       bodyScope <- scopeFor resolved fn.functionBody
       usesOK <- usesInScope resolved bodyScope.id [(y, oldYUse), (x, oldXUse), (newX, finalX), (newY, finalY)]
@@ -157,8 +157,8 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       binding <- letAt 0 fn.functionBody
       local <- binder binding.letPattern
       ty <- binding.letTypeAnnotation
-      TyArray _ count <- pure ty.value | _ => Nothing
-      ExprCall callee [] <- pure count.value | _ => Nothing
+      TyArray _ count <- pure ty.nodeValue | _ => Nothing
+      ExprCall callee [] <- pure count.nodeValue | _ => Nothing
       sizeUsesFunction <- useMatches resolved size.functionName callee
       final <- exprAt 1 fn.functionBody
       finalUsesLocal <- useMatches resolved local final
@@ -174,7 +174,7 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       block <- blockBody init
       innerBinding <- letAt 0 block
       innerName <- binder innerBinding.letPattern
-      final <- block.value.finalExpression
+      final <- block.nodeValue.finalExpression
       innerUse <- useMatches resolved innerName final
       after <- exprAt 2 fn.functionBody
       outerUse <- useMatches resolved outerName after
@@ -191,9 +191,9 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       forwardCall <- exprAt 0 first.functionBody
       recursiveCall <- exprAt 1 first.functionBody
       mutualCall <- exprAt 0 second.functionBody
-      ExprCall forward [] <- pure forwardCall.value | _ => Nothing
-      ExprCall recursive [] <- pure recursiveCall.value | _ => Nothing
-      ExprCall mutualCallee [] <- pure mutualCall.value | _ => Nothing
+      ExprCall forward [] <- pure forwardCall.nodeValue | _ => Nothing
+      ExprCall recursive [] <- pure recursiveCall.nodeValue | _ => Nothing
+      ExprCall mutualCallee [] <- pure mutualCall.nodeValue | _ => Nothing
       forwardOK <- useMatches resolved second.functionName forward
       recursiveOK <- useMatches resolved first.functionName recursive
       mutualOK <- useMatches resolved first.functionName mutualCallee
@@ -208,9 +208,9 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       (_, g) <- functionNamed "g" resolved
       [xp, yp] <- pure f.functionParameters | _ => Nothing
       [gp] <- pure g.functionParameters | _ => Nothing
-      NormalParameter _ _ x _ <- pure xp.value | _ => Nothing
-      NormalParameter _ _ y _ <- pure yp.value | _ => Nothing
-      NormalParameter _ _ gx _ <- pure gp.value | _ => Nothing
+      NormalParameter _ _ x _ <- pure xp.nodeValue | _ => Nothing
+      NormalParameter _ _ y _ <- pure yp.nodeValue | _ => Nothing
+      NormalParameter _ _ gx _ <- pure gp.nodeValue | _ => Nothing
       fScope <- scopeFor resolved xp
       gScope <- scopeFor resolved gp
       fBody <- scopeFor resolved f.functionBody
@@ -246,7 +246,7 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       uses <- traverse (\i => exprAt i fn.functionBody) [2, 3, 4, 5]
       matches <- traverse (\(name, use) => useMatches resolved name use) (zip names uses)
       scope <- scopeFor resolved fn.functionBody
-      pure (map (\name => name.value.nameNodeText) names == ["a", "b", "c", "d"] &&
+      pure (map (\name => name.nodeValue.nameNodeText) names == ["a", "b", "c", "d"] &&
             length (nub (map symbolId names)) == 4 && all id matches &&
             all (\(name, mutable) => localMatches resolved name mutable) (zip names [True, False, True, False]) &&
             all (\(pattern, name) => referenceMatches resolved DeclarationReference pattern.astInfo.nodeId name) binders &&
@@ -260,7 +260,7 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       binding <- letAt 0 fn.functionBody
       outerName <- binder binding.letPattern
       loop <- exprAt 1 fn.functionBody
-      ExprFor pattern iterator body <- pure loop.value | _ => Nothing
+      ExprFor pattern iterator body <- pure loop.nodeValue | _ => Nothing
       loopName <- binder pattern
       outer <- scopeFor resolved fn.functionBody
       loopScope <- scopeFor resolved pattern
@@ -286,21 +286,21 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       [parameter] <- pure fn.functionParameters | _ => Nothing
       [original] <- parameterNames fn | _ => Nothing
       outerLoop <- exprAt 0 fn.functionBody
-      ExprFor outerPattern outerIterator outerBody <- pure outerLoop.value | _ => Nothing
-      ExprArray [originalIteratorUse] <- pure outerIterator.value | _ => Nothing
+      ExprFor outerPattern outerIterator outerBody <- pure outerLoop.nodeValue | _ => Nothing
+      ExprArray [originalIteratorUse] <- pure outerIterator.nodeValue | _ => Nothing
       outer <- binder outerPattern
       innerLoop <- exprAt 0 outerBody
-      ExprFor innerPattern innerIterator innerBody <- pure innerLoop.value | _ => Nothing
-      ExprArray [outerIteratorUse] <- pure innerIterator.value | _ => Nothing
+      ExprFor innerPattern innerIterator innerBody <- pure innerLoop.nodeValue | _ => Nothing
+      ExprArray [outerIteratorUse] <- pure innerIterator.nodeValue | _ => Nothing
       inner <- binder innerPattern
       innerUse <- exprAt 0 innerBody
       afterInner <- exprAt 1 outerBody
       afterOuter <- exprAt 1 fn.functionBody
-      ExprName originalIteratorName <- pure originalIteratorUse.value | _ => Nothing
-      ExprName outerIteratorName <- pure outerIteratorUse.value | _ => Nothing
-      ExprName innerRead <- pure innerUse.value | _ => Nothing
-      ExprName outerRead <- pure afterInner.value | _ => Nothing
-      ExprName originalRead <- pure afterOuter.value | _ => Nothing
+      ExprName originalIteratorName <- pure originalIteratorUse.nodeValue | _ => Nothing
+      ExprName outerIteratorName <- pure outerIteratorUse.nodeValue | _ => Nothing
+      ExprName innerRead <- pure innerUse.nodeValue | _ => Nothing
+      ExprName outerRead <- pure afterInner.nodeValue | _ => Nothing
+      ExprName originalRead <- pure afterOuter.nodeValue | _ => Nothing
       functionScope <- scopeFor resolved parameter
       bodyScope <- scopeFor resolved fn.functionBody
       outerScope <- scopeFor resolved outerPattern
@@ -339,17 +339,17 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       (_, fn) <- functionNamed "f" resolved
       [MkAstNode _ _ (NormalParameter _ _ flag _)] <- pure fn.functionParameters | _ => Nothing
       expression <- exprAt 0 fn.functionBody
-      ExprIf first <- pure expression.value | _ => Nothing
+      ExprIf first <- pure expression.nodeValue | _ => Nothing
       ElseChainedIf chained <- first.ifElseBranch | _ => Nothing
-      ElseBlock last <- chained.value.ifElseBranch | _ => Nothing
-      let blocks = [first.ifThenBlock, chained.value.ifThenBlock, last]
+      ElseBlock last <- chained.nodeValue.ifElseBranch | _ => Nothing
+      let blocks = [first.ifThenBlock, chained.nodeValue.ifThenBlock, last]
       scopes <- traverse (scopeFor resolved) blocks
       bindings <- traverse (letAt 0) blocks
       names <- traverse (binder . (.letPattern)) bindings
       uses <- traverse (exprAt 1) blocks
       matches <- traverse (\(name, use) => useMatches resolved name use) (zip names uses)
       firstCondition <- useMatches resolved flag first.ifCondition
-      secondCondition <- useMatches resolved flag chained.value.ifCondition
+      secondCondition <- useMatches resolved flag chained.nodeValue.ifCondition
       outer <- scopeFor resolved fn.functionBody
       after <- exprAt 1 fn.functionBody
       afterOK <- useMatches resolved flag after
@@ -373,8 +373,8 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       [MkAstNode _ _ (NormalParameter _ _ q _)] <- pure f.functionParameters | _ => Nothing
       controlled <- exprAt 0 f.functionBody
       adjointed <- exprAt 1 f.functionBody
-      ExprCtrl (ControlledCallable (control ::: []) _ callable) <- pure controlled.value | _ => Nothing
-      ExprAdjoint (AdjointOfCallable adjointCallable) <- pure adjointed.value | _ => Nothing
+      ExprCtrl (ControlledCallable (control ::: []) _ callable) <- pure controlled.nodeValue | _ => Nothing
+      ExprAdjoint (AdjointOfCallable adjointCallable) <- pure adjointed.nodeValue | _ => Nothing
       controlOK <- useMatches resolved q control
       callableOK <- useMatches resolved g.functionName callable
       adjointOK <- useMatches resolved g.functionName adjointCallable
@@ -389,10 +389,10 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       [qParameter, rParameter] <- pure fn.functionParameters | _ => Nothing
       [q, r] <- parameterNames fn | _ => Nothing
       controlled <- exprAt 0 fn.functionBody
-      ExprCtrl (ControlledBlock (firstControl ::: [secondControl]) _ block) <- pure controlled.value
+      ExprCtrl (ControlledBlock (firstControl ::: [secondControl]) _ block) <- pure controlled.nodeValue
         | _ => Nothing
-      ExprUnary _ firstOperand <- pure firstControl.value | _ => Nothing
-      ExprUnary _ secondOperand <- pure secondControl.value | _ => Nothing
+      ExprUnary _ firstOperand <- pure firstControl.nodeValue | _ => Nothing
+      ExprUnary _ secondOperand <- pure secondControl.nodeValue | _ => Nothing
       innerBinding <- letAt 0 block
       innerQ <- binder innerBinding.letPattern
       innerQUse <- exprAt 1 block
@@ -429,7 +429,7 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       [qParameter, rParameter] <- pure f.functionParameters | _ => Nothing
       [q, r] <- parameterNames f | _ => Nothing
       controlled <- exprAt 0 f.functionBody
-      ExprCtrl (ControlledCallable (firstControl ::: [secondControl]) _ callable) <- pure controlled.value
+      ExprCtrl (ControlledCallable (firstControl ::: [secondControl]) _ callable) <- pure controlled.nodeValue
         | _ => Nothing
       body <- scopeFor resolved f.functionBody
       reads <- usesInScope resolved body.id [(q, firstControl), (r, secondControl), (g.functionName, callable)]
@@ -456,10 +456,10 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       (_, fn) <- functionNamed "f" resolved
       [_, MkAstNode _ _ (NormalParameter _ _ _ arrayType)] <- pure fn.functionParameters | _ => Nothing
       resultType <- fn.returnType
-      TyArray _ parameterSize <- pure arrayType.value | _ => Nothing
-      TyArray _ resultSize <- pure resultType.value | _ => Nothing
-      ExprCall parameterCallee [] <- pure parameterSize.value | _ => Nothing
-      ExprCall resultCallee [] <- pure resultSize.value | _ => Nothing
+      TyArray _ parameterSize <- pure arrayType.nodeValue | _ => Nothing
+      TyArray _ resultSize <- pure resultType.nodeValue | _ => Nothing
+      ExprCall parameterCallee [] <- pure parameterSize.nodeValue | _ => Nothing
+      ExprCall resultCallee [] <- pure resultSize.nodeValue | _ => Nothing
       parameterOK <- useMatches resolved size.functionName parameterCallee
       resultOK <- useMatches resolved size.functionName resultCallee
       pure (parameterOK && resultOK)) `shouldBe` Right True
@@ -531,63 +531,63 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       `shouldBe` Right ("f", ("resolution-test.lf", 2, 4, 2, 5), ("resolution-test.lf", 1, 7, 1, 8))
 
   test "call callee and every argument have value references in the body scope" $
-    expressionUses "g(x, n)" ["g", "x", "n"] (\expression => case expression.value of
+    expressionUses "g(x, n)" ["g", "x", "n"] (\expression => case expression.nodeValue of
       ExprCall callee arguments => Just (callee :: arguments)
       _ => Nothing) `shouldBe` Right True
 
   test "tuple elements resolve each name occurrence" $
-    expressionUses "(x, n)" ["x", "n"] (\expression => case expression.value of
+    expressionUses "(x, n)" ["x", "n"] (\expression => case expression.nodeValue of
       ExprTuple elements => Just (forget elements)
       _ => Nothing) `shouldBe` Right True
 
   test "array elements resolve each name occurrence" $
-    expressionUses "[x, n]" ["x", "n"] (\expression => case expression.value of
+    expressionUses "[x, n]" ["x", "n"] (\expression => case expression.nodeValue of
       ExprArray elements => Just elements
       _ => Nothing) `shouldBe` Right True
 
   test "repeated arrays resolve both their element and count" $
-    expressionUses "[x; N]" ["x", "N"] (\expression => case expression.value of
+    expressionUses "[x; N]" ["x", "N"] (\expression => case expression.nodeValue of
       ExprRepeatedArray element count => Just [element, count]
       _ => Nothing) `shouldBe` Right True
 
   test "indexing resolves the object and the index" $
-    expressionUses "a[i]" ["a", "i"] (\expression => case expression.value of
+    expressionUses "a[i]" ["a", "i"] (\expression => case expression.nodeValue of
       ExprIndex object index => Just [object, index]
       _ => Nothing) `shouldBe` Right True
 
   test "ranges resolve both endpoints" $
-    expressionUses "i..n" ["i", "n"] (\expression => case expression.value of
+    expressionUses "i..n" ["i", "n"] (\expression => case expression.nodeValue of
       ExprRange (Just start) _ (Just end) => Just [start, end]
       _ => Nothing) `shouldBe` Right True
 
   test "ranges without an upper bound resolve their start" $
-    expressionUses "i.." ["i"] (\expression => case expression.value of
+    expressionUses "i.." ["i"] (\expression => case expression.nodeValue of
       ExprRange (Just start) _ Nothing => Just [start]
       _ => Nothing) `shouldBe` Right True
 
   test "ranges without a lower bound resolve their end" $
-    expressionUses "..n" ["n"] (\expression => case expression.value of
+    expressionUses "..n" ["n"] (\expression => case expression.nodeValue of
       ExprRange Nothing _ (Just end) => Just [end]
       _ => Nothing) `shouldBe` Right True
 
   test "unary operands retain their reference and enclosing scope" $
-    expressionUses "-x" ["x"] (\expression => case expression.value of
+    expressionUses "-x" ["x"] (\expression => case expression.nodeValue of
       ExprUnary _ operand => Just [operand]
       _ => Nothing) `shouldBe` Right True
 
   test "both binary operands retain their references and enclosing scope" $
-    expressionUses "x + n" ["x", "n"] (\expression => case expression.value of
+    expressionUses "x + n" ["x", "n"] (\expression => case expression.nodeValue of
       ExprBinary _ left right => Just [left, right]
       _ => Nothing) `shouldBe` Right True
 
   test "casts resolve their operand and expressions in the target type" $
     expressionUses "a as [i32; N]" ["a", "N"] (\expression => do
-      ExprCast operand target <- pure expression.value | _ => Nothing
-      TyArray _ size <- pure target.value | _ => Nothing
+      ExprCast operand target <- pure expression.nodeValue | _ => Nothing
+      TyArray _ size <- pure target.nodeValue | _ => Nothing
       pure [operand, size]) `shouldBe` Right True
 
   test "tuple indexing resolves its base expression" $
-    expressionUses "pair.0" ["pair"] (\expression => case expression.value of
+    expressionUses "pair.0" ["pair"] (\expression => case expression.nodeValue of
       ExprTupleIndex tuple "0" => Just [tuple]
       _ => Nothing) `shouldBe` Right True
 
@@ -596,7 +596,7 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       (_, fn) <- functionNamed "f" resolved
       [a, i, x] <- parameterNames fn | _ => Nothing
       assignment <- assignmentAt 0 fn.functionBody
-      AssignTargetIndex object index <- pure assignment.assignmentTarget.value | _ => Nothing
+      AssignTargetIndex object index <- pure assignment.assignmentTarget.nodeValue | _ => Nothing
       scope <- scopeFor resolved fn.functionBody
       reads <- usesInScope resolved scope.id [(a, object), (i, index), (x, assignment.assignmentValue)]
       pure (reads && nodeHasScope resolved scope.id assignment.assignmentTarget &&
@@ -607,7 +607,7 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       (_, fn) <- functionNamed "f" resolved
       [pair, x] <- parameterNames fn | _ => Nothing
       assignment <- assignmentAt 0 fn.functionBody
-      AssignTargetTupleIndex object "0" <- pure assignment.assignmentTarget.value | _ => Nothing
+      AssignTargetTupleIndex object "0" <- pure assignment.assignmentTarget.nodeValue | _ => Nothing
       scope <- scopeFor resolved fn.functionBody
       reads <- usesInScope resolved scope.id [(pair, object), (x, assignment.assignmentValue)]
       pure (reads && nodeHasScope resolved scope.id assignment.assignmentTarget &&
@@ -620,7 +620,7 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       (_, fn) <- functionNamed "f" resolved
       [pair, x] <- parameterNames fn | _ => Nothing
       assignment <- assignmentAt 0 fn.functionBody
-      AssignTargetField object field <- pure assignment.assignmentTarget.value | _ => Nothing
+      AssignTargetField object field <- pure assignment.assignmentTarget.nodeValue | _ => Nothing
       scope <- scopeFor resolved fn.functionBody
       reads <- usesInScope resolved scope.id [(pair, object), (x, assignment.assignmentValue)]
       pure (reads && nodeHasScope resolved scope.id assignment.assignmentTarget &&
@@ -635,11 +635,11 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       [xp, yp] <- pure fn.functionParameters | _ => Nothing
       [x, y] <- parameterNames fn | _ => Nothing
       assignment <- assignmentAt 0 fn.functionBody
-      AssignTargetName target <- pure assignment.assignmentTarget.value | _ => Nothing
-      ExprName yRead <- pure assignment.assignmentValue.value | _ => Nothing
+      AssignTargetName target <- pure assignment.assignmentTarget.nodeValue | _ => Nothing
+      ExprName yRead <- pure assignment.assignmentValue.nodeValue | _ => Nothing
       scope <- scopeFor resolved fn.functionBody
       reads <- usesInScope resolved scope.id [(y, assignment.assignmentValue)]
-      pure (reads && symbolId target == symbolId x && assignment.assignmentOperator.value == AssignAdd &&
+      pure (reads && symbolId target == symbolId x && assignment.assignmentOperator.nodeValue == AssignAdd &&
             nodeHasScope resolved scope.id assignment.assignmentValue &&
             nodeHasScope resolved scope.id assignment.assignmentTarget &&
             nodeHasScope resolved scope.id target &&
@@ -656,21 +656,21 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       [ap, ip] <- pure fn.functionParameters | _ => Nothing
       [a, i] <- parameterNames fn | _ => Nothing
       assignment <- assignmentAt 0 fn.functionBody
-      AssignTargetIndex object index <- pure assignment.assignmentTarget.value | _ => Nothing
-      ExprName aRead <- pure object.value | _ => Nothing
+      AssignTargetIndex object index <- pure assignment.assignmentTarget.nodeValue | _ => Nothing
+      ExprName aRead <- pure object.nodeValue | _ => Nothing
       block <- blockBody index
       localBinding <- letAt 0 block
       local <- binder localBinding.letPattern
-      final <- block.value.finalExpression
-      ExprName localRead <- pure final.value | _ => Nothing
+      final <- block.nodeValue.finalExpression
+      ExprName localRead <- pure final.nodeValue | _ => Nothing
       after <- exprAt 1 fn.functionBody
-      ExprName outerRead <- pure after.value | _ => Nothing
+      ExprName outerRead <- pure after.nodeValue | _ => Nothing
       bodyScope <- scopeFor resolved fn.functionBody
       indexScope <- scopeFor resolved block
       objectOK <- useMatches resolved a object
       localOK <- useMatches resolved local final
       afterOK <- useMatches resolved i after
-      pure (assignment.assignmentOperator.value == AssignAdd &&
+      pure (assignment.assignmentOperator.nodeValue == AssignAdd &&
             objectOK && localOK && afterOK && symbolId local /= symbolId i &&
             indexScope.parent == Just bodyScope.id &&
             blockScopesMatchNodes resolved && bindingMatches indexScope local &&
@@ -689,7 +689,7 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
     checkSource "fn f(mut a: [i32; 2]) { a[{ 0 }] += 1; }" (\resolved => do
       (_, fn) <- functionNamed "f" resolved
       assignment <- assignmentAt 0 fn.functionBody
-      AssignTargetIndex _ index <- pure assignment.assignmentTarget.value | _ => Nothing
+      AssignTargetIndex _ index <- pure assignment.assignmentTarget.nodeValue | _ => Nothing
       block <- blockBody index
       indexScope <- scopeFor resolved block
       pure (blockScopesMatchNodes resolved && isBlock indexScope &&
@@ -708,19 +708,19 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       (_, con) <- constantNamed "n" resolved
       (_, fn) <- functionNamed "f" resolved
       [parameter] <- pure fn.functionParameters | _ => Nothing
-      NormalParameter _ _ _ referenceType <- pure parameter.value | _ => Nothing
-      TyReference _ tupleType <- pure referenceType.value | _ => Nothing
-      TyTuple (arrayType ::: [sliceReference]) <- pure tupleType.value | _ => Nothing
-      TyArray elementType parameterSize <- pure arrayType.value | _ => Nothing
-      TyReference _ sliceType <- pure sliceReference.value | _ => Nothing
-      TySlice sliceElement <- pure sliceType.value | _ => Nothing
+      NormalParameter _ _ _ referenceType <- pure parameter.nodeValue | _ => Nothing
+      TyReference _ tupleType <- pure referenceType.nodeValue | _ => Nothing
+      TyTuple (arrayType ::: [sliceReference]) <- pure tupleType.nodeValue | _ => Nothing
+      TyArray elementType parameterSize <- pure arrayType.nodeValue | _ => Nothing
+      TyReference _ sliceType <- pure sliceReference.nodeValue | _ => Nothing
+      TySlice sliceElement <- pure sliceType.nodeValue | _ => Nothing
       returnType <- fn.returnType
-      TyArray returnElement returnSize <- pure returnType.value | _ => Nothing
+      TyArray returnElement returnSize <- pure returnType.nodeValue | _ => Nothing
       local <- letAt 0 fn.functionBody
       localType <- local.letTypeAnnotation
-      TyArray localElement localSize <- pure localType.value | _ => Nothing
+      TyArray localElement localSize <- pure localType.nodeValue | _ => Nothing
       init <- initializer local
-      ExprRepeatedArray zero count <- pure init.value | _ => Nothing
+      ExprRepeatedArray zero count <- pure init.nodeValue | _ => Nothing
       functionScope <- scopeFor resolved parameter
       bodyScope <- scopeFor resolved fn.functionBody
       signatureUses <- usesInScope resolved functionScope.id [(con.constName, parameterSize), (con.constName, returnSize)]
@@ -736,8 +736,8 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
     checkSource "const N: i32 = 2; fn f(a: [i32; 2]) { a as [i32; N]; }" (\resolved => do
       (_, fn) <- functionNamed "f" resolved
       expression <- exprAt 0 fn.functionBody
-      ExprCast _ target <- pure expression.value | _ => Nothing
-      TyArray element _ <- pure target.value | _ => Nothing
+      ExprCast _ target <- pure expression.nodeValue | _ => Nothing
+      TyArray element _ <- pure target.nodeValue | _ => Nothing
       scope <- scopeFor resolved fn.functionBody
       pure (nodeHasScope resolved scope.id expression &&
             all (nodeHasScope resolved scope.id) [target, element])) `shouldBe` Right True
@@ -746,15 +746,15 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
     checkSource "fn f() { let (a, [_, b]) = (1, [2, 3]); }" (\resolved => do
       (_, fn) <- functionNamed "f" resolved
       binding <- letAt 0 fn.functionBody
-      PatternTuple (aPattern ::: [arrayPattern]) <- pure binding.letPattern.value | _ => Nothing
-      PatternArray [wildcard, bPattern] <- pure arrayPattern.value | _ => Nothing
-      PatternWildcard <- pure wildcard.value | _ => Nothing
+      PatternTuple (aPattern ::: [arrayPattern]) <- pure binding.letPattern.nodeValue | _ => Nothing
+      PatternArray [wildcard, bPattern] <- pure arrayPattern.nodeValue | _ => Nothing
+      PatternWildcard <- pure wildcard.nodeValue | _ => Nothing
       a <- binder aPattern
       b <- binder bPattern
       scope <- scopeFor resolved fn.functionBody
       init <- initializer binding
-      ExprTuple (one ::: [arrayExpression]) <- pure init.value | _ => Nothing
-      ExprArray [two, three] <- pure arrayExpression.value | _ => Nothing
+      ExprTuple (one ::: [arrayExpression]) <- pure init.nodeValue | _ => Nothing
+      ExprArray [two, three] <- pure arrayExpression.nodeValue | _ => Nothing
       pure (all (nodeHasScope resolved scope.id) [binding.letPattern, aPattern, arrayPattern, wildcard, bPattern] &&
             all (nodeHasScope resolved scope.id) [init, one, arrayExpression, two, three] &&
             (scope.declaredSymbolsInOrder <>> []) == [symbolId a, symbolId b] &&
@@ -778,9 +778,9 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       xUseExpr <- initializer first
       y1UseExpr <- initializer second
       y2UseExpr <- exprAt 2 fn.functionBody
-      ExprName xUse <- pure xUseExpr.value | _ => Nothing
-      ExprName y1Use <- pure y1UseExpr.value | _ => Nothing
-      ExprName y2Use <- pure y2UseExpr.value | _ => Nothing
+      ExprName xUse <- pure xUseExpr.nodeValue | _ => Nothing
+      ExprName y1Use <- pure y1UseExpr.nodeValue | _ => Nothing
+      ExprName y2Use <- pure y2UseExpr.nodeValue | _ => Nothing
       root <- lookup resolved.rootScope resolved.tables.scopes
       functionScope <- scopeFor resolved parameter
       bodyScope <- scopeFor resolved fn.functionBody
@@ -811,7 +811,7 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       (firstInfo, first) <- constantNamed "first" resolved
       (laterInfo, later) <- constantNamed "later" resolved
       (fnInfo, fn) <- functionNamed "f" resolved
-      ExprName forward <- pure first.constValue.value | _ => Nothing
+      ExprName forward <- pure first.constValue.nodeValue | _ => Nothing
       firstUse <- exprAt 0 fn.functionBody
       laterUse <- exprAt 1 fn.functionBody
       body <- scopeFor resolved fn.functionBody
@@ -847,7 +847,7 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       (_, con) <- constantNamed "U" resolved
       (_, fn) <- functionNamed "f" resolved
       binding <- letAt 0 fn.functionBody
-      PatternTuple patterns <- pure binding.letPattern.value | _ => Nothing
+      PatternTuple patterns <- pure binding.letPattern.nodeValue | _ => Nothing
       [xPattern, first, second] <- pure (forget patterns) | _ => Nothing
       x <- binder xPattern
       final <- exprAt 1 fn.functionBody
@@ -864,7 +864,7 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       (_, con) <- constantNamed "U" resolved
       (_, fn) <- functionNamed "f" resolved
       binding <- letAt 0 fn.functionBody
-      PatternArray [first, second] <- pure binding.letPattern.value | _ => Nothing
+      PatternArray [first, second] <- pure binding.letPattern.nodeValue | _ => Nothing
       pure (constantPatternMatches resolved con.constName first &&
             constantPatternMatches resolved con.constName second &&
             null (SortedMap.toList resolved.tables.localVarsMeta))) `shouldBe` Right True
@@ -895,7 +895,7 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       (_, con) <- constantNamed "U" resolved
       (_, fn) <- functionNamed "f" resolved
       loop <- returnedAt 0 fn.functionBody
-      ExprFor pattern _ body <- pure loop.value | _ => Nothing
+      ExprFor pattern _ body <- pure loop.nodeValue | _ => Nothing
       use <- exprAt 0 body
       useOK <- useMatches resolved con.constName use
       pure (constantPatternMatches resolved con.constName pattern && useOK &&
@@ -906,8 +906,8 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       (_, con) <- constantNamed "U" resolved
       (_, fn) <- functionNamed "f" resolved
       loop <- returnedAt 0 fn.functionBody
-      ExprFor pattern _ body <- pure loop.value | _ => Nothing
-      PatternTuple patterns <- pure pattern.value | _ => Nothing
+      ExprFor pattern _ body <- pure loop.nodeValue | _ => Nothing
+      PatternTuple patterns <- pure pattern.nodeValue | _ => Nothing
       [first, second] <- pure (forget patterns) | _ => Nothing
       loopScope <- scopeFor resolved pattern
       use <- exprAt 0 body
@@ -1020,21 +1020,21 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       [parameter] <- pure fn.functionParameters | _ => Nothing
       [x] <- parameterNames fn | _ => Nothing
       repeated <- exprAt 0 fn.functionBody
-      ExprRepeatedArray _ outerCount <- pure repeated.value | _ => Nothing
+      ExprRepeatedArray _ outerCount <- pure repeated.nodeValue | _ => Nothing
       outerBlock <- blockBody outerCount
       nBinding <- letAt 0 outerBlock
       n <- binder nBinding.letPattern
       innerRepeated <- exprAt 1 outerBlock
-      ExprRepeatedArray _ innerCount <- pure innerRepeated.value | _ => Nothing
+      ExprRepeatedArray _ innerCount <- pure innerRepeated.nodeValue | _ => Nothing
       innerBlock <- blockBody innerCount
       mBinding <- letAt 0 innerBlock
       m <- binder mBinding.letPattern
-      mUse <- innerBlock.value.finalExpression
-      nUse <- outerBlock.value.finalExpression
+      mUse <- innerBlock.nodeValue.finalExpression
+      nUse <- outerBlock.nodeValue.finalExpression
       xUse <- exprAt 1 fn.functionBody
-      ExprName mRead <- pure mUse.value | _ => Nothing
-      ExprName nRead <- pure nUse.value | _ => Nothing
-      ExprName xRead <- pure xUse.value | _ => Nothing
+      ExprName mRead <- pure mUse.nodeValue | _ => Nothing
+      ExprName nRead <- pure nUse.nodeValue | _ => Nothing
+      ExprName xRead <- pure xUse.nodeValue | _ => Nothing
       bodyScope <- scopeFor resolved fn.functionBody
       outerScope <- scopeFor resolved outerBlock
       innerScope <- scopeFor resolved innerBlock
@@ -1072,17 +1072,17 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       `shouldBe` Right [("x", "parameter"), ("x", "parameter"), ("x", "parameter"), ("x", "parameter")]
 
   test "method calls resolve the receiver and arguments but not the method name" $
-    expressionUses "x.missing(n)" ["x", "n"] (\expression => case expression.value of
+    expressionUses "x.missing(n)" ["x", "n"] (\expression => case expression.nodeValue of
       ExprMethodCall receiver _ arguments => Just (receiver :: arguments)
       _ => Nothing) `shouldBe` Right True
 
   test "field reads resolve the object but not the field name" $
-    expressionUses "pair.missing" ["pair"] (\expression => case expression.value of
+    expressionUses "pair.missing" ["pair"] (\expression => case expression.nodeValue of
       ExprField object _ => Just [object]
       _ => Nothing) `shouldBe` Right True
 
   test "return values are resolved" $
-    expressionUses "return x" ["x"] (\expression => case expression.value of
+    expressionUses "return x" ["x"] (\expression => case expression.nodeValue of
       ExprReturn (Just value) => Just [value]
       _ => Nothing) `shouldBe` Right True
 
@@ -1109,8 +1109,8 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       outer <- binder outerBinding.letPattern
       after <- exprAt 2 fn.functionBody
       block <- exprAt 1 fn.functionBody >>= blockBody
-      loop <- block.value.finalExpression
-      ExprFor pattern _ body <- pure loop.value | _ => Nothing
+      loop <- block.nodeValue.finalExpression
+      ExprFor pattern _ body <- pure loop.nodeValue | _ => Nothing
       loopName <- binder pattern
       inner <- exprAt 0 body
       innerOK <- useMatches resolved loopName inner
@@ -1250,8 +1250,8 @@ runSymbolAndScopeResolutionTests = runTests $ Test.do
       (_, f) <- functionNamed "f" resolved
       constantAssignment <- assignmentAt 0 f.functionBody
       functionAssignment <- assignmentAt 1 f.functionBody
-      AssignTargetName constantTarget <- pure constantAssignment.assignmentTarget.value | _ => Nothing
-      AssignTargetName functionTarget <- pure functionAssignment.assignmentTarget.value | _ => Nothing
+      AssignTargetName constantTarget <- pure constantAssignment.assignmentTarget.nodeValue | _ => Nothing
+      AssignTargetName functionTarget <- pure functionAssignment.assignmentTarget.nodeValue | _ => Nothing
       pure (symbolId constantTarget == symbolId con.constName &&
             symbolId functionTarget == symbolId g.functionName &&
             referenceMatches resolved AssignmentTarget constantAssignment.assignmentTarget.astInfo.nodeId constantTarget &&

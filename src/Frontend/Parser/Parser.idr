@@ -333,7 +333,7 @@ parseQualifiedQbit typeNodeId qualifier nodeId
         remaining
 parseQualifiedQbit _ qualifier _ ((B token bounds) :: _) =
   failWithCustomError
-    (ParseErrorWithMessage (qualifiedNonQbitMessage qualifier.value token))
+    (ParseErrorWithMessage (qualifiedNonQbitMessage qualifier.nodeValue token))
     bounds
 parseQualifiedQbit _ _ _ [] = Fail0 (B EOI NoBounds)
 
@@ -2624,7 +2624,7 @@ invalidItemAfterPrefix itemPrefix token bounds =
     PrefixEffect _ locatedEffect =>
       failWithCustomError
         (ParseErrorWithMessage
-          "Expected `fn` after `\{show locatedEffect.value}` effect modifier, found instead: `\{interpolate token}`.")
+          "Expected `fn` after `\{show locatedEffect.nodeValue}` effect modifier, found instead: `\{interpolate token}`.")
         bounds
     PrefixOrdinary visibility =>
       case visibility of
@@ -2649,7 +2649,7 @@ invalidItemAfterPrefix itemPrefix token bounds =
     PrefixConstEffect _ _ locatedEffect =>
       failWithCustomError
         (ParseErrorWithMessage
-          "Expected `fn` after `\{show locatedEffect.value}` effect modifier, found instead: `\{interpolate token}`.")
+          "Expected `fn` after `\{show locatedEffect.nodeValue}` effect modifier, found instead: `\{interpolate token}`.")
         bounds
 
 ||| Dispatches the item keyword after attributes, visibility, constness, and effect

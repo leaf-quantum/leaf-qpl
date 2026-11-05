@@ -37,8 +37,8 @@ pathTarget {astPhase = SurfaceAstPhase} _ =
   unreachable {function = "pathTarget"} {reason = "type paths are resolved before typechecking"}
 pathTarget {astPhase = CanonicalAstPhase} _ =
   unreachable {function = "pathTarget"} {reason = "type paths are resolved before typechecking"}
-pathTarget {astPhase = ResolvedAstPhase} path = path.value.resolvedPathTargetSymbolId
-pathTarget {astPhase = TypedAstPhase} path = path.value.resolvedPathTargetSymbolId
+pathTarget {astPhase = ResolvedAstPhase} path = path.nodeValue.resolvedPathTargetSymbolId
+pathTarget {astPhase = TypedAstPhase} path = path.nodeValue.resolvedPathTargetSymbolId
 
 ||| Translate a written type into the semantic type it denotes, or
 ||| TypeNotYetResolved when an array length needs const evaluation.
@@ -61,12 +61,12 @@ toInferredType typeAstNode@(MkAstNode _ _ typeNode) =
     TySlice elementType =>
       LeafSliceType <$> recur elementType
     TyReference borrowKind referencedType =>
-      quantumMultiplicityFreeReference borrowKind.value <$> recur referencedType
+      quantumMultiplicityFreeReference borrowKind.nodeValue <$> recur referencedType
     TyQualified multiplicityQualifier qualifiedType =>
-      LeafQualifiedType multiplicityQualifier.value <$> recur qualifiedType
+      LeafQualifiedType multiplicityQualifier.nodeValue <$> recur qualifiedType
     TyFunction functionEffect functionParameters returnType =>
-      LeafFunctionType (maybe EffectGeneral (.value) functionEffect) []
-        <$> traverse (\parameter => recur parameter.value.parameterType) functionParameters
+      LeafFunctionType (maybe EffectGeneral (.nodeValue) functionEffect) []
+        <$> traverse (\parameter => recur parameter.nodeValue.parameterType) functionParameters
         <*> maybe (Just LeafUnitType) recur returnType
   where
     resolvedLeafType : InferredType -> Maybe LeafType

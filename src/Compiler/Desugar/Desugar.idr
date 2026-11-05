@@ -42,7 +42,7 @@ desugarAttribute defaultArgName nextId (MkAstNode attributeInfo metadata (MkAttr
     desugarArguments : Maybe (List(AttributeArgument SurfaceAstPhase)) -> (Maybe (List (AttributeArgument CanonicalAstPhase)), Nat)
     desugarArguments (Just args) = (Just ((map desugarAstNode) args), nextId)
     desugarArguments Nothing =
-      case recognizeKnownAttribute name.value.nameNodeText of
+      case recognizeKnownAttribute name.nodeValue.nameNodeText of
         Just KnownQasmGate => (defaultArg, S nextId)
         Just KnownQasmDef  => (defaultArg, S nextId)
         Nothing            => (Nothing, nextId)
@@ -66,7 +66,7 @@ desugarPattern (MkAstNode patternInfo _ patternNode) =
       PatternLiteral literal =>
         PatternLiteral (desugarAstNode literal)
       PatternParenthesized innerPattern =>
-        (recur innerPattern).value
+        (recur innerPattern).nodeValue
       PatternTuple elementPatterns =>
         PatternTuple (map recur elementPatterns)
       PatternArray elementPatterns =>
@@ -115,7 +115,7 @@ mutual
       ExprPath path => ExprPath (desugarPath path)
       ExprBuiltin builtin => ExprBuiltin builtin
       ExprSelf selfReceiver => ExprSelf selfReceiver
-      ExprParenthesized inner => (desugarNestedExpression inner).value
+      ExprParenthesized inner => (desugarNestedExpression inner).nodeValue
       ExprTuple elements => ExprTuple (map desugarNestedExpression elements)
       ExprArray elements => ExprArray (map desugarNestedExpression elements)
       ExprRepeatedArray element count => ExprRepeatedArray (desugarNestedExpression element) (desugarNestedExpression count)
@@ -264,7 +264,7 @@ mutual
         TyUnit =>
           TyUnit
         TyParenthesized innerType =>
-          (desugarNestedType innerType).value
+          (desugarNestedType innerType).nodeValue
         TyTuple elementTypes =>
           TyTuple (map desugarNestedType elementTypes)
         TyArray elementType sizeExpression =>
@@ -447,7 +447,7 @@ desugarFunctionBody (MkAstNode functionBodyAstInfo metadata (MkBlockNode blockIn
       desugarFinalExpression (Just finalExpression@(MkAstNode finalExpressionInfo _ _)) =
         let statementSemiExpressionInfo = { span := finalExpressionInfo.span } (incrementedAstInfo functionBodyAstInfo 1)
             desugaredFinalExpression = desugarExpression finalExpression
-        in case desugaredFinalExpression.value of
+        in case desugaredFinalExpression.nodeValue of
           ExprReturn _ =>
             [canonicalAstNode statementSemiExpressionInfo DesugaredReturnStatement (StatementSemiExpression desugaredFinalExpression)]
           _ =>
@@ -501,7 +501,7 @@ desugarItem (MkAstNode itemInfo metadata item) =
             contractClauses
             functionBody
           ) = let
-                functionNameString = functionName.value.nameNodeText
+                functionNameString = functionName.nodeValue.nameNodeText
                 (desugaredAttributes, increment) = mapWithId (desugarAttribute functionNameString) 1 functionAttributes
                 (desugaredFunctionEffect, increment) = desugarFunctionEffect functionEffect increment
                 desugaredReturnType = desugarFunctionType returnType increment

@@ -92,7 +92,7 @@ moveLetMultiplicityIntoType qualifiers (Just annotation) =
     insertion :: _ =>
       if any (isNothing . positionQualifier) (ownedPositions annotation)
         then
-          ( filter (\qualifier => qualifier.value == QualifierScratch) qualifiers
+          ( filter (\qualifier => qualifier.nodeValue == QualifierScratch) qualifiers
           , Just (qualifyOwnedQbits insertion annotation)
           )
         else (qualifiers, Just annotation)
