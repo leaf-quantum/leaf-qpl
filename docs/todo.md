@@ -14,6 +14,7 @@ Higher priority:
 - Quantum contracts.
 - Support for mutable variables.
 - Classical subroutines & support in Lean.
+- Rust style generic types and generic const parameters.
 - Quantum conditionals.
   - `qif`+`qelse` & `qmatch`.
   - `sif`+`selse` & `smatch`.
