@@ -196,6 +196,42 @@ data TypeError
   | MissingCapability String SourceSpan                        -- required capability (adjoint or ctrl), ex: adjoint(f) when f has no established adjoint support
   | InvalidQuantumPattern String SourceSpan               -- explanation of the invalid pattern, ex: mixing integer and basis-string patterns in one qmatch, or using _ in smatch.
   | CyclicDeclaration (List String) SourceSpan                 -- symbols involved in a declaration dependency cycle
+  -- Constant evaluation
+  | NotAConstantExpression SourceSpan                          -- non-const or indirect call, for loop or quantum operation in a const context
+  | InvalidArrayLength LeafType SourceSpan                     -- type of a length, repeat count or qalloc count that is not unsigned
+  | ArrayLengthTooLarge Integer SourceSpan                     -- length, repeat count or qalloc count of 2^32 or more
+  | ArithmeticOverflow LeafType SourceSpan                     -- type of the overflowing operation, ex: 255u8 + 1 or 1u8 << 8
+  | DivisionByZeroInConstant SourceSpan
+  | ConstEvaluationLimitExceeded SourceSpan                    -- constant evaluation ran out of steps
+  | InvalidConstantControlFlow String SourceSpan               -- jump keyword leaving a constant expression, ex: [0; { break; 3 }]
+  -- Expressions, patterns and places
+  | UnknownMember String SourceSpan                            -- member name; no supported type has named fields or methods
+  | InvalidBuiltinContext String SourceSpan                    -- builtin used outside a call or a valid position, ex: let m = measr;
+  | UnsupportedFeature String SourceSpan                       -- excluded construct, ex: qstate, tensor, a string literal outside Param
+  | IndexOutOfBounds Integer Nat SourceSpan                    -- index, length
+  | UnsizedValue LeafType SourceSpan                           -- unsized type used by value, ex: let s = a[1..3];
+  | MissingRangeEndpoint String SourceSpan                     -- construct needing the endpoint (rev or for), ex: rev(1..)
+  | ReversedRange Integer Integer SourceSpan                   -- start, end, ex: &a[3..1]
+  | WrongPatternArity Nat Nat SourceSpan                       -- value's element count, pattern's element count
+  | RefutableBindingPattern SourceSpan                         -- ex: let ZERO = 0; where ZERO is a constant
+  | MultiplicityMismatch QuantumMultiplicityQualifier QuantumMultiplicityQualifier SourceSpan  -- required, actual, ex: let affine r = H(q); with q linear
+  | BreakValueInUnitLoop SourceSpan                            -- break with a value inside while or for
+  | AssignmentThroughSharedReference SourceSpan                -- ex: r[0] = 0; where r: &[i32]
+  -- Effects and attributes
+  | InvalidAttributeEffect String FunctionEffect SourceSpan    -- attribute, function effect, ex: #[qasm_gate] general fn
+  | JumpOutOfQuantumBlock String SourceSpan                    -- jump keyword leaving a ctrl or adjoint block
+  -- Ownership, initialization and cleanup
+  | LinearQbitNotConsumed SourceSpan                           -- binding or temporary holding a linear qbit that is never consumed
+  | UseAfterMove String SourceSpan                             -- local used after it was moved
+  | UntrackedElementMove SourceSpan                            -- move out of an array through a dynamic index
+  | MoveOutOfBorrow SourceSpan                                 -- move of an owned qbit out through a reference
+  | OverlappingBorrow SourceSpan                               -- access conflicting with a live exclusive loan
+  | MutableBorrowOfImmutable String SourceSpan                 -- local borrowed with &mut but not declared mut
+  | ImmutableAssignment String SourceSpan                      -- local written again without mut
+  | UninitializedPlace String SourceSpan                       -- local read before it is definitely initialized
+  | EscapingReference SourceSpan                               -- reference that outlives its referent
+  | UnprovableCleanup SourceSpan                               -- scratch, := or uncompute without a valid inverse and release
+  | UnprovableTransformation String SourceSpan                 -- adjoint or ctrl region that cannot be transformed
 
 export
 showTypeError : TypeError -> String
@@ -235,6 +271,70 @@ showTypeError typeError =
       at sourceSpan $ "Invalid quantum pattern: " ++ explanation
     CyclicDeclaration symbols sourceSpan =>
       at sourceSpan $ "Cyclic declaration dependency involving symbols " ++ (joinBy ", " $ map (\s => "'" ++ s ++ "'") symbols) ++ "."
+    NotAConstantExpression sourceSpan =>
+      at sourceSpan "This expression cannot be evaluated at compile time."
+    InvalidArrayLength actual sourceSpan =>
+      at sourceSpan $ "An array length, repeat count or qubit count must have an unsigned integer type, but has type '" ++ show actual ++ "'."
+    ArrayLengthTooLarge value sourceSpan =>
+      at sourceSpan $ "The length " ++ show value ++ " does not fit in 'u32'."
+    ArithmeticOverflow operationType sourceSpan =>
+      at sourceSpan $ "Arithmetic overflow in a constant of type '" ++ show operationType ++ "'."
+    DivisionByZeroInConstant sourceSpan =>
+      at sourceSpan "Division by zero in a constant expression."
+    ConstEvaluationLimitExceeded sourceSpan =>
+      at sourceSpan "Constant evaluation exceeded its step limit."
+    InvalidConstantControlFlow jump sourceSpan =>
+      at sourceSpan $ "'" ++ jump ++ "' cannot leave a constant expression."
+    UnknownMember member sourceSpan =>
+      at sourceSpan $ "No member '" ++ member ++ "' exists on this value."
+    InvalidBuiltinContext builtin sourceSpan =>
+      at sourceSpan $ "The builtin '" ++ builtin ++ "' cannot be used here."
+    UnsupportedFeature feature sourceSpan =>
+      at sourceSpan $ "'" ++ feature ++ "' is not supported."
+    IndexOutOfBounds index size sourceSpan =>
+      at sourceSpan $ "Index " ++ show index ++ " is out of bounds for length " ++ show size ++ "."
+    UnsizedValue actual sourceSpan =>
+      at sourceSpan $ "A value of unsized type '" ++ show actual ++ "' must be used through a reference."
+    MissingRangeEndpoint construct sourceSpan =>
+      at sourceSpan $ "The range is missing an endpoint that '" ++ construct ++ "' needs."
+    ReversedRange start end sourceSpan =>
+      at sourceSpan $ "The range " ++ show start ++ ".." ++ show end ++ " runs backwards."
+    WrongPatternArity expected actual sourceSpan =>
+      at sourceSpan $ "The value has " ++ show expected ++ " element(s), but the pattern has " ++ show actual ++ "."
+    RefutableBindingPattern sourceSpan =>
+      at sourceSpan "This pattern does not match every value; a binding needs an irrefutable pattern."
+    MultiplicityMismatch required actual sourceSpan =>
+      at sourceSpan $ "Expected a '" ++ show required ++ "' qbit, but found a '" ++ show actual ++ "' qbit; use weaken to make a linear qbit affine."
+    BreakValueInUnitLoop sourceSpan =>
+      at sourceSpan "A 'while' or 'for' loop cannot break with a value."
+    AssignmentThroughSharedReference sourceSpan =>
+      at sourceSpan "Cannot assign through a shared reference."
+    InvalidAttributeEffect attribute effect sourceSpan =>
+      at sourceSpan $ "The attribute '" ++ attribute ++ "' is not allowed on a function with effect '" ++ show effect ++ "'."
+    JumpOutOfQuantumBlock jump sourceSpan =>
+      at sourceSpan $ "'" ++ jump ++ "' cannot leave a ctrl or adjoint block."
+    LinearQbitNotConsumed sourceSpan =>
+      at sourceSpan "A linear qbit is never consumed; measure, discard or return it."
+    UseAfterMove name sourceSpan =>
+      at sourceSpan $ "Use of '" ++ name ++ "' after it was moved."
+    UntrackedElementMove sourceSpan =>
+      at sourceSpan "Cannot move an array element out through a dynamic index."
+    MoveOutOfBorrow sourceSpan =>
+      at sourceSpan "Cannot move a qbit out through a reference."
+    OverlappingBorrow sourceSpan =>
+      at sourceSpan "This access conflicts with a live exclusive borrow."
+    MutableBorrowOfImmutable name sourceSpan =>
+      at sourceSpan $ "Cannot borrow '" ++ name ++ "' mutably; declare it with 'mut'."
+    ImmutableAssignment name sourceSpan =>
+      at sourceSpan $ "Cannot assign twice to immutable '" ++ name ++ "'; declare it with 'mut'."
+    UninitializedPlace name sourceSpan =>
+      at sourceSpan $ "'" ++ name ++ "' is used before it is initialized."
+    EscapingReference sourceSpan =>
+      at sourceSpan "This reference outlives the value it refers to."
+    UnprovableCleanup sourceSpan =>
+      at sourceSpan "Cannot prove that these qubits can be uncomputed and released."
+    UnprovableTransformation transformation sourceSpan =>
+      at sourceSpan $ "Cannot construct the '" ++ transformation ++ "' transformation of this code."
   where
     at : SourceSpan -> String -> String
     at sourceSpan message = "Type error at \{sourceSpan}: \{message}"
